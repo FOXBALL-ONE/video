@@ -14,11 +14,13 @@ import java.time.LocalDateTime
 
 @Validated
 @RestController
+/** AI 模型提供商配置管理接口，支持单条和批量 CRUD。 */
 class AiModelProviderConfigController(
     private val service: AiModelProviderConfigService,
     private val responseBuilder: ResponseBuilder,
 ) {
     @PostMapping("/api/ai/model-providers")
+    /** 保存提供商配置；api_key 只写入数据库，不包含在响应中。 */
     fun save(
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
         @RequestParam("model_name") @NotBlank @Size(max = 100) modelName: String,
@@ -59,6 +61,7 @@ class AiModelProviderConfigController(
     }
     
     @GetMapping("/api/ai/model-providers/{id}")
+    /** 按主键查询提供商配置。 */
     fun get(@PathVariable("id") id: Long): ResponseEntity<Response> {
         data class ResponseData(
             val id: Long,
@@ -84,6 +87,7 @@ class AiModelProviderConfigController(
     }
     
     @GetMapping("/api/ai/model-providers")
+    /** 按主键批量查询提供商配置。 */
     fun getBatch(@RequestParam("ids") ids: List<Long>): ResponseEntity<Response> {
         data class ConfigData(
             val id: Long,
@@ -105,6 +109,7 @@ class AiModelProviderConfigController(
     }
     
     @PutMapping("/api/ai/model-providers/{id}")
+    /** 更新提供商配置；未传或为空的 api_key 保留原值。 */
     fun update(
         @PathVariable("id") id: Long,
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
@@ -139,12 +144,14 @@ class AiModelProviderConfigController(
     }
     
     @DeleteMapping("/api/ai/model-providers/{id}")
+    /** 删除单个提供商配置。 */
     fun delete(@PathVariable("id") id: Long): ResponseEntity<Response> {
         if (!service.deleteById(id)) return responseBuilder.notFound().build()
         return responseBuilder.ok().data(mapOf("id" to id, "deleted" to true)).build()
     }
     
     @DeleteMapping("/api/ai/model-providers")
+    /** 批量删除提供商配置，并返回实际删除的主键。 */
     fun deleteBatch(@RequestParam("ids") ids: List<Long>): ResponseEntity<Response> {
         val deletedIds = service.deleteAllByIds(ids)
         return responseBuilder.ok().data(mapOf("ids" to deletedIds, "deleted" to deletedIds.size)).build()

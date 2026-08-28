@@ -5,10 +5,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
-/** 构造统一 [ResponseEntity]/[Response] 的建造者，封装常见 HTTP 状态及分页/重试头。 */
+/** 构造统一 [ResponseEntity]/[Response] 的建造者，封装常见 HTTP 状态和响应头。 */
 @Component
 class ResponseBuilder {
 
+    /** 创建 200 OK 响应构造器。 */
     fun ok(): Builder = Builder(ResponseCode.OK)
 
     fun created(): Builder = Builder(ResponseCode.CREATED)
@@ -56,6 +57,7 @@ class ResponseBuilder {
             this.customMessage = message
         }
 
+        /** 设置响应业务数据；未设置时使用空对象。 */
         fun data(data: Any?) = apply {
             this.data = data
         }
@@ -72,6 +74,7 @@ class ResponseBuilder {
             this.headers.add("Retry-After", seconds.toString())
         }
 
+        /** 构造最终的 ResponseEntity。 */
         fun build(): ResponseEntity<Response> {
             val finalData = this.data ?: HashMap<String, Any?>()
 

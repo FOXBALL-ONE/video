@@ -9,11 +9,13 @@ import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
 
 @RestController
+/** 用户查询接口。 */
 class UserController(
     private val userService: UserService,
     private val responseBuilder: ResponseBuilder,
 ) {
     @GetMapping("/api/users/{id}")
+    /** 根据路径中的用户 ID 查询用户基本信息。 */
     fun getUser(@PathVariable("id") id: Long): ResponseEntity<Response> {
         data class UserData(
             val id: Long,
