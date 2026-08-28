@@ -6,6 +6,7 @@ plugins {
     id("org.hibernate.orm") version "7.4.5.Final"
     id("org.graalvm.buildtools.native") version "1.1.8"
     kotlin("plugin.jpa") version "2.3.21"
+    kotlin("plugin.lombok") version "2.3.21"
 }
 
 group = "top.foxball"
@@ -25,11 +26,9 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-data-redis")
-    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-restclient")
-    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -51,6 +50,7 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testAnnotationProcessor("org.projectlombok:lombok")
+    testImplementation(kotlin("test"))
 }
 
 kotlin {

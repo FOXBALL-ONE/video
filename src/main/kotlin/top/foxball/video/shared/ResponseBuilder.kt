@@ -1,12 +1,11 @@
-package top.foxball.shopmall.shared
+package top.foxball.video.shared
 
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
-import top.foxball.shopmall.shared.Response
 
-/** 构造统一 [org.springframework.http.ResponseEntity]/[top.foxball.shopmall.shared.Response] 的建造者，封装常见 HTTP 状态及分页/重试头。 */
+/** 构造统一 [ResponseEntity]/[Response] 的建造者，封装常见 HTTP 状态及分页/重试头。 */
 @Component
 class ResponseBuilder {
 
