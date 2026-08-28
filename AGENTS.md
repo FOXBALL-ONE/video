@@ -5,18 +5,6 @@
 - Write Git commit subjects and body descriptions in Simplified Chinese. Conventional Commit type and
   scope prefixes, such as `feat(frontend):`, may remain in English.
 
-## Frontend Directory Responsibilities
-
-- `AdminPanelUI/` is the administration frontend used by administrators and internal operators.
-- `frontend/` is the customer-facing frontend used by ShopMall customers.
-- Place frontend changes in the directory matching the intended audience; do not treat these two
-  applications as interchangeable.
-- In `AdminPanelUI/`, validation feedback must state the exact accepted format or constraint so an
-  administrator can correct the input directly. Do not use only vague messages such as "invalid format",
-  "invalid value", or "enter a valid value" when the actual rule is known.
-- In `AdminPanelUI/`, show known input format and constraint rules as concise secondary text directly below
-  the relevant input control, in addition to retaining validation feedback shown after invalid submission.
-
 ## Controller Conventions
 
 Follow `docs/CONTROLLER_CONVENTIONS.md` and the established style in `UserController`,
@@ -56,6 +44,3 @@ Follow `docs/CONTROLLER_CONVENTIONS.md` and the established style in `UserContro
 - Bind `LocalDateTime` directly for JDBC date-time parameters. Do not pass `Instant` directly to
   `JdbcTemplate`; convert it to the intended local date-time first when integration boundaries require it.
 
-## Currency Convention
-
-- The project's default business and order currency is `USD`.
