@@ -37,11 +37,11 @@ function handleSelect(key) {
   if (key.startsWith('project:')) {
     const projectId = key.slice('project:'.length)
     switchProject(projectId)
-    if (route.path !== '/') navigateTo('/')
+    if (!route.path.startsWith('/graph')) navigateTo('/graph')
     else message.success('项目已切换')
     return
   }
-  if (key === 'manage-projects') navigateTo('/projects')
-  if (key === 'create-project') navigateTo({ path: '/projects', query: { create: '1' } })
+  if (key === 'manage-projects') navigateTo('/graph/projects')
+  if (key === 'create-project') navigateTo({ path: '/graph/projects', query: { create: '1' } })
 }
 </script>

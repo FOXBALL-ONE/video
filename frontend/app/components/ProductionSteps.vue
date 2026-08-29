@@ -32,7 +32,7 @@ const steps = [
   { id: 'shots', title: '分镜管理', caption: '景别、运镜、动作与连续性', icon: '▦' },
   { id: 'video', title: '视频制作', caption: '画面、配音、音效与合成', icon: '▶' }
 ]
-const routes = { script: '/script', assets: '/assets', shots: '/shots', video: '/video' }
+const routes = { script: '/graph/script', assets: '/graph/assets', shots: '/graph/shots', video: '/graph/video' }
 </script>
 
 <style scoped>

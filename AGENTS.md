@@ -44,3 +44,7 @@ Follow `docs/CONTROLLER_CONVENTIONS.md` and the established style in `UserContro
 - Bind `LocalDateTime` directly for JDBC date-time parameters. Do not pass `Instant` directly to
   `JdbcTemplate`; convert it to the intended local date-time first when integration boundaries require it.
 
+## Frontend Language Convention
+
+- Frontend source code must use TypeScript. New or modified Vue, composable, store, type, and utility
+  files must use `.ts` or Vue SFCs with TypeScript; do not add new `.js` files.

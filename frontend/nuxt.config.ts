@@ -9,13 +9,18 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   devServer:{
     host:"0.0.0.0",
-    port: 8048
+    port: 8474
   },
+  runtimeConfig: {
+    public: {
+      apiBase:'http://127.0.0.1:8080/api'
+    }
+  },
+
   modules: [
     '@nuxt/eslint',
     '@nuxtjs/tailwindcss',
     '@pinia/nuxt',
-    'dayjs-nuxt',
     '@bg-dev/nuxt-naiveui'
   ],
   vite: {

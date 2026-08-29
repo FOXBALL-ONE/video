@@ -1,6 +1,7 @@
 package top.foxball.video.controller
 
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
@@ -15,6 +16,7 @@ class UserController(
     private val responseBuilder: ResponseBuilder,
 ) {
     @GetMapping("/api/users/{id}")
+    @PreAuthorize("hasAuthority('user:read')")
     /** 根据路径中的用户 ID 查询用户基本信息。 */
     fun getUser(@PathVariable("id") id: Long): ResponseEntity<Response> {
         data class UserData(

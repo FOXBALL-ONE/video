@@ -19,4 +19,10 @@ class UserService(
     fun save(user: User): User {
         return userRepository.save(user)
     }
+
+    fun findByUsername(username: String): User? = userRepository.findByUsername(username)
+
+    fun existsByUsername(username: String): Boolean = userRepository.existsByUsername(username)
+
+    fun existsByEmail(email: String): Boolean = userRepository.existsByEmail(email)
 }

@@ -6,6 +6,10 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.JoinTable
+import jakarta.persistence.ManyToMany
+import jakarta.persistence.FetchType
 
 /** 系统用户实体，映射到 users 表。 */
 @Entity
@@ -21,4 +25,15 @@ class User(
     @Column(nullable = false, unique = true, length = 255)
     /** 用户邮箱地址。 */
     var email: String = "",
+    @Column(name = "password_hash", nullable = false, length = 100)
+    var passwordHash: String = "",
+    @Column(nullable = false)
+    var enabled: Boolean = true,
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "user_roles",
+        joinColumns = [JoinColumn(name = "user_id")],
+        inverseJoinColumns = [JoinColumn(name = "role_id")],
+    )
+    var roles: MutableSet<Role> = mutableSetOf(),
 )

@@ -65,7 +65,7 @@ function submitCreate() {
   }
   createProject({ name, type: form.value.type, description: form.value.description.trim() })
   message.success('项目已创建')
-  navigateTo('/')
+  navigateTo('/graph')
 }
 
 function cancelCreate() {
@@ -75,6 +75,6 @@ function cancelCreate() {
 
 function openProject(project) {
   switchProject(project.id)
-  navigateTo('/')
+  navigateTo('/graph')
 }
 </script>

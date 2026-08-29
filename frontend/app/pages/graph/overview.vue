@@ -115,10 +115,10 @@ const message = useMessage()
 const { activeProject } = useProjectWorkspace()
 
 const steps = [
-  { id: 'script', route: '/script', title: '剧本输入', caption: '故事结构、场次、人物与对白', status: '已完成', tone: 'success', icon: '✦' },
-  { id: 'assets', route: '/assets', title: '资产清单', caption: '角色、场景、道具与声音', status: '进行中', tone: 'warning', icon: '◇' },
-  { id: 'shots', route: '/shots', title: '分镜管理', caption: '景别、运镜、动作与连续性', status: '待优化', tone: 'warning', icon: '▦' },
-  { id: 'video', route: '/video', title: '视频制作', caption: '画面、配音、音效与合成', status: '待开始', tone: 'default', icon: '▶' }
+  { id: 'script', route: '/graph/script', title: '剧本输入', caption: '故事结构、场次、人物与对白', status: '已完成', tone: 'success', icon: '✦' },
+  { id: 'assets', route: '/graph/assets', title: '资产清单', caption: '角色、场景、道具与声音', status: '进行中', tone: 'warning', icon: '◇' },
+  { id: 'shots', route: '/graph/shots', title: '分镜管理', caption: '景别、运镜、动作与连续性', status: '待优化', tone: 'warning', icon: '▦' },
+  { id: 'video', route: '/graph/video', title: '视频制作', caption: '画面、配音、音效与合成', status: '待开始', tone: 'default', icon: '▶' }
 ]
 const overviewStats = computed(() => [
   { label: '制作节点', value: '4', detail: '个' },
@@ -127,9 +127,9 @@ const overviewStats = computed(() => [
   { label: '质量评分', value: activeProject.value.score, detail: '/ 10' }
 ])
 const quickActions = [
-  { label: '导入新剧本', detail: '开始新的版本', route: '/script' },
-  { label: '补齐资产', detail: '处理 3 项缺口', route: '/assets' },
-  { label: '检查分镜', detail: '优化镜头连续性', route: '/shots' }
+  { label: '导入新剧本', detail: '开始新的版本', route: '/graph/script' },
+  { label: '补齐资产', detail: '处理 3 项缺口', route: '/graph/assets' },
+  { label: '检查分镜', detail: '优化镜头连续性', route: '/graph/shots' }
 ]
 
 function saveDraft() {
@@ -137,11 +137,11 @@ function saveDraft() {
 }
 
 function openNextStep() {
-  navigateTo('/assets')
+  navigateTo('/graph/assets')
 }
 
 function openScript() {
-  navigateTo('/script')
+  navigateTo('/graph/script')
 }
 
 function runAction(action) {

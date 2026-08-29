@@ -72,4 +72,8 @@ yarn preview
 bun run preview
 ```
 
+## 开发约定
+
+前端源码统一使用 TypeScript。新增或修改 Vue、composable、store、类型和工具文件时，应使用 `.ts` 或带 TypeScript 的 Vue SFC，不新增 `.js` 文件。
+
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
