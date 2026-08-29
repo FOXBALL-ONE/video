@@ -1,0 +1,74 @@
+package top.foxball.video.service
+
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.web.multipart.MultipartFile
+import top.foxball.video.entity.jdbc.StoredFile
+import java.nio.file.Path
+import java.time.LocalDateTime
+import java.util.UUID
+
+/** 已完成工单领域授权后签发的短期 bearer 下载链接范围，不包含上传者标识。 */
+const val SUPPORT_TICKET_DOWNLOAD_SCOPE = "support-ticket"
+
+/** 前端可展示的文件元数据，以及当前响应时新签发的下载链接。 */
+data class FileDetails(
+    val file: StoredFile,
+    val signedDownloadUrl: String,
+    val downloadExpiresAt: LocalDateTime,
+    val scope: String,
+)
+
+/** 已完成签名和归属校验、可由控制器输出的本地文件内容描述。 */
+data class DownloadableFile(
+    val path: Path,
+    val originalFilename: String,
+    val contentType: String?,
+    val sizeBytes: Long,
+)
+
+/**
+ * 文件领域服务。
+ *
+ * 所有管理操作均按 [ownerId] 隔离；仅 [openSignedDownload] 接受无 JWT 的签名下载请求。
+ */
+interface FileService {
+    /** 保存一份或多份上传文件，并返回带短期链接的元数据。 */
+    fun upload(ownerId: Long, files: List<MultipartFile>): List<FileDetails>
+
+    /** 列出当前用户的文件，并为每项重新签发链接。 */
+    fun list(ownerId: Long, pageable: Pageable): Page<FileDetails>
+
+    /** 为指定文件批量签发新的下载链接。 */
+    fun createDownloadLinks(
+        ownerId: Long,
+        fileIds: List<UUID>,
+        scope: String? = null,
+    ): List<FileDetails>
+
+    /** 为已完成工单领域授权的附件签发不含上传者标识的短期下载链接。 */
+    fun createSupportTicketDownloadLinks(files: Collection<StoredFile>): List<FileDetails>
+
+    /** 校验文件、scope、到期时间与 HMAC 签名后打开本地文件。 */
+    fun openSignedDownload(
+        fileId: UUID,
+        scope: String,
+        expiresAtEpochSeconds: Long,
+        nonce: String,
+        signature: String,
+        authenticatedUserId: Long? = null,
+        authenticatedAdmin: Boolean = false,
+    ): DownloadableFile
+
+    /** 删除一份属于当前用户的文件；存在但归属其他用户时拒绝访问。 */
+    fun delete(ownerId: Long, fileId: UUID)
+
+    /** 删除多份属于当前用户的文件；任一文件归属其他用户时拒绝访问。 */
+    fun deleteBatch(ownerId: Long, fileIds: List<UUID>)
+
+    /** 删除用户拥有的全部文件，供用户彻底删除时清理文件元数据和存储内容。 */
+    fun deleteAllByOwnerId(ownerId: Long)
+
+    /** 一次删除多个用户拥有的全部文件，供批量用户彻底删除时复用一次关联文件扫描。 */
+    fun deleteAllByOwnerIds(ownerIds: Collection<Long>)
+}

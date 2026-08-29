@@ -92,6 +92,10 @@ class Project(
     @Column(name = "version_name", nullable = false, length = 20)
     var versionName: String = "v0.1",
 
+    /** 当前项目版本快照的主键。 */
+    @Column(name = "current_version_id")
+    var currentVersionId: Long? = null,
+
     @Column(name = "duration_seconds", nullable = false)
     /** 成片预计时长，单位为秒。 */
     var durationSeconds: Int = 0,

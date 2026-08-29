@@ -11,3 +11,20 @@ spring:
       # update=开发自动建表 / validate=生产校验 / none
       ddl-auto: "${DB_DDL:update}"
     open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: "${FILE_MAX_SIZE:100MB}"
+      max-request-size: "${FILE_MAX_REQUEST_SIZE:2GB}"
+
+file:
+  storage-path: "${FILE_STORAGE_PATH:./storage}"
+  base-url: "${FILE_BASE_URL:http://localhost:8080}"
+  signing-secret: "${FILE_SIGNING_SECRET:change-me-change-me-change-me-change-me}"
+  download-token-ttl-seconds: "${FILE_DOWNLOAD_TTL_SECONDS:300}"
+  max-batch-size: "${FILE_MAX_BATCH_SIZE:20}"
+  max-file-size-bytes: "${FILE_MAX_SIZE_BYTES:104857600}"
+  signing:
+    public-ttl-seconds: "${FILE_PUBLIC_TTL_SECONDS:60}"
+    user-ttl-seconds: "${FILE_USER_TTL_SECONDS:300}"
+    admin-ttl-seconds: "${FILE_ADMIN_TTL_SECONDS:180}"
+    order-ttl-seconds: "${FILE_ORDER_TTL_SECONDS:300}"

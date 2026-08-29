@@ -39,8 +39,10 @@ class AiModelProviderConfig(
     
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
+    /** 配置创建时间。 */
     var createdAt: LocalDateTime? = null,
     
     @UpdateTimestamp @Column(nullable = false)
+    /** 配置最近更新时间。 */
     var updatedAt: LocalDateTime? = null,
 )
