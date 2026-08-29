@@ -7,7 +7,7 @@
           <h1 class="mt-5 text-[31px] font-medium leading-[1.18]">项目管理</h1>
           <p class="mt-3 max-w-[620px] text-[13px] leading-6 text-[#8a94aa]">每个项目都是独立的制作工作区，剧本、资产、分镜和视频任务都会跟随当前项目保存。</p>
         </div>
-        <n-button type="primary" color="#6654ee" class="!h-[42px] !rounded-[10px]" @click="showCreate = !showCreate">{{ showCreate ? '收起表单' : '新建项目' }}</n-button>
+        <n-button type="primary" color="#6654ee" class="!h-[42px] !rounded-[10px]" :loading="loading" @click="showCreate = !showCreate">{{ showCreate ? '收起表单' : '新建项目' }}</n-button>
       </header>
 
       <section v-if="showCreate" class="mt-6 rounded-[15px] border border-[#d8d2ff] bg-white p-5 shadow-[0_8px_24px_rgba(91,79,235,0.06)] sm:p-6">
@@ -19,13 +19,15 @@
           <n-form-item label="项目名称" required><n-input v-model:value="form.name" placeholder="例如：春日漫游" /></n-form-item>
           <n-form-item label="项目类型"><n-select v-model:value="form.type" :options="typeOptions" /></n-form-item>
           <n-form-item class="md:col-span-2" label="项目简介"><n-input v-model:value="form.description" type="textarea" :rows="2" placeholder="一句话描述这个项目的故事或制作目标" /></n-form-item>
-          <div class="flex justify-end gap-2 md:col-span-2"><n-button secondary type="button" @click="cancelCreate">取消</n-button><n-button type="primary" color="#6654ee" attr-type="submit">创建并进入项目</n-button></div>
+          <div class="flex justify-end gap-2 md:col-span-2"><n-button secondary attr-type="button" :disabled="loading" @click="cancelCreate">取消</n-button><n-button type="primary" color="#6654ee" attr-type="submit" :loading="loading">创建并进入项目</n-button></div>
         </n-form>
       </section>
 
       <section class="mt-7">
         <div class="mb-4 flex items-center justify-between"><h2 class="m-0 text-lg font-medium">我的项目</h2><span class="text-xs text-[#929bad]">{{ projects.length }} 个项目</span></div>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div v-if="loading && !projects.length" class="rounded-[15px] border border-[#dfe3eb] bg-white p-10 text-center text-xs text-[#8994a8]">正在加载项目...</div>
+        <div v-else-if="!projects.length" class="rounded-[15px] border border-dashed border-[#dfe3eb] bg-white p-10 text-center text-xs text-[#8994a8]">暂无项目，点击右上角新建项目。</div>
+        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <n-card v-for="project in projects" :key="project.id" class="project-card !rounded-[15px] !border-[#dfe3eb]" :class="project.id === activeProjectId ? '!border-[#776cff] shadow-[0_8px_20px_rgba(91,79,235,0.08)]' : ''" :content-style="{ padding: '20px' }">
             <div class="flex items-start justify-between gap-3">
               <div class="flex min-w-0 items-center gap-3"><span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#6654ee] text-base font-semibold text-white">{{ project.name.slice(0, 1) }}</span><div class="min-w-0"><h3 class="m-0 truncate text-sm font-semibold">{{ project.name }}</h3><p class="mt-1 text-[11px] text-[#929bad]">{{ project.type }}</p></div></div>
@@ -42,14 +44,15 @@
   </main>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
 
 const route = useRoute()
 const message = useMessage()
-const { projects, activeProjectId, switchProject, createProject } = useProjectWorkspace()
+const { projects, activeProjectId, switchProject, loadProjects, createProject } = useProjectWorkspace()
 const showCreate = ref(route.query.create === '1')
 const form = ref({ name: '', type: '悬疑短片', description: '' })
+const loading = ref(false)
 const typeOptions = [
   { label: '悬疑短片', value: '悬疑短片' },
   { label: '纪录短片', value: '纪录短片' },
@@ -57,15 +60,33 @@ const typeOptions = [
   { label: '品牌宣传片', value: '品牌宣传片' }
 ]
 
-function submitCreate() {
+onMounted(async () => {
+  loading.value = true
+  try {
+    await loadProjects()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '项目列表加载失败，当前显示本地缓存')
+  } finally {
+    loading.value = false
+  }
+})
+
+async function submitCreate() {
   const name = form.value.name.trim()
   if (!name) {
     message.warning('请先填写项目名称')
     return
   }
-  createProject({ name, type: form.value.type, description: form.value.description.trim() })
-  message.success('项目已创建')
-  navigateTo('/graph')
+  loading.value = true
+  try {
+    await createProject({ name, type: form.value.type, description: form.value.description.trim() })
+    message.success('项目已创建')
+    await navigateTo('/graph')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '项目创建失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
 }
 
 function cancelCreate() {
@@ -73,7 +94,7 @@ function cancelCreate() {
   form.value = { name: '', type: '悬疑短片', description: '' }
 }
 
-function openProject(project) {
+function openProject(project: { id: string }) {
   switchProject(project.id)
   navigateTo('/graph')
 }

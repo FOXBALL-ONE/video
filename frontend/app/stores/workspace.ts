@@ -20,6 +20,23 @@ export interface WorkspaceProject {
     activities: WorkspaceActivity[];
 }
 
+export interface ApiProject {
+    id: number;
+    code: string;
+    name: string;
+    type: string;
+    description: string;
+    status: string;
+    progress: number;
+    version: string;
+    duration_seconds: number;
+    quality_score: number | null;
+    editor: string | null;
+    pending_count: number;
+    pending_detail: string | null;
+    updated_at: string | null;
+}
+
 const defaultProjects: WorkspaceProject[] = [
     {
         id: "rain-letter", code: "01", name: "雨夜来信", type: "悬疑短片",
@@ -69,6 +86,17 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         if (projects.value.some((project) => project.id === projectId)) activeProjectId.value = projectId;
     }
 
+    function setProjects(nextProjects: WorkspaceProject[]) {
+        if (!nextProjects.length) return;
+        projects.value = nextProjects;
+        if (!projects.value.some((project) => project.id === activeProjectId.value)) activeProjectId.value = projects.value[0].id;
+    }
+
+    function addProject(project: WorkspaceProject) {
+        projects.value = [...projects.value.filter((item) => item.id !== project.id), project];
+        activeProjectId.value = project.id;
+    }
+
     function createProject(input: {name: string; type: string; description?: string}) {
         const nextNumber = projects.value.length + 1;
         const project: WorkspaceProject = {
@@ -83,5 +111,5 @@ export const useWorkspaceStore = defineStore("workspace", () => {
         return project;
     }
 
-    return {projects, activeProjectId, activeProject, switchProject, createProject};
+    return {projects, activeProjectId, activeProject, switchProject, setProjects, addProject, createProject};
 });

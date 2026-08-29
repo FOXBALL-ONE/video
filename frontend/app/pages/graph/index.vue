@@ -31,7 +31,7 @@
         <div class="library-footer"><span class="status-dot green"></span>画布同步正常</div>
       </aside>
 
-      <section ref="viewport" class="canvas-viewport" @pointerdown="startPan" @pointermove="pan" @pointerup="endPan" @pointercancel="endPan" @pointerleave="endPan" @wheel.prevent="zoomCanvas">
+      <section ref="viewport" class="canvas-viewport" @pointerdown="startPan" @pointermove="pan" @pointerup="endPan" @pointercancel="endPan" @pointerleave="endPan" @dblclick="cancelConnection" @wheel.prevent="zoomCanvas">
         <div class="canvas-toolbar">
           <n-button-group size="small">
             <n-button aria-label="缩小" @click="changeZoom(-0.1)">−</n-button>
@@ -39,20 +39,26 @@
           </n-button-group>
           <n-button size="small" secondary @click="fitView">适应画布</n-button>
           <n-button size="small" secondary @click="addGroup">＋ 分组</n-button>
+          <span v-if="connecting" class="connection-state">连接中 · 点击{{ connecting.side === 'right' ? '左' : '右' }}侧边缘完成</span>
         </div>
 
         <div class="canvas-stage" :style="stageStyle">
           <svg class="link-layer" :width="stageSize.width" :height="stageSize.height" aria-hidden="true">
             <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9a92e8" /></marker></defs>
             <path v-for="link in links" :key="link.id" :d="linkPath(link)" fill="none" stroke="#9a92e8" stroke-width="2" marker-end="url(#arrow)" />
+            <path v-if="connectionPath" :d="connectionPath" class="connection-preview" fill="none" stroke="#6654ee" stroke-width="2" stroke-dasharray="6 5" />
           </svg>
           <div v-for="group in groups" :key="group.id" class="canvas-group" :style="groupStyle(group)"><span>{{ group.title }}</span></div>
-          <article v-for="node in nodes" :key="node.id" class="graph-node" :class="{ selected: selectedId === node.id }" :style="nodeStyle(node)" @pointerdown.stop="startNodeDrag($event, node)" @click.stop="selectedId = node.id">
-            <div class="node-head" :style="{ background: node.color }"><span class="node-kind">{{ node.icon }}</span><strong>{{ node.title }}</strong><button type="button" class="node-menu" aria-label="节点菜单" @click.stop="removeNode(node.id)">×</button></div>
+          <article v-for="node in nodes" :key="node.id" class="graph-node" :class="{ selected: selectedId === node.id }" :style="nodeStyle(node)" @wheel.stop.prevent="resizeNodeByWheel($event, node)" @pointerdown.stop="startNodeDrag($event, node)" @click.stop="selectedId = node.id">
+            <div class="node-head-bg" :style="{ background: node.color }"><div class="node-head-content"><span class="node-kind">{{ node.icon }}</span><strong v-if="!isEditing(node, 'title')" @dblclick.stop="beginEdit(node, 'title', undefined, node.title, $event)">{{ node.title }}</strong><input v-else ref="editInput" v-model="editText" class="node-inline-input" @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit" @blur="finishEdit" /><button type="button" class="node-menu" aria-label="节点菜单" @pointerdown.stop @mousedown.stop @click.stop.prevent="removeNode(node.id)">×</button></div></div>
             <div class="node-body">
-              <div v-for="input in node.inputs" :key="input.name" class="port-row"><span class="port input-port"></span><span>{{ input.name }}</span><small>{{ input.value }}</small></div>
-              <div v-for="output in node.outputs" :key="output.name" class="port-row output-row"><small>{{ output.type }}</small><span>{{ output.name }}</span><span class="port output-port"></span></div>
+              <div v-for="(input, inputIndex) in node.inputs" :key="input.name" class="port-row"><span class="port input-port"></span><span v-if="!isEditing(node, 'input-name', inputIndex)" @dblclick.stop="beginEdit(node, 'input-name', inputIndex, input.name, $event)">{{ input.name }}</span><input v-else ref="editInput" v-model="editText" class="node-inline-input" @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit" @blur="finishEdit" /><small v-if="!isEditing(node, 'input-value', inputIndex)" @dblclick.stop="beginEdit(node, 'input-value', inputIndex, input.value, $event)">{{ input.value }}</small><input v-else ref="editInput" v-model="editText" class="node-inline-input node-value-input" @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit" @blur="finishEdit" /></div>
+              <div v-for="(output, outputIndex) in node.outputs" :key="output.name" class="port-row output-row"><small v-if="!isEditing(node, 'output-type', outputIndex)" @dblclick.stop="beginEdit(node, 'output-type', outputIndex, output.type, $event)">{{ output.type }}</small><input v-else ref="editInput" v-model="editText" class="node-inline-input node-value-input" @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit" @blur="finishEdit" /><span v-if="!isEditing(node, 'output-name', outputIndex)" @dblclick.stop="beginEdit(node, 'output-name', outputIndex, output.name, $event)">{{ output.name }}</span><input v-else ref="editInput" v-model="editText" class="node-inline-input" @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit" @blur="finishEdit" /><span class="port output-port"></span></div>
             </div>
+            <span class="node-resizer node-resizer-left" :class="{ 'connect-source': connecting?.node === node && connecting.side === 'left', 'connect-target': isConnectionTarget(node, 'left') }" aria-hidden="true" @pointerdown.stop="handleEdgePointerDown($event, node, 'left')" @dblclick.stop.prevent="beginEdgeConnection($event, node, 'left')"></span>
+            <span class="node-resizer node-resizer-right" :class="{ 'connect-source': connecting?.node === node && connecting.side === 'right', 'connect-target': isConnectionTarget(node, 'right') }" aria-hidden="true" @pointerdown.stop="handleEdgePointerDown($event, node, 'right')" @dblclick.stop.prevent="beginEdgeConnection($event, node, 'right')"></span>
+            <span class="node-resizer node-resizer-top" aria-hidden="true" @pointerdown.stop="startNodeResize($event, node, 'top')"></span>
+            <span class="node-resizer node-resizer-bottom" aria-hidden="true" @pointerdown.stop="startNodeResize($event, node, 'bottom')"></span>
           </article>
         </div>
 
@@ -65,6 +71,7 @@
           <div class="inspector-content">
             <n-form label-placement="top" size="small">
               <n-form-item label="节点标题"><n-input v-model:value="selectedNode.title" @update:value="markDirty" /></n-form-item>
+              <n-form-item label="标题栏颜色"><n-color-picker v-model:value="selectedNode.color" :show-alpha="false" :modes="['hex']" @update:value="markDirty" /></n-form-item>
               <n-form-item label="节点类型"><n-input :value="selectedNode.type" readonly /></n-form-item>
               <n-form-item label="执行模式"><n-select v-model:value="selectedNode.mode" :options="modeOptions" @update:value="markDirty" /></n-form-item>
               <n-form-item label="节点备注"><n-input v-model:value="selectedNode.note" type="textarea" :rows="3" placeholder="添加这个节点的制作备注" @update:value="markDirty" /></n-form-item>
@@ -78,11 +85,12 @@
   </main>
 </template>
 
-<script setup>
-import { computed, ref } from 'vue'
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const message = useMessage()
 const { activeProject } = useProjectWorkspace()
+const graphWorkspace = useGraphWorkspace()
 const nodeSearch = ref('')
 const viewport = ref(null)
 const selectedId = ref('ksampler')
@@ -92,6 +100,13 @@ const saved = ref(true)
 const isPanning = ref(false)
 const panStart = ref({ x: 0, y: 0 })
 const nodeDrag = ref(null)
+const nodeResize = ref(null)
+const connecting = ref(null)
+const connectionPointer = ref({ x: 0, y: 0 })
+let lastConnectionCompletedAt = 0
+const resizeSaveTimers = new Map()
+const editing = ref(null)
+const editText = ref('')
 const stageSize = { width: 1600, height: 980 }
 
 const nodes = ref([
@@ -119,16 +134,162 @@ const filteredLibrary = computed(() => library.filter((item) => !nodeSearch.valu
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedId.value))
 const modeOptions = [{ label: '启用', value: '启用' }, { label: '旁路', value: '旁路' }, { label: '禁用', value: '禁用' }]
 const stageStyle = computed(() => ({ transform: `translate(${panOffset.value.x}px, ${panOffset.value.y}px) scale(${zoom.value})` }))
+const connectionPath = computed(() => {
+  if (!connecting.value) return ''
+  const source = portPoint(connecting.value.node, connecting.value.side === 'right' ? 'out' : 'in', connecting.value.index)
+  const target = connectionPointer.value
+  const bend = Math.max(50, Math.abs(target.x - source.x) * 0.45)
+  return connecting.value.side === 'right'
+    ? `M ${source.x} ${source.y} C ${source.x + bend} ${source.y}, ${target.x - bend} ${target.y}, ${target.x} ${target.y}`
+    : `M ${target.x} ${target.y} C ${target.x + bend} ${target.y}, ${source.x - bend} ${source.y}, ${source.x} ${source.y}`
+})
+function handleConnectionKeydown(event) { if (event.key === 'Escape') cancelConnection() }
+function cancelConnection() {
+  connecting.value = null
+  nodeResize.value = null
+  nodeDrag.value = null
+  isPanning.value = false
+}
 
-function nodeStyle(node) { return { left: `${node.x}px`, top: `${node.y}px`, width: `${node.width}px` } }
+onMounted(async () => {
+  const result = await graphWorkspace.load(activeProject.value?.id)
+  if (!result) return
+  const loadedNodes = (result.nodes || []).map((node) => ({
+    id: node.nodeKey ?? node.node_key,
+    type: node.nodeType ?? node.node_type,
+    title: node.title || node.nodeType || node.node_type,
+    icon: '◇', color: node.color || '#6654ee', x: node.positionX ?? node.position_x ?? 0, y: node.positionY ?? node.position_y ?? 0,
+    width: node.width || 220, height: node.height || 150, order: node.executionOrder ?? node.execution_order ?? 0,
+    mode: (node.mode ?? 0) === 2 ? '旁路' : (node.mode ?? 0) === 4 ? '禁用' : '启用', note: '',
+    inputs: Array.isArray(node.inputs) ? node.inputs.map((input) => ({ name: input.name ?? input.label ?? '输入', value: input.value ?? input.widget ?? '待连接' })) : [],
+    outputs: Array.isArray(node.outputs) ? node.outputs.map((output) => ({ name: output.name ?? output.label ?? '输出', type: output.type ?? output.dtype ?? '数据' })) : [],
+  }))
+  if (loadedNodes.length) nodes.value = loadedNodes
+  links.value = (result.links || []).map((link) => ({ id: link.linkKey ?? link.link_key, serverId: link.id, from: link.originNodeKey ?? link.origin_node_key, fromIndex: link.originSlot ?? link.origin_slot ?? 0, to: link.targetNodeKey ?? link.target_node_key, toIndex: link.targetSlot ?? link.target_slot ?? 0 }))
+  groups.value = (result.groups || []).map((group) => ({ id: `group-${group.id}`, title: group.title, x: group.positionX ?? group.position_x ?? 0, y: group.positionY ?? group.position_y ?? 0, width: group.width, height: group.height }))
+  saved.value = true
+})
+onMounted(() => window.addEventListener('keydown', handleConnectionKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleConnectionKeydown))
+
+function nodeMinWidth(node) {
+  const longest = Math.max(node.title?.length || 0, ...(node.inputs || []).map((item) => `${item.name}${item.value}`.length), ...(node.outputs || []).map((item) => `${item.name}${item.type}`.length))
+  return Math.max(190, Math.min(360, 120 + longest * 5.2))
+}
+function nodeBaseMinHeight(node) { return Math.max(110, 38 + 20 + ((node.inputs?.length || 0) + (node.outputs?.length || 0)) * 27) }
+function nodeMinHeight(node) { return nodeBaseMinHeight(node) * nodeContentScale(node) }
+function nodeRenderWidth(node) { return Math.max(node.width, nodeMinWidth(node)) }
+function nodeRenderHeight(node) { return Math.max(node.height, nodeMinHeight(node)) }
+function nodeContentScale(node) {
+  const widthScale = Math.max(node.width, 220) / 220
+  const heightScale = Math.max(node.height, 150) / 150
+  return Math.min(1.6, Math.max(1, 1 + (Math.max(widthScale, heightScale) - 1) * 0.7))
+}
+function nodeStyle(node) { return { left: `${node.x}px`, top: `${node.y}px`, width: `${nodeRenderWidth(node)}px`, minHeight: `${nodeRenderHeight(node)}px`, '--node-scale': nodeContentScale(node) } }
+function resizeNodeByWheel(event, node) {
+  if (editing.value || event.target?.closest?.('input, button')) return
+  selectedId.value = node.id
+  const factor = event.deltaY < 0 ? 1.08 : 1 / 1.08
+  const currentWidth = nodeRenderWidth(node)
+  const currentHeight = nodeRenderHeight(node)
+  const nextWidth = Math.min(640, Math.max(nodeMinWidth(node), Math.round(currentWidth * factor)))
+  const nextHeight = Math.min(560, Math.max(nodeMinHeight(node), Math.round(currentHeight * factor)))
+  node.x -= (nextWidth - currentWidth) / 2
+  node.y -= (nextHeight - currentHeight) / 2
+  node.width = nextWidth
+  node.height = nextHeight
+  markDirty()
+  const previousTimer = resizeSaveTimers.get(node.id)
+  if (previousTimer) clearTimeout(previousTimer)
+  resizeSaveTimers.set(node.id, setTimeout(async () => {
+    resizeSaveTimers.delete(node.id)
+    try { await graphWorkspace.saveNode(node) } catch { message.warning('节点尺寸已调整，但服务器保存失败') }
+  }, 250))
+}
+function isEditing(node, field, index) { return editing.value?.node === node && editing.value.field === field && editing.value.index === index }
+function beginEdit(node, field, index, value, event) {
+  event?.stopPropagation?.()
+  editing.value = { node, field, index, original: value }
+  editText.value = value
+  nextTick(() => document.querySelector('.node-inline-input')?.focus())
+}
+async function finishEdit() {
+  const current = editing.value
+  if (!current) return
+  const value = editText.value.trim()
+  if (value) {
+    if (current.field === 'title') current.node.title = value
+    else if (current.field === 'input-name') current.node.inputs[current.index].name = value
+    else if (current.field === 'input-value') current.node.inputs[current.index].value = value
+    else if (current.field === 'output-name') current.node.outputs[current.index].name = value
+    else if (current.field === 'output-type') current.node.outputs[current.index].type = value
+    markDirty()
+    try { await graphWorkspace.saveNode(current.node) } catch { message.warning('内容已修改，但服务器保存失败') }
+  }
+  editing.value = null
+}
+function cancelEdit() { editing.value = null }
 function groupStyle(group) { return { left: `${group.x}px`, top: `${group.y}px`, width: `${group.width}px`, height: `${group.height}px` } }
-function portPoint(node, kind, index) { const y = 49 + 31 + index * 24; return { x: kind === 'out' ? node.x + node.width : node.x, y: node.y + y } }
+function portPoint(node, kind, index) {
+  const rowIndex = kind === 'out' ? node.inputs.length + index : index
+  const inset = nodeRenderWidth(node) * 0.015
+  const scale = nodeContentScale(node)
+  const y = inset + 38 * scale + inset + 13.5 * scale + rowIndex * 27 * scale
+  return { x: kind === 'out' ? node.x + nodeRenderWidth(node) : node.x, y: node.y + y }
+}
+function connectionSlotAt(node, side, event) {
+  const count = side === 'right' ? node.outputs?.length || 0 : node.inputs?.length || 0
+  if (!count) return -1
+  const rect = viewport.value?.getBoundingClientRect()
+  if (!rect) return 0
+  const y = (event.clientY - rect.top - panOffset.value.y) / zoom.value
+  const kind = side === 'right' ? 'out' : 'in'
+  let nearest = 0
+  let distance = Number.POSITIVE_INFINITY
+  for (let index = 0; index < count; index += 1) {
+    const candidate = portPoint(node, kind, index)
+    const nextDistance = Math.abs(candidate.y - y)
+    if (nextDistance < distance) {
+      nearest = index
+      distance = nextDistance
+    }
+  }
+  return nearest
+}
+function isConnectionTarget(node, side) {
+  if (!connecting.value || connecting.value.node === node || connecting.value.side === side) return false
+  return side === 'left' ? (node.inputs?.length || 0) > 0 : (node.outputs?.length || 0) > 0
+}
 function linkPath(link) { const from = nodes.value.find((node) => node.id === link.from); const to = nodes.value.find((node) => node.id === link.to); if (!from || !to) return ''; const a = portPoint(from, 'out', link.fromIndex); const b = portPoint(to, 'in', link.toIndex); const bend = Math.max(50, Math.abs(b.x - a.x) * 0.45); return `M ${a.x} ${a.y} C ${a.x + bend} ${a.y}, ${b.x - bend} ${b.y}, ${b.x} ${b.y}` }
 function changeZoom(delta) { zoom.value = Math.min(1.5, Math.max(0.45, +(zoom.value + delta).toFixed(2))) }
-function resetView() { zoom.value = 0.82; panOffset.value = { x: 0, y: 0 } }
 function fitView() { zoom.value = 0.65; panOffset.value = { x: 30, y: 20 } }
-function startPan(event) { if (event.target.closest('.graph-node, .canvas-toolbar, button')) return; isPanning.value = true; panStart.value = { x: event.clientX - panOffset.value.x, y: event.clientY - panOffset.value.y }; viewport.value?.setPointerCapture?.(event.pointerId) }
+function startPan(event) { if (event.target?.closest?.('.graph-node, .canvas-toolbar, button')) return; isPanning.value = true; panStart.value = { x: event.clientX - panOffset.value.x, y: event.clientY - panOffset.value.y }; viewport.value?.setPointerCapture?.(event.pointerId) }
 function pan(event) {
+  if (connecting.value) {
+    const rect = viewport.value?.getBoundingClientRect()
+    if (rect) connectionPointer.value = { x: (event.clientX - rect.left - panOffset.value.x) / zoom.value, y: (event.clientY - rect.top - panOffset.value.y) / zoom.value }
+    return
+  }
+  if (nodeResize.value) {
+    const resize = nodeResize.value
+    const node = resize.node
+    const dx = (event.clientX - resize.startX) / zoom.value
+    const dy = (event.clientY - resize.startY) / zoom.value
+    const minWidth = nodeMinWidth(node)
+    const minHeight = nodeMinHeight(node)
+    if (resize.edge === 'left') {
+      const nextWidth = Math.max(minWidth, resize.originWidth - dx)
+      node.x = resize.originX + resize.originWidth - nextWidth
+      node.width = nextWidth
+    } else if (resize.edge === 'right') node.width = Math.max(minWidth, resize.originWidth + dx)
+    else if (resize.edge === 'top') {
+      const nextHeight = Math.max(minHeight, resize.originHeight - dy)
+      node.y = resize.originY + resize.originHeight - nextHeight
+      node.height = nextHeight
+    } else node.height = Math.max(minHeight, resize.originHeight + dy)
+    markDirty()
+    return
+  }
   if (nodeDrag.value) {
     const node = nodes.value.find((item) => item.id === nodeDrag.value.id)
     if (node) {
@@ -140,14 +301,103 @@ function pan(event) {
   }
   if (isPanning.value) panOffset.value = { x: event.clientX - panStart.value.x, y: event.clientY - panStart.value.y }
 }
-function endPan(event) { isPanning.value = false; nodeDrag.value = null; if (event?.pointerId != null && viewport.value?.hasPointerCapture?.(event.pointerId)) viewport.value.releasePointerCapture(event.pointerId) }
+function endPan(event) { isPanning.value = false; nodeDrag.value = null; const resizedNode = nodeResize.value?.node; nodeResize.value = null; if (event?.pointerId != null && viewport.value?.hasPointerCapture?.(event.pointerId)) viewport.value.releasePointerCapture(event.pointerId); if (resizedNode) graphWorkspace.saveNode(resizedNode).catch(() => message.warning('节点尺寸已修改，但服务器保存失败')) }
 function zoomCanvas(event) { changeZoom(event.deltaY > 0 ? -0.05 : 0.05) }
-function startNodeDrag(event, node) { selectedId.value = node.id; nodeDrag.value = { id: node.id, startX: event.clientX, startY: event.clientY, originX: node.x, originY: node.y }; viewport.value?.setPointerCapture?.(event.pointerId) }
-function addNode(item) { const id = `${item.type.toLowerCase()}-${Date.now()}`; nodes.value.push({ id, type: item.type, title: item.title, icon: item.icon, color: item.color, x: 180 + (nodes.value.length % 3) * 280, y: 700 + Math.floor(nodes.value.length / 3) * 220, width: 220, height: 150, order: nodes.value.length + 1, mode: '启用', note: '', inputs: [{ name: '输入', value: '待连接' }], outputs: [{ name: '输出', type: '数据' }] }); selectedId.value = id; markDirty(); message.success(`已添加${item.title}节点`) }
-function removeNode(id) { nodes.value = nodes.value.filter((node) => node.id !== id); links.value = links.value.filter((link) => link.from !== id && link.to !== id); if (selectedId.value === id) selectedId.value = null; markDirty() }
-function addGroup() { groups.value.push({ id: `group-${Date.now()}`, title: '新建分组', x: 80, y: 680, width: 700, height: 230 }); markDirty() }
+function startNodeDrag(event, node) { if (editing.value || connecting.value) return; selectedId.value = node.id; nodeDrag.value = { id: node.id, startX: event.clientX, startY: event.clientY, originX: node.x, originY: node.y }; viewport.value?.setPointerCapture?.(event.pointerId) }
+function startNodeResize(event, node, edge) {
+  if (editing.value) return
+  selectedId.value = node.id
+  nodeResize.value = { node, edge, startX: event.clientX, startY: event.clientY, originX: node.x, originY: node.y, originWidth: node.width, originHeight: node.height }
+  viewport.value?.setPointerCapture?.(event.pointerId)
+}
+function handleEdgePointerDown(event, node, edge) {
+  // Start on the second press as well as dblclick so pointer capture from the
+  // first resize press cannot prevent entering connection mode.
+  if (event.detail > 1) {
+    event.preventDefault()
+    nodeResize.value = null
+    nodeDrag.value = null
+    beginEdgeConnection(event, node, edge)
+    return
+  }
+  if (connecting.value) beginEdgeConnection(event, node, edge)
+  else startNodeResize(event, node, edge)
+}
+async function beginEdgeConnection(event, node, side) {
+  if (Date.now() - lastConnectionCompletedAt < 400) return
+  const current = connecting.value
+  if (current) {
+    if (current.node === node || current.side === side) return
+    const targetIndex = connectionSlotAt(node, side, event)
+    if (targetIndex < 0) {
+      message.warning(`该节点没有可用的${side === 'left' ? '输入' : '输出'}端口`)
+      return
+    }
+    const output = current.side === 'right' ? current.node : node
+    const input = current.side === 'right' ? node : current.node
+    const fromIndex = current.side === 'right' ? current.index : targetIndex
+    const toIndex = current.side === 'right' ? targetIndex : current.index
+    const duplicate = links.value.some((link) => link.from === output.id && link.fromIndex === fromIndex && link.to === input.id && link.toIndex === toIndex)
+    if (duplicate) {
+      message.warning('这两个端口已经存在连线')
+      cancelConnection()
+      return
+    }
+    const replaced = links.value.filter((link) => link.to === input.id && link.toIndex === toIndex)
+    lastConnectionCompletedAt = Date.now()
+    try {
+      await Promise.all(replaced.map((link) => graphWorkspace.deleteLink(link)))
+    } catch {
+      message.error('原有输入连线删除失败，未创建新连线')
+      cancelConnection()
+      return
+    }
+    links.value = links.value.filter((link) => !replaced.includes(link))
+    const link = { id: Math.max(0, ...links.value.map((item) => Number(item.id) || 0)) + 1, serverId: 0, from: output.id, fromIndex, to: input.id, toIndex }
+    links.value.push(link)
+    connecting.value = null
+    markDirty()
+    try {
+      const savedLink = await graphWorkspace.saveLink(link, nodes.value)
+      if (savedLink?.id != null) link.serverId = savedLink.id
+    } catch {
+      message.warning('连线已创建，但服务器保存失败')
+    }
+    return
+  }
+  const rect = viewport.value?.getBoundingClientRect()
+  if (!rect) return
+  const index = connectionSlotAt(node, side, event)
+  if (index < 0) {
+    message.warning(`该节点没有可用的${side === 'left' ? '输入' : '输出'}端口`)
+    return
+  }
+  nodeResize.value = null
+  nodeDrag.value = null
+  isPanning.value = false
+  if (event.pointerId != null && viewport.value?.hasPointerCapture?.(event.pointerId)) viewport.value.releasePointerCapture(event.pointerId)
+  connecting.value = { node, side, index }
+  const source = portPoint(node, side === 'right' ? 'out' : 'in', index)
+  connectionPointer.value = {
+    x: source.x,
+    y: source.y,
+  }
+  selectedId.value = node.id
+}
+async function addNode(item) { const id = `${item.type.toLowerCase()}-${Date.now()}`; const node = { id, type: item.type, title: item.title, icon: item.icon, color: item.color, x: 180 + (nodes.value.length % 3) * 280, y: 700 + Math.floor(nodes.value.length / 3) * 220, width: 220, height: 150, order: nodes.value.length + 1, mode: '启用', note: '', inputs: [{ name: '输入', value: '待连接' }], outputs: [{ name: '输出', type: '数据' }] }; nodes.value.push(node); selectedId.value = id; markDirty(); try { await graphWorkspace.saveNode(node) } catch { message.warning('节点已添加到画布，保存到服务器失败') } message.success(`已添加${item.title}节点`) }
+async function removeNode(id) { const node = nodes.value.find((item) => item.id === id); nodes.value = nodes.value.filter((node) => node.id !== id); links.value = links.value.filter((link) => link.from !== id && link.to !== id); if (selectedId.value === id) selectedId.value = null; markDirty(); if (node) { try { await graphWorkspace.deleteLinksForNode(id); await graphWorkspace.deleteNode(node) } catch { message.warning('节点已移除，但服务器删除失败') } } }
+async function addGroup() { const group = { id: `group-${Date.now()}`, title: '新建分组', x: 80, y: 680, width: 700, height: 230 }; groups.value.push(group); markDirty(); try { await graphWorkspace.saveGroup(group) } catch { message.warning('分组已添加到画布，保存到服务器失败') } }
 function markDirty() { saved.value = false }
-function saveCanvas() { saved.value = true; message.success('画布已保存') }
+async function saveCanvas() {
+  if (!graphWorkspace.ready.value) { saved.value = true; message.success('画布已保存'); return }
+  try {
+    await graphWorkspace.saveAll(nodes.value, links.value, groups.value)
+    saved.value = true
+    message.success('画布已保存')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '画布保存失败')
+  }
+}
 function runWorkflow() { message.success('工作流已加入执行队列') }
 </script>
 
@@ -184,21 +434,38 @@ function runWorkflow() { message.success('工作流已加入执行队列') }
 .link-layer { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
 .canvas-group { position: absolute; border: 1px solid #cfcaff; border-radius: 12px; background: rgba(239, 237, 255, .28); pointer-events: none; }
 .canvas-group span { position: absolute; top: -10px; left: 14px; padding: 2px 8px; border-radius: 5px; background: #e9e6ff; color: #6a60d7; font-size: 10px; }
-.graph-node { position: absolute; overflow: hidden; border: 1px solid #d9dce5; border-radius: 9px; background: #fff; box-shadow: 0 5px 16px rgba(55, 62, 93, .1); user-select: none; cursor: move; }
+.graph-node { position: absolute; box-sizing: border-box; overflow: visible; min-width: 190px; border: 1px solid #d9dce5; border-radius: 9px; background: #fff; box-shadow: 0 5px 16px rgba(55, 62, 93, .1); user-select: none; cursor: move; }
 .graph-node.selected { border-color: #7268ef; box-shadow: 0 0 0 2px rgba(114, 104, 239, .22), 0 8px 22px rgba(65, 56, 140, .14); }
-.node-head { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; color: #fff; }
-.node-kind { font-size: 14px; opacity: .9; }
-.node-head strong { font-size: 11px; font-weight: 600; }
+.node-head-bg { box-sizing: border-box; height: calc(38px * var(--node-scale)); margin: 1.5%; border-radius: 5px; color: #fff; }
+.node-head-content { display: flex; box-sizing: border-box; align-items: center; gap: calc(8px * var(--node-scale)); height: 100%; margin: 0 1.5%; }
+.node-kind { font-size: calc(14px * var(--node-scale)); opacity: .9; }
+.node-head-content strong { min-width: 0; flex: 1 1 auto; overflow: hidden; font-size: calc(11px * var(--node-scale)); font-weight: 600; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.node-inline-input { min-width: 0; width: 100%; flex: 1 1 auto; border: 1px solid rgba(255,255,255,.65); border-radius: 3px; outline: none; background: rgba(255,255,255,.95); color: #394158; font-size: calc(10px * var(--node-scale)); line-height: calc(18px * var(--node-scale)); padding: 0 3px; }
+.node-body .node-inline-input { border-color: #c7c3f5; background: #fff; color: #4d5870; }
+.node-value-input { max-width: 120px; margin-left: auto; }
+.node-resizer { position: absolute; z-index: 3; display: block; }
+.node-resizer-left, .node-resizer-right { top: 8px; bottom: 8px; width: 9px; cursor: ew-resize; }
+.node-resizer-left { left: -4px; }
+.node-resizer-right { right: -4px; }
+.node-resizer-left:hover, .node-resizer-right:hover { background: rgba(102,84,238,.12); cursor: ew-resize; }
+.node-resizer-left.connect-source, .node-resizer-right.connect-source { background: rgba(102,84,238,.18); cursor: crosshair; }
+.node-resizer-left.connect-target, .node-resizer-right.connect-target { background: rgba(73,183,136,.18); cursor: crosshair; }
+.node-resizer-top, .node-resizer-bottom { left: 8px; right: 8px; height: 9px; cursor: ns-resize; }
+.node-resizer-top { top: -4px; }
+.node-resizer-bottom { bottom: -4px; }
 .node-menu { margin-left: auto; border: 0; background: transparent; color: rgba(255,255,255,.75); font-size: 17px; cursor: pointer; }
-.node-body { padding: 10px 9px; }
-.port-row { position: relative; display: flex; align-items: center; gap: 7px; min-height: 27px; color: #667186; font-size: 10px; }
-.port-row small { margin-left: auto; max-width: 120px; overflow: hidden; color: #a0a8b6; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.node-body { margin: 0 3% 2%; padding: 0; }
+.port-row { position: relative; display: flex; align-items: center; gap: calc(7px * var(--node-scale)); min-height: calc(27px * var(--node-scale)); color: #667186; font-size: calc(11px * var(--node-scale)); line-height: 1.35; }
+.port-row > span:not(.port) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.port-row small { min-width: 0; margin-left: auto; max-width: calc(120px * var(--node-scale)); overflow: hidden; color: #a0a8b6; font-size: calc(10px * var(--node-scale)); text-overflow: ellipsis; white-space: nowrap; }
 .output-row { justify-content: flex-end; }
 .output-row small { margin: 0 auto 0 0; }
-.port { width: 9px; height: 9px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #9a92e8; background: #b4aff5; }
-.input-port { margin-left: -14px; }
-.output-port { margin-right: -14px; }
+.port { width: calc(9px * var(--node-scale)); height: calc(9px * var(--node-scale)); flex: 0 0 auto; border: calc(2px * var(--node-scale)) solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #9a92e8; background: #b4aff5; }
+.input-port { margin-left: calc(-3% - (4.5px * var(--node-scale))); }
+.output-port { margin-right: calc(-3% - (4.5px * var(--node-scale))); }
 .canvas-help { position: absolute; right: 16px; bottom: 13px; display: flex; gap: 14px; color: #9ba4b3; font-size: 10px; }
+.connection-state { color: #6654ee; font-size: 10px; font-weight: 600; }
+.connection-preview { pointer-events: none; }
 .inspector { border-left: 1px solid #e1e5ed; }
 .inspector-head { display: flex; justify-content: space-between; padding: 19px 16px 15px; border-bottom: 1px solid #e8eaf0; }
 .inspector-head h2 { margin: 3px 0 0; font-size: 14px; font-weight: 600; }
