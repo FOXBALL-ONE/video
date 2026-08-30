@@ -37,6 +37,9 @@ interface ScriptSceneRepository : JpaRepository<ScriptScene, Long> {
 
     /** 查询剧本版本中的指定场次。 */
     fun findByScriptVersionIdAndSceneNo(scriptVersionId: Long, sceneNo: Int): ScriptScene?
+
+    /** 删除剧本版本的全部场次。 */
+    fun deleteAllByScriptVersionId(scriptVersionId: Long)
 }
 
 /** 剧本角色的数据访问接口。 */
@@ -46,6 +49,9 @@ interface ScriptCharacterRepository : JpaRepository<ScriptCharacter, Long> {
 
     /** 按名称查询剧本版本中的角色。 */
     fun findByScriptVersionIdAndName(scriptVersionId: Long, name: String): ScriptCharacter?
+
+    /** 删除剧本版本的全部角色。 */
+    fun deleteAllByScriptVersionId(scriptVersionId: Long)
 }
 
 /** 剧本对白的数据访问接口。 */
@@ -55,6 +61,9 @@ interface ScriptDialogueRepository : JpaRepository<ScriptDialogue, Long> {
 
     /** 查询指定角色的全部对白。 */
     fun findAllByCharacterIdOrderByScriptSceneIdAscSequenceNoAsc(characterId: Long): List<ScriptDialogue>
+
+    /** 删除场次中的全部对白。 */
+    fun deleteAllByScriptSceneId(scriptSceneId: Long)
 }
 
 /** 剧本质量检查结果的数据访问接口。 */
@@ -64,4 +73,7 @@ interface ScriptQualityCheckRepository : JpaRepository<ScriptQualityCheck, Long>
 
     /** 查询剧本版本未通过的质量规则。 */
     fun findAllByScriptVersionIdAndPassedFalseOrderByCreatedAtDesc(scriptVersionId: Long): List<ScriptQualityCheck>
+
+    /** 删除剧本版本的历史质量检查。 */
+    fun deleteAllByScriptVersionId(scriptVersionId: Long)
 }
