@@ -1,109 +1,96 @@
 <template>
-  <main class="script-page min-h-[calc(100vh-65px)] bg-white text-[#20283b]">
-    <ProductionSteps active="script" :show-episode="false" />
-
-    <div class="mx-auto max-w-3xl px-5 pb-24 pt-8 sm:px-6">
-      <div v-if="activeEpisode" class="mb-5 flex items-center gap-2 text-xs text-[#8994a8]">
-        <span class="h-1.5 w-1.5 rounded-full bg-[#6654ee]" aria-hidden="true"></span>
-        <span>当前剧集</span><strong class="font-semibold text-[#4d5870]">{{ activeEpisode.title }}</strong>
-      </div>
-      <section aria-labelledby="import-title">
-        <div class="mb-3">
-          <h1 id="import-title" class="m-0 text-lg font-semibold">全文导入</h1>
-          <p class="mt-2 text-sm leading-6 text-[#737c8d]">
-            将完整剧本或小说粘贴到下方，AI 将自动拆分成集并提取角色、场景、道具。
-          </p>
+  <main class="script-page min-h-[calc(100vh-65px)] bg-[#f5f6fa] px-4 pb-24 pt-7 text-[#20283b] sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-[1177px]">
+      <header class="flex flex-col gap-6 border-b border-[#e5e8ef] pb-7 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="m-0 text-xs font-bold tracking-[0.8px] text-[#5c52ee]">01 / 07 · EPISODE WORKFLOW</p>
+          <h1 class="mt-5 text-[31px] font-medium leading-[1.18]">剧本导入</h1>
+          <p class="mt-3 max-w-[620px] text-[13px] leading-6 text-[#8a94aa]">将完整剧本或小说导入工作区，识别场次、角色、对白与制作资产。</p>
         </div>
+        <div v-if="activeEpisode" class="rounded-[10px] border border-[#dedaff] bg-[#f4f2ff] px-3 py-2 text-xs text-[#5d52dd]">当前剧集：<strong>{{ activeEpisode.title }}</strong></div>
+      </header>
 
-        <div
-          class="script-dropzone relative rounded-xl border-2 border-dashed border-[#d9dce3] transition-colors"
-          :class="isDragging ? 'border-[#f28a21] bg-[#fffaf4]' : 'bg-white'"
-          @dragenter.prevent="isDragging = true"
-          @dragover.prevent="isDragging = true"
-          @dragleave.prevent="isDragging = false"
-          @drop.prevent="onDrop"
-        >
-          <textarea
-            v-model="scriptText"
-            class="block min-h-[280px] w-full resize-y bg-transparent px-4 py-3 text-base leading-relaxed text-[#30394a] outline-none placeholder:text-[#a1a8b5]"
-            placeholder="在此粘贴完整剧本/小说内容...\n\n支持一次性粘贴全部内容（多集），AI 将自动识别章节标记并拆分。\n\n也可以直接拖拽 .txt 或 .docx 文件到此处"
-            aria-label="剧本正文"
-            @input="parsed = false"
-          ></textarea>
-          <label class="absolute right-2 top-2 flex cursor-pointer items-center gap-1 rounded border border-[#dfe2e8] bg-white px-2 py-1 text-xs text-[#737c8d] transition-colors hover:text-[#313a4b]">
-            <span aria-hidden="true" class="text-[11px]">↥</span>
-            上传文件
-            <input ref="fileInput" type="file" accept=".txt,.docx" class="sr-only" @change="onFileChange" />
-          </label>
-        </div>
+      <ProductionSteps active="script" :show-episode="false" />
 
-        <div class="mt-3 flex items-center justify-between gap-3">
-          <span class="text-sm text-[#737c8d]">{{ wordCount }} 字</span>
-          <button
-            type="button"
-            class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#f28a21] px-4 text-sm font-medium text-white transition-colors hover:bg-[#df7914] disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!scriptText.trim() || parsing"
-            @click="parseScript"
+      <section class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
+        <n-card :content-style="{ padding: '0 24px 24px' }" class="!rounded-[17px] !border-[#dfe3eb]">
+          <div class="flex min-h-[108px] flex-col items-start justify-between gap-4 border-b border-[#e8eaf0] px-1 py-5 sm:flex-row sm:items-center sm:px-2">
+            <div>
+              <h2 id="import-title" class="m-0 text-lg font-medium">导入剧本正文</h2>
+              <p class="mt-2 text-xs text-[#8994a8]">粘贴全文或上传文本文件，解析后会同步更新当前项目结构。</p>
+            </div>
+            <label class="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-[9px] border border-[#d8d2ff] px-3 text-xs font-medium text-[#5d52ec] transition-colors hover:bg-[#f4f2ff]">
+              <span aria-hidden="true" class="text-sm">↥</span> 上传文件
+              <input ref="fileInput" type="file" accept=".txt,.docx" class="sr-only" @change="onFileChange" />
+            </label>
+          </div>
+
+          <div
+            class="script-dropzone relative mt-5 overflow-hidden rounded-[12px] border border-dashed border-[#d9dce3] bg-[#fbfcfe] transition-colors"
+            :class="isDragging ? 'border-[#6654ee] bg-[#f4f2ff]' : ''"
+            @dragenter.prevent="isDragging = true"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="onDrop"
           >
-            <span aria-hidden="true" class="text-base">✦</span>
-            {{ parsing ? '解析中...' : '开始解析' }}
-          </button>
-        </div>
-      </section>
-
-      <div class="my-8 flex items-center gap-3" aria-hidden="true">
-        <div class="h-px flex-1 bg-[#e2e4e9]"></div>
-        <span class="whitespace-nowrap text-sm text-[#8b93a2]">或者 AI 生成剧本</span>
-        <div class="h-px flex-1 bg-[#e2e4e9]"></div>
-      </div>
-
-      <section class="rounded-xl border border-[#dfe2e8] p-5" aria-labelledby="generate-title">
-        <h2 id="generate-title" class="m-0 mb-3 text-lg font-semibold">AI 生成剧本</h2>
-        <input
-          v-model="generationPrompt"
-          class="mb-3 block h-11 w-full rounded-md border border-[#dfe2e8] bg-white px-3 text-base text-[#30394a] outline-none transition-shadow placeholder:text-[#a1a8b5] focus:border-[#9b91f5] focus:ring-2 focus:ring-[#eceaff]"
-          placeholder="输入一句话描述，如：穿越回古代的爱情故事..."
-          aria-label="AI 剧本创作描述"
-          @keyup.enter="generateScript"
-        />
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-          <span class="mr-1 text-sm text-[#737c8d]">风格:</span>
-          <button
-            v-for="style in styles"
-            :key="style"
-            type="button"
-            class="rounded-full border px-3 py-1 text-xs transition-colors"
-            :class="selectedStyle === style ? 'border-[#776ce9] bg-[#f0eeff] text-[#5c50dc]' : 'border-[#dfe2e8] text-[#646d7e] hover:bg-[#f7f7fa]'"
-            :aria-pressed="selectedStyle === style"
-            @click="selectedStyle = selectedStyle === style ? '' : style"
-          >{{ style }}</button>
-        </div>
-        <button
-          type="button"
-          class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#6b5ce7] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5c4dd4] disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="!generationPrompt.trim() || generating"
-          @click="generateScript"
-        >
-          <span aria-hidden="true" class="text-base">✦</span>
-          {{ generating ? '生成中...' : 'AI 写剧本' }}
-        </button>
-        <p v-if="generatedNotice" class="mt-3 text-xs text-[#687388]" role="status">{{ generatedNotice }}</p>
-      </section>
-
-      <section v-if="parsed" class="mt-6 rounded-xl border border-[#dfe2e8] bg-[#fbfbfd] p-5" aria-labelledby="parsed-title">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 id="parsed-title" class="m-0 text-base font-semibold">解析预览</h2>
-            <p class="mt-1 text-xs text-[#8b93a2]">已完成当前版本的基础结构识别，可继续前往资产管理。</p>
+            <div class="flex items-center justify-between border-b border-[#e8eaf0] px-4 py-2.5">
+              <span class="text-[11px] font-medium text-[#687388]">剧本正文</span>
+              <span class="text-[11px] text-[#929bad]">{{ wordCount }} 字</span>
+            </div>
+            <textarea
+              v-model="scriptText"
+              class="block min-h-[330px] w-full resize-y bg-transparent px-4 py-3 text-sm leading-7 text-[#30394a] outline-none placeholder:text-[#a1a8b5]"
+              placeholder="在此粘贴完整剧本/小说内容...\n\n支持一次性粘贴全部内容（多集），AI 将自动识别章节标记并拆分。"
+              aria-label="剧本正文"
+              @input="parsed = false"
+            ></textarea>
           </div>
-          <span class="rounded-full bg-[#e9f7f1] px-2.5 py-1 text-xs text-[#278d68]">已解析</span>
-        </div>
-        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div v-for="stat in parsedStats" :key="stat.label" class="rounded-lg bg-white px-3 py-2.5">
-            <strong class="block text-lg font-semibold text-[#30394a]">{{ stat.value }}</strong>
-            <span class="mt-0.5 block text-xs text-[#8b93a2]">{{ stat.label }}</span>
+
+          <div class="mt-4 flex flex-col gap-3 border-b border-[#e8eaf0] pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <span class="text-xs text-[#929bad]">支持 .txt 文本文件</span>
+            <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || parsing" @click="parseScript">
+              <span aria-hidden="true" class="text-base">✦</span>{{ parsing ? '解析中...' : '开始解析' }}
+            </button>
           </div>
-        </div>
+
+          <div class="pt-5" aria-labelledby="generate-title">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="generate-title" class="m-0 text-sm font-semibold">AI 生成剧本</h2>
+                <p class="mt-1 text-xs text-[#929bad]">从一句话创意开始，快速生成可编辑初稿。</p>
+              </div>
+              <span class="rounded-md bg-[#f0eeff] px-2 py-1 text-[10px] font-medium text-[#5d52ec]">智能创作</span>
+            </div>
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+              <input v-model="generationPrompt" class="block h-10 min-w-0 flex-1 rounded-[9px] border border-[#dfe2e8] bg-white px-3 text-sm text-[#30394a] outline-none transition-shadow placeholder:text-[#a1a8b5] focus:border-[#9b91f5] focus:ring-2 focus:ring-[#eceaff]" placeholder="如：穿越回古代的爱情故事" aria-label="AI 剧本创作描述" @keyup.enter="generateScript" />
+              <button type="button" class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[9px] border border-[#d8d2ff] px-4 text-sm font-medium text-[#5d52ec] transition-colors hover:bg-[#f4f2ff] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!generationPrompt.trim() || generating" @click="generateScript"><span aria-hidden="true">✦</span>{{ generating ? '生成中...' : 'AI 写剧本' }}</button>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+              <span class="mr-1 text-xs text-[#929bad]">风格</span>
+              <button v-for="style in styles" :key="style" type="button" class="rounded-full border px-3 py-1 text-[11px] transition-colors" :class="selectedStyle === style ? 'border-[#776ce9] bg-[#f0eeff] text-[#5c50dc]' : 'border-[#dfe2e8] text-[#646d7e] hover:bg-[#f7f7fa]'" :aria-pressed="selectedStyle === style" @click="selectedStyle = selectedStyle === style ? '' : style">{{ style }}</button>
+            </div>
+            <p v-if="generatedNotice" class="mt-3 text-xs text-[#687388]" role="status">{{ generatedNotice }}</p>
+          </div>
+
+          <section v-if="parsed" class="mt-5 rounded-[11px] border border-[#dfe3eb] bg-[#fbfbfd] p-4" aria-labelledby="parsed-title">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div><h2 id="parsed-title" class="m-0 text-sm font-semibold">解析预览</h2><p class="mt-1 text-xs text-[#929bad]">结构化结果已就绪，可继续维护资产。</p></div>
+              <span class="rounded-md bg-[#e9f7f1] px-2 py-1 text-[10px] font-medium text-[#278d68]">已解析</span>
+            </div>
+            <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div v-for="stat in parsedStats" :key="stat.label" class="rounded-[9px] bg-white px-3 py-2.5"><strong class="block text-lg font-semibold text-[#30394a]">{{ stat.value }}</strong><span class="mt-0.5 block text-[11px] text-[#8b93a2]">{{ stat.label }}</span></div>
+            </div>
+          </section>
+        </n-card>
+
+        <aside class="script-assistant rounded-[17px] border border-[#dfe3eb] bg-white">
+          <div class="border-b border-[#e8eaf0] px-5 py-[18px]"><div class="flex items-center gap-2"><span class="text-xl text-[#5d51ef]" aria-hidden="true">✦</span><div><h2 class="m-0 text-[13px] font-semibold">剧本导入助手</h2><p class="mt-1.5 text-[11px] text-[#8e98aa]">在线 · 已读取当前节点</p></div></div></div>
+          <div class="space-y-4 px-5 py-5">
+            <div class="rounded-[11px] bg-[#f7f7fb] px-3 py-3"><span class="text-[11px] text-[#929bad]">当前上下文</span><strong class="mt-2 block text-[13px] font-semibold text-[#273148]">{{ activeEpisode?.title || '项目剧本' }}</strong><div class="mt-2 flex flex-wrap gap-1.5"><span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] text-[#6157e9]">正文结构</span><span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] text-[#6157e9]">历史版本</span></div></div>
+            <div class="flex gap-2.5 rounded-[11px] bg-[#f5f6f8] px-3 py-3"><span class="shrink-0 text-[#5e52ee]" aria-hidden="true">✦</span><p class="m-0 text-xs leading-[1.65] text-[#687388]">先导入剧本正文，再运行解析。解析完成后可以在资产管理中检查角色、场景和道具。</p></div>
+            <div class="border-t border-[#e8eaf0] pt-4"><span class="text-[11px] text-[#8994a8]">解析状态</span><div class="mt-3 flex items-center justify-between text-xs"><span class="text-[#687388]">当前版本</span><strong :class="parsed ? 'text-[#278d68]' : 'text-[#d08a2d]'">{{ parsed ? '已解析' : '待解析' }}</strong></div><div class="mt-3 h-1.5 overflow-hidden rounded-full bg-[#ececf4]"><div class="h-full rounded-full bg-[#6654ee] transition-all" :style="{ width: parsed ? '100%' : scriptText.trim() ? '25%' : '0%' }"></div></div></div>
+          </div>
+        </aside>
       </section>
     </div>
 
