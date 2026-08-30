@@ -14,7 +14,9 @@ import java.util.UUID
 /** ComfyUI 画布的数据访问接口。 */
 interface GraphCanvasRepository : JpaRepository<GraphCanvas, Long> {
     fun findAllByProjectIdOrderByUpdatedAtDesc(projectId: Long): List<GraphCanvas>
+    fun findAllByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): List<GraphCanvas>
     fun findAllByProjectIdAndProjectVersionIdOrderByUpdatedAtDesc(projectId: Long, projectVersionId: Long): List<GraphCanvas>
+    fun findAllByProjectIdAndEpisodeIdAndProjectVersionIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long, projectVersionId: Long): List<GraphCanvas>
     fun findAllByParentGraphIdOrderByIdAsc(parentGraphId: Long): List<GraphCanvas>
     fun findByProjectIdAndGraphUuid(projectId: Long, graphUuid: UUID): GraphCanvas?
 }
@@ -65,6 +67,8 @@ interface GraphSubgraphInstanceRepository : JpaRepository<GraphSubgraphInstance,
 /** 无损工作流快照的数据访问接口。 */
 interface GraphWorkflowSnapshotRepository : JpaRepository<GraphWorkflowSnapshot, Long> {
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<GraphWorkflowSnapshot>
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<GraphWorkflowSnapshot>
+    fun findAllByProjectIdAndEpisodeIdAndProjectVersionIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long, projectVersionId: Long): List<GraphWorkflowSnapshot>
     fun findAllByProjectVersionIdOrderByCreatedAtDesc(projectVersionId: Long): List<GraphWorkflowSnapshot>
     fun findFirstByRootGraphIdOrderByCreatedAtDesc(rootGraphId: Long): GraphWorkflowSnapshot?
     fun findByProjectIdAndContentHash(projectId: Long, contentHash: String): GraphWorkflowSnapshot?

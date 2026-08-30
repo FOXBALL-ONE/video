@@ -80,6 +80,43 @@ class Asset(
     var entityVersion: Long = 0,
 )
 
+/** 单集资产。用于隔离每一集中的角色、场景背景、道具和服饰等制作资料。 */
+@Entity
+@Table(name = "episode_assets")
+class EpisodeAsset(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null,
+    @Column(name = "project_id", nullable = false)
+    var projectId: Long = 0,
+    @Column(name = "episode_id", nullable = false)
+    var episodeId: Long = 0,
+    @Column(nullable = false, length = 100)
+    var name: String = "",
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    var type: EpisodeAssetType = EpisodeAssetType.PROP,
+    @Column(columnDefinition = "text")
+    var description: String? = null,
+    @Column(name = "reference_url", length = 1000)
+    var referenceUrl: String? = null,
+    @Column(columnDefinition = "text")
+    var notes: String? = null,
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    var status: AssetStatus = AssetStatus.DRAFT,
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null,
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null,
+    @Version
+    var entityVersion: Long = 0,
+)
+
+enum class EpisodeAssetType { CHARACTER, SCENE_BACKGROUND, PROP, COSTUME, VOICE, MUSIC, SOUND_EFFECT }
+
 /** 资产生成或人工编辑的版本。 */
 @Entity
 @Table(name = "asset_versions")

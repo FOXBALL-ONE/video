@@ -10,11 +10,16 @@ interface ShotRepository : JpaRepository<Shot, Long> {
     /** 查询项目的全部镜头，按镜头顺序排列。 */
     fun findAllByProjectIdOrderBySequenceNoAsc(projectId: Long): List<Shot>
 
+    /** 查询未绑定剧集的项目级镜头，按镜头顺序排列。 */
+    fun findAllByProjectIdAndEpisodeIdIsNullOrderBySequenceNoAsc(projectId: Long): List<Shot>
+
     /** 查询项目版本的全部镜头，按镜头顺序排列。 */
     fun findAllByProjectVersionIdOrderBySequenceNoAsc(projectVersionId: Long): List<Shot>
 
     /** 查询项目指定顺序号的镜头。 */
     fun findByProjectIdAndSequenceNo(projectId: Long, sequenceNo: Int): Shot?
+
+    fun findAllByProjectIdAndEpisodeIdOrderBySequenceNoAsc(projectId: Long, episodeId: Long): List<Shot>
 }
 
 /** 分镜与资产关联的数据访问接口。 */

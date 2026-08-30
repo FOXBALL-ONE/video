@@ -2,11 +2,11 @@
   <main class="graph-shell">
     <header class="graph-header">
       <div class="flex min-w-0 items-center gap-3">
-        <NuxtLink class="brand" to="/graph">VIDEO WORKSPACE</NuxtLink>
+        <NuxtLink class="brand" :to="`/projects/${activeProject.id}/canvas`">VIDEO WORKSPACE</NuxtLink>
         <span aria-hidden="true" class="divider"></span>
         <div class="min-w-0">
           <p class="eyebrow">GRAPH CANVAS · {{ activeProject.code }}</p>
-          <h1 class="truncate">{{ activeProject.name }} 工作流</h1>
+          <h1 class="truncate">{{ activeProject.name }}<span v-if="activeEpisode" class="font-normal"> · {{ activeEpisode.title }}</span> 工作流</h1>
         </div>
       </div>
       <div class="header-actions">
@@ -191,7 +191,10 @@ import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 
 const message = useMessage()
 const {activeProject} = useProjectWorkspace()
+const {activeEpisodeId, activeEpisode} = useEpisodeWorkspace()
+const route = useRoute()
 const graphWorkspace = useGraphWorkspace()
+const episodeId = computed(() => String(route.params.episodeId || activeEpisodeId.value || ''))
 const nodeSearch = ref('')
 const viewport = ref(null)
 const selectedId = ref('ksampler')
@@ -359,7 +362,7 @@ function cancelConnection() {
 }
 
 onMounted(async () => {
-  const result = await graphWorkspace.load(activeProject.value?.id)
+  const result = await graphWorkspace.load(activeProject.value?.id, episodeId.value)
   if (!result) return
   const loadedNodes = (result.nodes || []).map((node) => ({
     id: node.nodeKey ?? node.node_key,

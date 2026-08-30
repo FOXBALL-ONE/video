@@ -18,6 +18,7 @@ import top.foxball.video.repository.GraphRerouteRepository
 import top.foxball.video.repository.GraphSubgraphInstanceRepository
 import top.foxball.video.repository.GraphSubgraphRepository
 import top.foxball.video.repository.GraphWorkflowSnapshotRepository
+import top.foxball.video.repository.EpisodeRepository
 import top.foxball.video.repository.ProjectRepository
 import top.foxball.video.repository.ProjectVersionRepository
 
@@ -33,13 +34,17 @@ class GraphService(
     private val subgraphInstanceRepository: GraphSubgraphInstanceRepository,
     private val snapshotRepository: GraphWorkflowSnapshotRepository,
     private val projectRepository: ProjectRepository,
+    private val episodeRepository: EpisodeRepository,
     private val projectVersionRepository: ProjectVersionRepository,
 ) {
     fun findCanvas(id: Long): GraphCanvas? = canvasRepository.findById(id).orElse(null)
 
-    fun findCanvases(projectId: Long, projectVersionId: Long?): List<GraphCanvas> =
-        if (projectVersionId == null) canvasRepository.findAllByProjectIdOrderByUpdatedAtDesc(projectId)
-        else canvasRepository.findAllByProjectIdAndProjectVersionIdOrderByUpdatedAtDesc(projectId, projectVersionId)
+    fun findCanvases(projectId: Long, projectVersionId: Long?, episodeId: Long? = null): List<GraphCanvas> = when {
+        episodeId == null && projectVersionId == null -> canvasRepository.findAllByProjectIdOrderByUpdatedAtDesc(projectId)
+        episodeId == null -> canvasRepository.findAllByProjectIdAndProjectVersionIdOrderByUpdatedAtDesc(projectId, requireNotNull(projectVersionId))
+        projectVersionId == null -> canvasRepository.findAllByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId, episodeId)
+        else -> canvasRepository.findAllByProjectIdAndEpisodeIdAndProjectVersionIdOrderByUpdatedAtDesc(projectId, episodeId, projectVersionId)
+    }
 
     fun findChildCanvases(parentGraphId: Long): List<GraphCanvas> = canvasRepository.findAllByParentGraphIdOrderByIdAsc(parentGraphId)
 
@@ -56,6 +61,7 @@ class GraphService(
         if (source.projectId != target.projectId) throw IllegalArgumentException("画布所属项目不可修改")
         validateCanvasReferences(source)
         target.projectId = source.projectId
+        target.episodeId = source.episodeId
         target.projectVersionId = source.projectVersionId
         target.parentGraphId = source.parentGraphId
         target.graphUuid = source.graphUuid
@@ -126,30 +132,39 @@ class GraphService(
     }
 
     fun latestSnapshot(graphId: Long): GraphWorkflowSnapshot? = snapshotRepository.findFirstByRootGraphIdOrderByCreatedAtDesc(graphId)
-    fun snapshots(projectId: Long, projectVersionId: Long?): List<GraphWorkflowSnapshot> = if (projectVersionId == null) snapshotRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId) else snapshotRepository.findAllByProjectVersionIdOrderByCreatedAtDesc(projectVersionId)
+    fun snapshots(projectId: Long, projectVersionId: Long?, episodeId: Long? = null): List<GraphWorkflowSnapshot> = when {
+        episodeId == null && projectVersionId == null -> snapshotRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
+        episodeId != null && projectVersionId != null -> snapshotRepository.findAllByProjectIdAndEpisodeIdAndProjectVersionIdOrderByCreatedAtDesc(projectId, episodeId, projectVersionId)
+        episodeId != null -> snapshotRepository.findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId, episodeId)
+        else -> snapshotRepository.findAllByProjectVersionIdOrderByCreatedAtDesc(requireNotNull(projectVersionId))
+    }
 
     @Transactional
     fun saveSnapshot(snapshot: GraphWorkflowSnapshot): GraphWorkflowSnapshot {
         if (snapshot.id != null) throw IllegalArgumentException("工作流快照只支持新增，不能覆盖历史记录")
         if (!projectRepository.existsById(snapshot.projectId)) throw IllegalArgumentException("项目不存在")
+        if (snapshot.episodeId != null && episodeRepository.findByIdAndProjectId(snapshot.episodeId!!, snapshot.projectId) == null) throw IllegalArgumentException("剧集不属于该项目")
         if (snapshot.projectVersionId != null) {
             val version = projectVersionRepository.findById(snapshot.projectVersionId!!).orElse(null)
                 ?: throw IllegalArgumentException("项目版本不存在")
             if (version.projectId != snapshot.projectId) throw IllegalArgumentException("项目版本不属于该项目")
+            if (version.episodeId != null && version.episodeId != snapshot.episodeId) throw IllegalArgumentException("项目版本不属于该剧集")
         }
         return snapshotRepository.save(snapshot)
     }
 
     private fun validateCanvasReferences(canvas: GraphCanvas) {
         if (!projectRepository.existsById(canvas.projectId)) throw IllegalArgumentException("项目不存在")
+        if (canvas.episodeId != null && episodeRepository.findByIdAndProjectId(canvas.episodeId!!, canvas.projectId) == null) throw IllegalArgumentException("剧集不属于该项目")
         if (canvas.projectVersionId != null) {
             val version = projectVersionRepository.findById(canvas.projectVersionId!!).orElse(null)
                 ?: throw IllegalArgumentException("项目版本不存在")
             if (version.projectId != canvas.projectId) throw IllegalArgumentException("项目版本不属于该项目")
+            if (version.episodeId != null && version.episodeId != canvas.episodeId) throw IllegalArgumentException("项目版本不属于该剧集")
         }
         if (canvas.parentGraphId != null) {
             val parent = findCanvas(canvas.parentGraphId!!) ?: throw IllegalArgumentException("父画布不存在")
-            if (parent.projectId != canvas.projectId || parent.projectVersionId != canvas.projectVersionId) throw IllegalArgumentException("父画布不属于同一项目版本")
+            if (parent.projectId != canvas.projectId || parent.episodeId != canvas.episodeId || parent.projectVersionId != canvas.projectVersionId) throw IllegalArgumentException("父画布不属于同一项目版本或剧集")
         }
     }
 

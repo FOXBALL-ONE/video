@@ -4,6 +4,7 @@
 
 - Write Git commit subjects and body descriptions in Simplified Chinese. Conventional Commit type and
   scope prefixes, such as `feat(frontend):`, may remain in English.
+- If a Git commit scope is not explicitly specified, default to all relevant changes made during the current session.
 
 ## Controller Conventions
 

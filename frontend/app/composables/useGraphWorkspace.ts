@@ -13,17 +13,25 @@ export const useGraphWorkspace = () => {
   const error = ref<string | null>(null)
   const linkIds = new Map<number, number>()
 
-  async function load(projectId: string) {
+  async function load(projectId: string, episodeId?: string) {
     const id = Number(projectId)
     if (!Number.isInteger(id) || id <= 0) return null
     supported.value = true
     loading.value = true
     error.value = null
     try {
-      const result = await http.get<{ list: ApiCanvas[] }>('/graphs', { project_id: id })
+      const numericEpisodeId = Number(episodeId)
+      const result = await http.get<{ list: ApiCanvas[] }>('/graphs', {
+        project_id: id,
+        ...(Number.isInteger(numericEpisodeId) && numericEpisodeId > 0 ? { episode_id: numericEpisodeId } : {}),
+      })
       let canvas = result.list?.[0]
       if (!canvas) {
-        canvas = await http.post<ApiCanvas>('/graphs', { projectId: id, graphKind: 'ROOT' }, { payloadMode: 'json' })
+        canvas = await http.post<ApiCanvas>('/graphs', {
+          projectId: id,
+          ...(Number.isInteger(numericEpisodeId) && numericEpisodeId > 0 ? { episodeId: numericEpisodeId } : {}),
+          graphKind: 'ROOT',
+        }, { payloadMode: 'json' })
       }
       graphId.value = canvas.id
       const detail = await http.get<{ canvas: ApiCanvas; nodes: ApiNode[]; links: ApiLink[]; groups: ApiGroup[] }>(`/graphs/${canvas.id}`)

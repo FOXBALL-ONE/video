@@ -26,6 +26,10 @@ class ProjectVersion(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级发布快照时为空。 */
+    var episodeId: Long? = null,
+
     @Column(name = "version_name", nullable = false, length = 20)
     /** 对外展示的版本名称，例如 v1.4。 */
     var versionName: String = "v0.1",

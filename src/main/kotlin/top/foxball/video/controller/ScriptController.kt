@@ -26,7 +26,10 @@ class ScriptController(
     private val responseBuilder: ResponseBuilder,
 ) {
     @GetMapping("/api/projects/{project_id}/script")
-    fun getScript(@PathVariable("project_id") projectId: Long): ResponseEntity<Response> {
+    fun getScript(
+        @PathVariable("project_id") projectId: Long,
+        @RequestParam("episode_id", required = false) episodeId: Long?,
+    ): ResponseEntity<Response> {
         data class VersionData(val id: Long, @param:JsonProperty("version_no") val versionNo: Int, @param:JsonProperty("version_name") val versionName: String, val status: String, @param:JsonProperty("created_at") val createdAt: LocalDateTime?)
         data class SceneData(val id: Long, @param:JsonProperty("scene_no") val sceneNo: Int, val title: String, val location: String?, @param:JsonProperty("time_of_day") val timeOfDay: String?, @param:JsonProperty("duration_seconds") val durationSeconds: Int, val content: String?)
         data class CharacterData(val id: Long, val name: String, val description: String?, val motivation: String?, val relationship: String?)
@@ -34,7 +37,7 @@ class ScriptController(
         data class QualityData(val id: Long, @param:JsonProperty("rule_code") val ruleCode: String, val title: String, val note: String?, val passed: Boolean, val score: BigDecimal?)
         data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val versions: List<VersionData>, val content: String, val scenes: List<SceneData>, val characters: List<CharacterData>, val dialogues: List<DialogueData>, @param:JsonProperty("quality_checks") val qualityChecks: List<QualityData>, val stats: Map<String, Any?>)
 
-        val snapshot = scriptService.load(projectId) ?: return responseBuilder.notFound().build()
+        val snapshot = scriptService.load(projectId, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(
             requireNotNull(snapshot.document.id), snapshot.document.title,
             VersionData(requireNotNull(snapshot.version.id), snapshot.version.versionNo, snapshot.version.versionName, snapshot.version.status.name, snapshot.version.createdAt),
@@ -54,11 +57,12 @@ class ScriptController(
         @PathVariable("project_id") projectId: Long,
         @RequestBody @Size(max = 2_000_000) content: String,
         @RequestParam("title", required = false) title: String?,
+        @RequestParam("episode_id", required = false) episodeId: Long?,
     ): ResponseEntity<Response> {
         data class VersionData(val id: Long, @param:JsonProperty("version_no") val versionNo: Int, @param:JsonProperty("version_name") val versionName: String, val status: String, @param:JsonProperty("created_at") val createdAt: LocalDateTime?)
         data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val content: String, val stats: Map<String, Any?>)
 
-        val snapshot = scriptService.save(projectId, content, title) ?: return responseBuilder.notFound().build()
+        val snapshot = scriptService.save(projectId, content, title, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(
             requireNotNull(snapshot.document.id), snapshot.document.title,
             VersionData(requireNotNull(snapshot.version.id), snapshot.version.versionNo, snapshot.version.versionName, snapshot.version.status.name, snapshot.version.createdAt),
@@ -72,11 +76,12 @@ class ScriptController(
     fun lockScript(
         @PathVariable("project_id") projectId: Long,
         @AuthenticationPrincipal userId: Long?,
+        @RequestParam("episode_id", required = false) episodeId: Long?,
     ): ResponseEntity<Response> {
         data class VersionData(val id: Long, @param:JsonProperty("version_no") val versionNo: Int, @param:JsonProperty("version_name") val versionName: String, val status: String, @param:JsonProperty("locked_at") val lockedAt: LocalDateTime?)
         data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val content: String)
 
-        val snapshot = scriptService.lock(projectId, userId) ?: return responseBuilder.notFound().build()
+        val snapshot = scriptService.lock(projectId, userId, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(requireNotNull(snapshot.document.id), snapshot.document.title, VersionData(requireNotNull(snapshot.version.id), snapshot.version.versionNo, snapshot.version.versionName, snapshot.version.status.name, snapshot.version.lockedAt), snapshot.version.content)
         return responseBuilder.ok().data(rs).build()
     }

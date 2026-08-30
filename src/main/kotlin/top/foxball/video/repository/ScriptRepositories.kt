@@ -12,6 +12,15 @@ import top.foxball.video.entity.jdbc.ScriptVersion
 interface ScriptDocumentRepository : JpaRepository<ScriptDocument, Long> {
     /** 查询项目唯一对应的剧本文档。 */
     fun findByProjectId(projectId: Long): ScriptDocument?
+
+    /** 查询早期项目级剧本文档（剧集文档的 episode_id 为空）。 */
+    fun findByProjectIdAndEpisodeIdIsNull(projectId: Long): ScriptDocument?
+
+    /** 查询项目下全部剧本文档，供项目级角色库聚合。 */
+    fun findAllByProjectId(projectId: Long): List<ScriptDocument>
+
+    /** 查询项目指定剧集的剧本文档。 */
+    fun findByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): ScriptDocument?
 }
 
 /** 剧本版本的数据访问接口。 */

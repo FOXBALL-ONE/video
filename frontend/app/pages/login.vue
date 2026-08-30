@@ -95,7 +95,7 @@ async function submit() {
       return;
     }
     await login(form.username, form.password);
-    await navigateTo("/projects");
+    await navigateTo("/");
   } catch (error: any) {
     errorMessage.value = error?.statusMessage || "登录失败，请检查账号和密码";
   }

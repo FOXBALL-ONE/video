@@ -26,6 +26,10 @@ class Shot(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；为空时兼容早期项目级镜头。 */
+    var episodeId: Long? = null,
+
     @Column(name = "project_version_id")
     /** 关联的项目版本快照主键。 */
     var projectVersionId: Long? = null,
@@ -62,6 +66,22 @@ class Shot(
     /** 运镜方式和镜头调度说明。 */
     var cameraMovement: String? = null,
 
+    @Column(name = "camera_angle", columnDefinition = "text")
+    /** 摄影机机位、角度和轴线关系。 */
+    var cameraAngle: String? = null,
+
+    @Column(name = "focal_length", length = 30)
+    /** 镜头焦段，例如 24mm、50mm 或 85mm。 */
+    var focalLength: String? = null,
+
+    @Column(columnDefinition = "text")
+    /** 画面构图、人物站位和前中后景关系。 */
+    var composition: String? = null,
+
+    @Column(name = "visual_description", columnDefinition = "text")
+    /** 用于分镜预览和生成的画面描述。 */
+    var visualDescription: String? = null,
+
     @Column(columnDefinition = "text")
     /** 镜头中人物或物体的动作。 */
     var action: String? = null,
@@ -70,6 +90,14 @@ class Shot(
     /** 镜头对应对白或旁白。 */
     var dialogue: String? = null,
 
+    @Column(name = "character_names", columnDefinition = "text")
+    /** 镜头涉及的角色名称，以逗号分隔保存。 */
+    var characterNames: String? = null,
+
+    @Column(name = "prop_names", columnDefinition = "text")
+    /** 镜头涉及的道具或资产名称，以逗号分隔保存。 */
+    var propNames: String? = null,
+
     @Column(columnDefinition = "text")
     /** 用于生成画面的正向提示词。 */
     var prompt: String? = null,
@@ -77,6 +105,14 @@ class Shot(
     @Column(name = "negative_prompt", columnDefinition = "text")
     /** 用于生成画面的反向提示词。 */
     var negativePrompt: String? = null,
+
+    @Column(columnDefinition = "text")
+    /** 镜头的光线、色彩和情绪氛围。 */
+    var atmosphere: String? = null,
+
+    @Column(name = "narrative_purpose", columnDefinition = "text")
+    /** 镜头在本集叙事中的目的或信息点。 */
+    var narrativePurpose: String? = null,
 
     @Column(name = "duration_seconds", nullable = false)
     /** 镜头时长，单位为秒。 */

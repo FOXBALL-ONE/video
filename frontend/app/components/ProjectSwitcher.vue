@@ -11,11 +11,10 @@
   </n-dropdown>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 
 const route = useRoute()
-const message = useMessage()
 const { projects, activeProject, switchProject } = useProjectWorkspace()
 
 const dropdownOptions = computed(() => [
@@ -33,15 +32,15 @@ const dropdownOptions = computed(() => [
   { label: '新建项目', key: 'create-project' }
 ])
 
-function handleSelect(key) {
+function handleSelect(key: string) {
   if (key.startsWith('project:')) {
     const projectId = key.slice('project:'.length)
     switchProject(projectId)
-    if (!route.path.startsWith('/graph')) navigateTo('/graph')
-    else message.success('项目已切换')
+    if (route.path.startsWith('/projects/')) navigateTo(`/projects/${projectId}`)
+    else navigateTo(`/projects/${projectId}/canvas`)
     return
   }
-  if (key === 'manage-projects') navigateTo('/graph/projects')
-  if (key === 'create-project') navigateTo({ path: '/graph/projects', query: { create: '1' } })
+  if (key === 'manage-projects') navigateTo('/projects')
+  if (key === 'create-project') navigateTo({ path: '/projects', query: { create: '1' } })
 }
 </script>

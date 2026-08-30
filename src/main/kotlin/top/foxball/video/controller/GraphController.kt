@@ -37,6 +37,7 @@ class GraphController(
     fun listCanvases(
         @RequestParam("project_id") projectId: Long,
         @RequestParam("project_version_id", required = false) projectVersionId: Long?,
+        @RequestParam("episode_id", required = false) episodeId: Long?,
     ): ResponseEntity<Response> {
         data class CanvasData(
             val id: Long,
@@ -51,7 +52,7 @@ class GraphController(
         )
         data class ResponseData(val list: List<CanvasData>)
 
-        val list = graphService.findCanvases(projectId, projectVersionId).map {
+        val list = graphService.findCanvases(projectId, projectVersionId, episodeId).map {
             CanvasData(requireNotNull(it.id), it.projectId, it.projectVersionId, it.parentGraphId, it.graphUuid?.toString(), it.graphKind.name, it.revision.toPlainString(), it.graphVersion.toPlainString(), it.updatedAt)
         }
         return responseBuilder.ok().data(ResponseData(list)).build()
@@ -287,7 +288,7 @@ class GraphController(
     @GetMapping("/api/graphs/{graph_id}/snapshots")
     fun listSnapshots(@PathVariable("graph_id") graphId: Long): ResponseEntity<Response> {
         val canvas = graphService.findCanvas(graphId) ?: return responseBuilder.notFound().build()
-        return responseBuilder.ok().data(mapOf("list" to graphService.snapshots(canvas.projectId, canvas.projectVersionId).filter { it.rootGraphId == graphId })).build()
+        return responseBuilder.ok().data(mapOf("list" to graphService.snapshots(canvas.projectId, canvas.projectVersionId, canvas.episodeId).filter { it.rootGraphId == graphId })).build()
     }
 
     @PostMapping("/api/graphs/{graph_id}/snapshots")
@@ -295,6 +296,7 @@ class GraphController(
         val canvas = graphService.findCanvas(graphId) ?: return responseBuilder.notFound().build()
         snapshot.rootGraphId = graphId
         snapshot.projectId = canvas.projectId
+        snapshot.episodeId = canvas.episodeId
         snapshot.projectVersionId = canvas.projectVersionId
         val saved = try {
             graphService.saveSnapshot(snapshot)

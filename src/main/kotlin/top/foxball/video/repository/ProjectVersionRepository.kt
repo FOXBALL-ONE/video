@@ -8,6 +8,8 @@ interface ProjectVersionRepository : JpaRepository<ProjectVersion, Long> {
     /** 查询项目的全部版本，最新创建的版本优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<ProjectVersion>
 
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<ProjectVersion>
+
     /** 按项目和展示名称查询版本。 */
     fun findByProjectIdAndVersionName(projectId: Long, versionName: String): ProjectVersion?
 

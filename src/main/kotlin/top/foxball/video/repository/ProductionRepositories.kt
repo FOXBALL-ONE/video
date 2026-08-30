@@ -15,6 +15,8 @@ interface MediaFileRepository : JpaRepository<MediaFile, Long> {
     /** 查询项目的全部媒体文件，最新文件优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<MediaFile>
 
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<MediaFile>
+
     /** 按媒体类型查询项目文件。 */
     fun findAllByProjectIdAndMediaTypeOrderByCreatedAtDesc(projectId: Long, mediaType: MediaType): List<MediaFile>
 
@@ -26,6 +28,8 @@ interface MediaFileRepository : JpaRepository<MediaFile, Long> {
 interface ProductionTaskRepository : JpaRepository<ProductionTask, Long> {
     /** 查询项目的全部任务，最新任务优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<ProductionTask>
+
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<ProductionTask>
 
     /** 按项目和任务状态查询任务。 */
     fun findAllByProjectIdAndStatusOrderByCreatedAtAsc(projectId: Long, status: ProductionTaskStatus): List<ProductionTask>
@@ -51,6 +55,8 @@ interface VideoRenderSettingsRepository : JpaRepository<VideoRenderSettings, Lon
     /** 查询项目最近使用的成片参数。 */
     fun findFirstByProjectIdOrderByUpdatedAtDesc(projectId: Long): VideoRenderSettings?
 
+    fun findFirstByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): VideoRenderSettings?
+
     /** 查询项目版本最近保存的成片参数。 */
     fun findFirstByProjectVersionIdOrderByUpdatedAtDesc(projectVersionId: Long): VideoRenderSettings?
 }
@@ -59,6 +65,8 @@ interface VideoRenderSettingsRepository : JpaRepository<VideoRenderSettings, Lon
 interface QualityCheckRunRepository : JpaRepository<QualityCheckRun, Long> {
     /** 查询项目的质检运行记录，最新运行优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<QualityCheckRun>
+
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<QualityCheckRun>
 
     /** 查询项目版本的质检运行记录。 */
     fun findAllByProjectVersionIdOrderByCreatedAtDesc(projectVersionId: Long): List<QualityCheckRun>

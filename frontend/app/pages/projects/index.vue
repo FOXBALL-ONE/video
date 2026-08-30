@@ -132,9 +132,9 @@ async function submitCreate() {
   }
   loading.value = true
   try {
-    await createProject({name, type: form.value.type, description: form.value.description.trim()})
+    const project = await createProject({name, type: form.value.type, description: form.value.description.trim()})
     message.success('项目已创建')
-    await navigateTo('/graph')
+    await navigateTo(`/projects/${project.id}`)
   } catch (error) {
     message.error(error instanceof Error ? error.message : '项目创建失败，请稍后重试')
   } finally {
@@ -149,6 +149,6 @@ function cancelCreate() {
 
 function openProject(project: { id: string }) {
   switchProject(project.id)
-  navigateTo('/graph')
+  navigateTo(`/projects/${project.id}`)
 }
 </script>

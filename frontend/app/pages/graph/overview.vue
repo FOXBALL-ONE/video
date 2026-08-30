@@ -35,7 +35,7 @@
               class="flex min-h-[108px] flex-col items-start justify-between gap-4 border-b border-[#e8eaf0] px-1 py-5 sm:flex-row sm:items-center sm:px-2">
             <div>
               <h2 class="m-0 text-lg font-medium">制作流程</h2>
-              <p class="mt-2 text-xs text-[#8994a8]">按顺序完成四个节点，也可以直接进入任意环节处理任务。</p>
+              <p class="mt-2 text-xs text-[#8994a8]">当前项目包含 {{ episodes.length }} 集，每个节点按当前剧集独立推进。</p>
             </div>
             <n-tag :bordered="false" :type="activeProject.status === '草稿' ? 'default' : 'success'"
                    class="!rounded-md">{{ activeProject.status }} ·
@@ -144,16 +144,25 @@
   </main>
 </template>
 
-<script setup>
-import {computed} from 'vue'
+<script setup lang="ts">
+import {computed, onMounted} from 'vue'
 
 const message = useMessage()
 const {activeProject} = useProjectWorkspace()
+const {episodes, activeEpisodeId, loadEpisodes} = useEpisodeWorkspace()
+const route = useRoute()
+const projectBase = computed(() => `/projects/${String(route.params.projectId || activeProject.value.id)}`)
+const projectKey = computed(() => String(route.params.projectId || activeProject.value.id || ''))
+const episodeRouteId = computed(() => {
+  const value = String(activeEpisodeId.value || '')
+  return /^\d+$/.test(projectKey.value) ? (/^\d+$/.test(value) ? value : '') : value
+})
+const workflowBase = computed(() => episodeRouteId.value ? `${projectBase.value}/episodes/${episodeRouteId.value}/workflow` : `${projectBase.value}/workflow`)
 
-const steps = [
+const steps = computed(() => [
   {
     id: 'script',
-    route: '/graph/script',
+    route: `${workflowBase.value}/script`,
     title: '剧本输入',
     caption: '故事结构、场次、人物与对白',
     status: '已完成',
@@ -162,7 +171,7 @@ const steps = [
   },
   {
     id: 'assets',
-    route: '/graph/assets',
+    route: `${workflowBase.value}/assets`,
     title: '资产清单',
     caption: '角色、场景、道具与声音',
     status: '进行中',
@@ -171,7 +180,7 @@ const steps = [
   },
   {
     id: 'shots',
-    route: '/graph/shots',
+    route: `${workflowBase.value}/shots`,
     title: '分镜管理',
     caption: '景别、运镜、动作与连续性',
     status: '待优化',
@@ -180,39 +189,47 @@ const steps = [
   },
   {
     id: 'video',
-    route: '/graph/video',
+    route: `${workflowBase.value}/video`,
     title: '视频制作',
     caption: '画面、配音、音效与合成',
     status: '待开始',
     tone: 'default',
     icon: '▶'
   }
-]
+])
 const overviewStats = computed(() => [
-  {label: '制作节点', value: '4', detail: '个'},
+  {label: '制作剧集', value: String(episodes.value.length), detail: '集'},
   {label: '当前版本', value: activeProject.value.version, detail: '编辑稿'},
   {label: '预计时长', value: activeProject.value.duration, detail: '成片'},
   {label: '质量评分', value: activeProject.value.score, detail: '/ 10'}
 ])
-const quickActions = [
-  {label: '导入新剧本', detail: '开始新的版本', route: '/graph/script'},
-  {label: '补齐资产', detail: '处理 3 项缺口', route: '/graph/assets'},
-  {label: '检查分镜', detail: '优化镜头连续性', route: '/graph/shots'}
-]
+const quickActions = computed(() => [
+  {label: '导入新剧本', detail: '开始新的版本', route: `${workflowBase.value}/script`},
+  {label: '补齐资产', detail: '处理 3 项缺口', route: `${workflowBase.value}/assets`},
+  {label: '检查分镜', detail: '优化镜头连续性', route: `${workflowBase.value}/shots`}
+])
 
 function saveDraft() {
   message.success('草稿已保存')
 }
 
 function openNextStep() {
-  navigateTo('/graph/assets')
+  navigateTo(`${workflowBase.value}/assets`)
 }
 
 function openScript() {
-  navigateTo('/graph/script')
+  navigateTo(`${workflowBase.value}/script`)
 }
 
-function runAction(action) {
+function runAction(action: {route: string}) {
   navigateTo(action.route)
 }
+
+onMounted(async () => {
+  try {
+    await loadEpisodes(String(route.params.projectId || activeProject.value.id))
+  } catch {
+    // The sidebar keeps local episode data when the API is unavailable.
+  }
+})
 </script>

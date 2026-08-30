@@ -2,9 +2,10 @@
   <main class="min-h-screen bg-[#f5f6fa] px-4 py-[18px] text-[#20283b] sm:px-6">
     <div class="mx-auto max-w-[1177px]">
       <header>
-        <p class="m-0 text-xs font-bold tracking-[0.8px] text-[#5c52ee]">04 / 04 · PRODUCTION NODE</p>
+        <p class="m-0 text-xs font-bold tracking-[0.8px] text-[#5c52ee]">06 / 07 · PRODUCTION NODE</p>
         <div class="mt-6 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
           <div><h1 class="m-0 text-[31px] font-medium">视频制作</h1>
+            <p v-if="activeEpisode" class="mt-2 text-xs font-medium text-[#5d52ec]">{{ activeEpisode.title }} · 当前剧集</p>
             <p class="mt-[11px] text-[13px] text-[#8a94aa]">画面、配音、音效与合成，所有修改均纳入版本记录和质量门禁。</p>
           </div>
           <div class="flex w-full gap-2 sm:w-auto">
@@ -106,6 +107,8 @@ import {computed, onMounted, ref, watch} from 'vue'
 const message = useMessage()
 const http = useHttp()
 const {activeProject, loadProjects} = useProjectWorkspace()
+const {activeEpisodeId, activeEpisode, loadEpisodes} = useEpisodeWorkspace()
+const route = useRoute()
 
 interface VideoSettings {
   id: number;
@@ -176,12 +179,17 @@ const modules = computed(() => Object.entries(taskMeta).filter(([type]) => type 
 }))
 const assistantMessage = ref('我是视频制片助手。可以规划画面、配音、音效、字幕与合成任务的依赖和质量门禁。')
 const assistantSuggestions = ['规划制作队列', '检查生成参数', '生成成片质检单']
+const episodeId = computed(() => String(route.params.episodeId || activeEpisodeId.value || ''))
+const episodeParams = computed(() => {
+  const id = Number(episodeId.value)
+  return Number.isInteger(id) && id > 0 ? {episode_id: id} : undefined
+})
 
 async function loadVideo() {
   const projectId = Number(activeProject.value?.id)
   if (!Number.isInteger(projectId) || projectId <= 0) return
   try {
-    const data = await http.get<VideoResponse>(`/projects/${projectId}/video`);
+    const data = await http.get<VideoResponse>(`/projects/${projectId}/video`, episodeParams.value);
     settings.value = {
       ratio: data.settings.aspect_ratio,
       style: data.settings.style,
@@ -206,8 +214,9 @@ async function saveDraft() {
       style: settings.value.style,
       fps: Number(settings.value.fps),
       subtitle_mode: settings.value.subtitle.toUpperCase()
-    });
+    }, {params: episodeParams.value});
     await loadVideo();
+    try { await loadEpisodes(String(activeProject.value?.id || '')) } catch { /* sidebar fallback */ }
     message.success('制作设置已保存')
   } catch (error) {
     message.error(error instanceof Error ? error.message : '制作设置保存失败')
@@ -221,8 +230,9 @@ async function startQueue() {
   if (!Number.isInteger(projectId) || projectId <= 0) return
   queueRunning.value = true
   try {
-    await http.post<QueueResponse>(`/projects/${projectId}/video/queue`);
+    await http.post<QueueResponse>(`/projects/${projectId}/video/queue`, episodeParams.value);
     await loadVideo();
+    try { await loadEpisodes(String(activeProject.value?.id || '')) } catch { /* sidebar fallback */ }
     message.success('视频制作队列已启动')
   } catch (error) {
     message.error(error instanceof Error ? error.message : '制作队列启动失败')
@@ -247,6 +257,9 @@ onMounted(async () => {
   await loadVideo()
 })
 watch(() => activeProject.value?.id, (next, previous) => {
+  if (next && next !== previous) loadVideo()
+})
+watch(episodeId, (next, previous) => {
   if (next && next !== previous) loadVideo()
 })
 </script>

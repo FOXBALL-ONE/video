@@ -34,6 +34,10 @@ class GraphWorkflowSnapshot(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级快照时为空。 */
+    var episodeId: Long? = null,
+
     @Column(name = "project_version_id")
     /** 所属项目版本主键。 */
     var projectVersionId: Long? = null,

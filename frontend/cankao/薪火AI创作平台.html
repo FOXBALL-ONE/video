@@ -1,0 +1,2134 @@
+<!DOCTYPE html>
+<!-- saved from url=(0039)https://ai.xinhuoshixiao.com/drama/2268 -->
+<html class="light" lang="zh-CN">
+<head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+    <link href="https://web-1347907365.cos.ap-nanjing.myqcloud.com/images/2b842578-ff7e-4e86-99df-d6a0019420b9.png" rel="icon"
+          type="image/png">
+    <title>薪火AI创作平台</title>
+    <script crossorigin="" src="./薪火AI创作平台_files/index-C-bOVhdJ.js.下载" type="module"></script>
+    <link crossorigin="" href="https://ai.xinhuoshixiao.com/assets/react-vendor-CGMGUScw.js" rel="modulepreload">
+    <link crossorigin="" href="https://ai.xinhuoshixiao.com/assets/charts-CFVQhWob.js" rel="modulepreload">
+    <link crossorigin="" href="./薪火AI创作平台_files/index-9UmRBPpS.css" rel="stylesheet">
+    <style type="text/css">:where(html[dir="ltr"]), :where([data-sonner-toaster][dir="ltr"]) {
+        --toast-icon-margin-start: -3px;
+        --toast-icon-margin-end: 4px;
+        --toast-svg-margin-start: -1px;
+        --toast-svg-margin-end: 0px;
+        --toast-button-margin-start: auto;
+        --toast-button-margin-end: 0;
+        --toast-close-button-start: 0;
+        --toast-close-button-end: unset;
+        --toast-close-button-transform: translate(-35%, -35%)
+    }
+
+    :where(html[dir="rtl"]), :where([data-sonner-toaster][dir="rtl"]) {
+        --toast-icon-margin-start: 4px;
+        --toast-icon-margin-end: -3px;
+        --toast-svg-margin-start: 0px;
+        --toast-svg-margin-end: -1px;
+        --toast-button-margin-start: 0;
+        --toast-button-margin-end: auto;
+        --toast-close-button-start: unset;
+        --toast-close-button-end: 0;
+        --toast-close-button-transform: translate(35%, -35%)
+    }
+
+    :where([data-sonner-toaster]) {
+        position: fixed;
+        width: var(--width);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
+        --gray1: hsl(0, 0%, 99%);
+        --gray2: hsl(0, 0%, 97.3%);
+        --gray3: hsl(0, 0%, 95.1%);
+        --gray4: hsl(0, 0%, 93%);
+        --gray5: hsl(0, 0%, 90.9%);
+        --gray6: hsl(0, 0%, 88.7%);
+        --gray7: hsl(0, 0%, 85.8%);
+        --gray8: hsl(0, 0%, 78%);
+        --gray9: hsl(0, 0%, 56.1%);
+        --gray10: hsl(0, 0%, 52.3%);
+        --gray11: hsl(0, 0%, 43.5%);
+        --gray12: hsl(0, 0%, 9%);
+        --border-radius: 8px;
+        box-sizing: border-box;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+        outline: none;
+        z-index: 999999999;
+        transition: transform .4s ease
+    }
+
+    :where([data-sonner-toaster][data-lifted="true"]) {
+        transform: translateY(-10px)
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+        :where([data-sonner-toaster][data-lifted="true"]) {
+            transform: none
+        }
+    }
+
+    :where([data-sonner-toaster][data-x-position="right"]) {
+        right: var(--offset-right)
+    }
+
+    :where([data-sonner-toaster][data-x-position="left"]) {
+        left: var(--offset-left)
+    }
+
+    :where([data-sonner-toaster][data-x-position="center"]) {
+        left: 50%;
+        transform: translate(-50%)
+    }
+
+    :where([data-sonner-toaster][data-y-position="top"]) {
+        top: var(--offset-top)
+    }
+
+    :where([data-sonner-toaster][data-y-position="bottom"]) {
+        bottom: var(--offset-bottom)
+    }
+
+    :where([data-sonner-toast]) {
+        --y: translateY(100%);
+        --lift-amount: calc(var(--lift) * var(--gap));
+        z-index: var(--z-index);
+        position: absolute;
+        opacity: 0;
+        transform: var(--y);
+        filter: blur(0);
+        touch-action: none;
+        transition: transform .4s, opacity .4s, height .4s, box-shadow .2s;
+        box-sizing: border-box;
+        outline: none;
+        overflow-wrap: anywhere
+    }
+
+    :where([data-sonner-toast][data-styled="true"]) {
+        padding: 16px;
+        background: var(--normal-bg);
+        border: 1px solid var(--normal-border);
+        color: var(--normal-text);
+        border-radius: var(--border-radius);
+        box-shadow: 0 4px 12px #0000001a;
+        width: var(--width);
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px
+    }
+
+    :where([data-sonner-toast]:focus-visible) {
+        box-shadow: 0 4px 12px #0000001a, 0 0 0 2px #0003
+    }
+
+    :where([data-sonner-toast][data-y-position="top"]) {
+        top: 0;
+        --y: translateY(-100%);
+        --lift: 1;
+        --lift-amount: calc(1 * var(--gap))
+    }
+
+    :where([data-sonner-toast][data-y-position="bottom"]) {
+        bottom: 0;
+        --y: translateY(100%);
+        --lift: -1;
+        --lift-amount: calc(var(--lift) * var(--gap))
+    }
+
+    :where([data-sonner-toast]) :where([data-description]) {
+        font-weight: 400;
+        line-height: 1.4;
+        color: inherit
+    }
+
+    :where([data-sonner-toast]) :where([data-title]) {
+        font-weight: 500;
+        line-height: 1.5;
+        color: inherit
+    }
+
+    :where([data-sonner-toast]) :where([data-icon]) {
+        display: flex;
+        height: 16px;
+        width: 16px;
+        position: relative;
+        justify-content: flex-start;
+        align-items: center;
+        flex-shrink: 0;
+        margin-left: var(--toast-icon-margin-start);
+        margin-right: var(--toast-icon-margin-end)
+    }
+
+    :where([data-sonner-toast][data-promise="true"]) :where([data-icon]) > svg {
+        opacity: 0;
+        transform: scale(.8);
+        transform-origin: center;
+        animation: sonner-fade-in .3s ease forwards
+    }
+
+    :where([data-sonner-toast]) :where([data-icon]) > * {
+        flex-shrink: 0
+    }
+
+    :where([data-sonner-toast]) :where([data-icon]) svg {
+        margin-left: var(--toast-svg-margin-start);
+        margin-right: var(--toast-svg-margin-end)
+    }
+
+    :where([data-sonner-toast]) :where([data-content]) {
+        display: flex;
+        flex-direction: column;
+        gap: 2px
+    }
+
+    [data-sonner-toast][data-styled=true] [data-button] {
+        border-radius: 4px;
+        padding-left: 8px;
+        padding-right: 8px;
+        height: 24px;
+        font-size: 12px;
+        color: var(--normal-bg);
+        background: var(--normal-text);
+        margin-left: var(--toast-button-margin-start);
+        margin-right: var(--toast-button-margin-end);
+        border: none;
+        cursor: pointer;
+        outline: none;
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        transition: opacity .4s, box-shadow .2s
+    }
+
+    :where([data-sonner-toast]) :where([data-button]):focus-visible {
+        box-shadow: 0 0 0 2px #0006
+    }
+
+    :where([data-sonner-toast]) :where([data-button]):first-of-type {
+        margin-left: var(--toast-button-margin-start);
+        margin-right: var(--toast-button-margin-end)
+    }
+
+    :where([data-sonner-toast]) :where([data-cancel]) {
+        color: var(--normal-text);
+        background: rgba(0, 0, 0, .08)
+    }
+
+    :where([data-sonner-toast][data-theme="dark"]) :where([data-cancel]) {
+        background: rgba(255, 255, 255, .3)
+    }
+
+    :where([data-sonner-toast]) :where([data-close-button]) {
+        position: absolute;
+        left: var(--toast-close-button-start);
+        right: var(--toast-close-button-end);
+        top: 0;
+        height: 20px;
+        width: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0;
+        color: var(--gray12);
+        border: 1px solid var(--gray4);
+        transform: var(--toast-close-button-transform);
+        border-radius: 50%;
+        cursor: pointer;
+        z-index: 1;
+        transition: opacity .1s, background .2s, border-color .2s
+    }
+
+    [data-sonner-toast] [data-close-button] {
+        background: var(--gray1)
+    }
+
+    :where([data-sonner-toast]) :where([data-close-button]):focus-visible {
+        box-shadow: 0 4px 12px #0000001a, 0 0 0 2px #0003
+    }
+
+    :where([data-sonner-toast]) :where([data-disabled="true"]) {
+        cursor: not-allowed
+    }
+
+    :where([data-sonner-toast]):hover :where([data-close-button]):hover {
+        background: var(--gray2);
+        border-color: var(--gray5)
+    }
+
+    :where([data-sonner-toast][data-swiping="true"]):before {
+        content: "";
+        position: absolute;
+        left: -50%;
+        right: -50%;
+        height: 100%;
+        z-index: -1
+    }
+
+    :where([data-sonner-toast][data-y-position="top"][data-swiping="true"]):before {
+        bottom: 50%;
+        transform: scaleY(3) translateY(50%)
+    }
+
+    :where([data-sonner-toast][data-y-position="bottom"][data-swiping="true"]):before {
+        top: 50%;
+        transform: scaleY(3) translateY(-50%)
+    }
+
+    :where([data-sonner-toast][data-swiping="false"][data-removed="true"]):before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: scaleY(2)
+    }
+
+    :where([data-sonner-toast]):after {
+        content: "";
+        position: absolute;
+        left: 0;
+        height: calc(var(--gap) + 1px);
+        bottom: 100%;
+        width: 100%
+    }
+
+    :where([data-sonner-toast][data-mounted="true"]) {
+        --y: translateY(0);
+        opacity: 1
+    }
+
+    :where([data-sonner-toast][data-expanded="false"][data-front="false"]) {
+        --scale: var(--toasts-before) *.05 +1;
+        --y: translateY(calc(var(--lift-amount) * var(--toasts-before))) scale(calc(-1 * var(--scale)));
+        height: var(--front-toast-height)
+    }
+
+    :where([data-sonner-toast]) > * {
+        transition: opacity .4s
+    }
+
+    :where([data-sonner-toast][data-expanded="false"][data-front="false"][data-styled="true"]) > * {
+        opacity: 0
+    }
+
+    :where([data-sonner-toast][data-visible="false"]) {
+        opacity: 0;
+        pointer-events: none
+    }
+
+    :where([data-sonner-toast][data-mounted="true"][data-expanded="true"]) {
+        --y: translateY(calc(var(--lift) * var(--offset)));
+        height: var(--initial-height)
+    }
+
+    :where([data-sonner-toast][data-removed="true"][data-front="true"][data-swipe-out="false"]) {
+        --y: translateY(calc(var(--lift) * -100%));
+        opacity: 0
+    }
+
+    :where([data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="true"]) {
+        --y: translateY(calc(var(--lift) * var(--offset) + var(--lift) * -100%));
+        opacity: 0
+    }
+
+    :where([data-sonner-toast][data-removed="true"][data-front="false"][data-swipe-out="false"][data-expanded="false"]) {
+        --y: translateY(40%);
+        opacity: 0;
+        transition: transform .5s, opacity .2s
+    }
+
+    :where([data-sonner-toast][data-removed="true"][data-front="false"]):before {
+        height: calc(var(--initial-height) + 20%)
+    }
+
+    [data-sonner-toast][data-swiping=true] {
+        transform: var(--y) translateY(var(--swipe-amount-y, 0px)) translate(var(--swipe-amount-x, 0px));
+        transition: none
+    }
+
+    [data-sonner-toast][data-swiped=true] {
+        user-select: none
+    }
+
+    [data-sonner-toast][data-swipe-out=true][data-y-position=bottom], [data-sonner-toast][data-swipe-out=true][data-y-position=top] {
+        animation-duration: .2s;
+        animation-timing-function: ease-out;
+        animation-fill-mode: forwards
+    }
+
+    [data-sonner-toast][data-swipe-out=true][data-swipe-direction=left] {
+        animation-name: swipe-out-left
+    }
+
+    [data-sonner-toast][data-swipe-out=true][data-swipe-direction=right] {
+        animation-name: swipe-out-right
+    }
+
+    [data-sonner-toast][data-swipe-out=true][data-swipe-direction=up] {
+        animation-name: swipe-out-up
+    }
+
+    [data-sonner-toast][data-swipe-out=true][data-swipe-direction=down] {
+        animation-name: swipe-out-down
+    }
+
+    @keyframes swipe-out-left {
+        0% {
+            transform: var(--y) translate(var(--swipe-amount-x));
+            opacity: 1
+        }
+        to {
+            transform: var(--y) translate(calc(var(--swipe-amount-x) - 100%));
+            opacity: 0
+        }
+    }
+
+    @keyframes swipe-out-right {
+        0% {
+            transform: var(--y) translate(var(--swipe-amount-x));
+            opacity: 1
+        }
+        to {
+            transform: var(--y) translate(calc(var(--swipe-amount-x) + 100%));
+            opacity: 0
+        }
+    }
+
+    @keyframes swipe-out-up {
+        0% {
+            transform: var(--y) translateY(var(--swipe-amount-y));
+            opacity: 1
+        }
+        to {
+            transform: var(--y) translateY(calc(var(--swipe-amount-y) - 100%));
+            opacity: 0
+        }
+    }
+
+    @keyframes swipe-out-down {
+        0% {
+            transform: var(--y) translateY(var(--swipe-amount-y));
+            opacity: 1
+        }
+        to {
+            transform: var(--y) translateY(calc(var(--swipe-amount-y) + 100%));
+            opacity: 0
+        }
+    }
+
+    @media (max-width: 600px) {
+        [data-sonner-toaster] {
+            position: fixed;
+            right: var(--mobile-offset-right);
+            left: var(--mobile-offset-left);
+            width: 100%
+        }
+
+        [data-sonner-toaster][dir=rtl] {
+            left: calc(var(--mobile-offset-left) * -1)
+        }
+
+        [data-sonner-toaster] [data-sonner-toast] {
+            left: 0;
+            right: 0;
+            width: calc(100% - var(--mobile-offset-left) * 2)
+        }
+
+        [data-sonner-toaster][data-x-position=left] {
+            left: var(--mobile-offset-left)
+        }
+
+        [data-sonner-toaster][data-y-position=bottom] {
+            bottom: var(--mobile-offset-bottom)
+        }
+
+        [data-sonner-toaster][data-y-position=top] {
+            top: var(--mobile-offset-top)
+        }
+
+        [data-sonner-toaster][data-x-position=center] {
+            left: var(--mobile-offset-left);
+            right: var(--mobile-offset-right);
+            transform: none
+        }
+    }
+
+    [data-sonner-toaster][data-theme=light] {
+        --normal-bg: #fff;
+        --normal-border: var(--gray4);
+        --normal-text: var(--gray12);
+        --success-bg: hsl(143, 85%, 96%);
+        --success-border: hsl(145, 92%, 91%);
+        --success-text: hsl(140, 100%, 27%);
+        --info-bg: hsl(208, 100%, 97%);
+        --info-border: hsl(221, 91%, 91%);
+        --info-text: hsl(210, 92%, 45%);
+        --warning-bg: hsl(49, 100%, 97%);
+        --warning-border: hsl(49, 91%, 91%);
+        --warning-text: hsl(31, 92%, 45%);
+        --error-bg: hsl(359, 100%, 97%);
+        --error-border: hsl(359, 100%, 94%);
+        --error-text: hsl(360, 100%, 45%)
+    }
+
+    [data-sonner-toaster][data-theme=light] [data-sonner-toast][data-invert=true] {
+        --normal-bg: #000;
+        --normal-border: hsl(0, 0%, 20%);
+        --normal-text: var(--gray1)
+    }
+
+    [data-sonner-toaster][data-theme=dark] [data-sonner-toast][data-invert=true] {
+        --normal-bg: #fff;
+        --normal-border: var(--gray3);
+        --normal-text: var(--gray12)
+    }
+
+    [data-sonner-toaster][data-theme=dark] {
+        --normal-bg: #000;
+        --normal-bg-hover: hsl(0, 0%, 12%);
+        --normal-border: hsl(0, 0%, 20%);
+        --normal-border-hover: hsl(0, 0%, 25%);
+        --normal-text: var(--gray1);
+        --success-bg: hsl(150, 100%, 6%);
+        --success-border: hsl(147, 100%, 12%);
+        --success-text: hsl(150, 86%, 65%);
+        --info-bg: hsl(215, 100%, 6%);
+        --info-border: hsl(223, 100%, 12%);
+        --info-text: hsl(216, 87%, 65%);
+        --warning-bg: hsl(64, 100%, 6%);
+        --warning-border: hsl(60, 100%, 12%);
+        --warning-text: hsl(46, 87%, 65%);
+        --error-bg: hsl(358, 76%, 10%);
+        --error-border: hsl(357, 89%, 16%);
+        --error-text: hsl(358, 100%, 81%)
+    }
+
+    [data-sonner-toaster][data-theme=dark] [data-sonner-toast] [data-close-button] {
+        background: var(--normal-bg);
+        border-color: var(--normal-border);
+        color: var(--normal-text)
+    }
+
+    [data-sonner-toaster][data-theme=dark] [data-sonner-toast] [data-close-button]:hover {
+        background: var(--normal-bg-hover);
+        border-color: var(--normal-border-hover)
+    }
+
+    [data-rich-colors=true][data-sonner-toast][data-type=success], [data-rich-colors=true][data-sonner-toast][data-type=success] [data-close-button] {
+        background: var(--success-bg);
+        border-color: var(--success-border);
+        color: var(--success-text)
+    }
+
+    [data-rich-colors=true][data-sonner-toast][data-type=info], [data-rich-colors=true][data-sonner-toast][data-type=info] [data-close-button] {
+        background: var(--info-bg);
+        border-color: var(--info-border);
+        color: var(--info-text)
+    }
+
+    [data-rich-colors=true][data-sonner-toast][data-type=warning], [data-rich-colors=true][data-sonner-toast][data-type=warning] [data-close-button] {
+        background: var(--warning-bg);
+        border-color: var(--warning-border);
+        color: var(--warning-text)
+    }
+
+    [data-rich-colors=true][data-sonner-toast][data-type=error], [data-rich-colors=true][data-sonner-toast][data-type=error] [data-close-button] {
+        background: var(--error-bg);
+        border-color: var(--error-border);
+        color: var(--error-text)
+    }
+
+    .sonner-loading-wrapper {
+        --size: 16px;
+        height: var(--size);
+        width: var(--size);
+        position: absolute;
+        inset: 0;
+        z-index: 10
+    }
+
+    .sonner-loading-wrapper[data-visible=false] {
+        transform-origin: center;
+        animation: sonner-fade-out .2s ease forwards
+    }
+
+    .sonner-spinner {
+        position: relative;
+        top: 50%;
+        left: 50%;
+        height: var(--size);
+        width: var(--size)
+    }
+
+    .sonner-loading-bar {
+        animation: sonner-spin 1.2s linear infinite;
+        background: var(--gray11);
+        border-radius: 6px;
+        height: 8%;
+        left: -10%;
+        position: absolute;
+        top: -3.9%;
+        width: 24%
+    }
+
+    .sonner-loading-bar:nth-child(1) {
+        animation-delay: -1.2s;
+        transform: rotate(.0001deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(2) {
+        animation-delay: -1.1s;
+        transform: rotate(30deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(3) {
+        animation-delay: -1s;
+        transform: rotate(60deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(4) {
+        animation-delay: -.9s;
+        transform: rotate(90deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(5) {
+        animation-delay: -.8s;
+        transform: rotate(120deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(6) {
+        animation-delay: -.7s;
+        transform: rotate(150deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(7) {
+        animation-delay: -.6s;
+        transform: rotate(180deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(8) {
+        animation-delay: -.5s;
+        transform: rotate(210deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(9) {
+        animation-delay: -.4s;
+        transform: rotate(240deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(10) {
+        animation-delay: -.3s;
+        transform: rotate(270deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(11) {
+        animation-delay: -.2s;
+        transform: rotate(300deg) translate(146%)
+    }
+
+    .sonner-loading-bar:nth-child(12) {
+        animation-delay: -.1s;
+        transform: rotate(330deg) translate(146%)
+    }
+
+    @keyframes sonner-fade-in {
+        0% {
+            opacity: 0;
+            transform: scale(.8)
+        }
+        to {
+            opacity: 1;
+            transform: scale(1)
+        }
+    }
+
+    @keyframes sonner-fade-out {
+        0% {
+            opacity: 1;
+            transform: scale(1)
+        }
+        to {
+            opacity: 0;
+            transform: scale(.8)
+        }
+    }
+
+    @keyframes sonner-spin {
+        0% {
+            opacity: 1
+        }
+        to {
+            opacity: .15
+        }
+    }
+
+    @media (prefers-reduced-motion) {
+        [data-sonner-toast], [data-sonner-toast] > *, .sonner-loading-bar {
+            transition: none !important;
+            animation: none !important
+        }
+    }
+
+    .sonner-loader {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transform-origin: center;
+        transition: opacity .2s, transform .2s
+    }
+
+    .sonner-loader[data-visible=false] {
+        opacity: 0;
+        transform: scale(.8) translate(-50%, -50%)
+    }
+    </style>
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/FrontLayout-CEp32DsY.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/index-C9kW0dei.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/createLucideIcon-7Snop79X.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/activity--V_s1p1x.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/archive-DAEUS95X.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/arrow-down-to-line-Cirm2i4m.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/arrow-up-DH3imCqx.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/repeat-B3ES9l3O.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/arrow-left-CPy0evIn.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/arrow-right-CPAaw0Pk.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/phone-BCEdzwng.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/award-B9jJIlbK.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/ban-DkJV35x7.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/images-IQ48Y4BO.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/telescope-FnNYs8Oq.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/underline-BMgmcSTE.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/user-search-AqvFNrCC.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/users-round-DmN04oW5.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/book-open-DFSS9try.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/book-text-DK6wC-wk.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/bot-CpjbDYl9.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/network-CNe2PJKm.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/brain-C_jHAJxF.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/tag-CivsGTZG.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/trending-down-D4lx3m-Z.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/camera-D2kbByvw.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/chart-column-C5vNZsLj.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/check-B93jE35d.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/chevron-down-Dhhfr4pH.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/chevron-left-Dhwe-oZW.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/chevron-right-BgcEiUOm.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/chevron-up-C3MQImmY.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/circle-alert-2O_imZAQ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/circle-check-big-CjRollUR.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/circle-check-BkNbtghK.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/scan-search-figlWUYo.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/circle-play-DAmYJ_Vq.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/zoom-out-Czd7hVyI.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/clapperboard-B8Usc_Hg.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/clock-CIonSnqd.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/shield-check-SO7VlKLz.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/stethoscope-BeLYud28.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/coins-DkkGYFLB.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/copy-BDBBwF2i.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/scale-B5IQSFjl.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/crown-QRAWh-Me.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/database-Bcpt_rjf.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/dollar-sign-BcL2Y5wt.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/download-DR1WI41m.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/eraser-ff23JQGo.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/external-link-BK0Zplkw.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/eye-off-DzeEVNw9.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/eye-D0xuXb0y.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/file-text-Bbi9xPMn.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/film-C94VhDoO.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/flag-BJ4oZ1KP.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/flame-BRwuaGqd.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/folder-open-Bn1V6CUB.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/folder-CvAH754Z.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/gem-DZfBUvC_.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/thumbs-up-qxNPGeUH.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/user-minus-BRpxqeZh.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/git-fork-WhO7EGqQ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/globe-Vcq6BK4N.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/graduation-cap-Cwqd_4B7.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/square-check-big-Inh3jhQo.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/grip-vertical-EShkVfcG.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/hard-drive-BNugNYao.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/hash-DGEgdWLN.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/heart-DzDwO0YL.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/history-DurcgrJT.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/house-QBmBCNeQ.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/type-BijiR4T2.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/image-D1hgBDWx.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/key-round-UAJJDXpa.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/sun-BWyUMmGI.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/layers-BwpnzAZh.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/palette-B6nzvwN7.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/link-2-DR6j4XMX.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/list-BG-FwXwA.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/loader-circle-BRG31k9z.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/lock-BGDQhcvP.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/log-out-CUOdKo2Z.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/mail-GZpziljA.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/map-pin-BhvIuWsX.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/volume-x-CpPlfUZl.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/menu-DUSpYDHe.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/message-circle-CwCArcl6.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/message-square-COeHELZY.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/mic-C8OuCuxl.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/minus-Ci9FDmTK.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/volume-2-CRJcu6UB.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/package-DPobv_et.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/paperclip-Bw-UVrjT.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/pause-CB4SuK44.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/pen-line-DydP8E1N.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/pencil-D8IByu4J.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/pin-g33afJGQ.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/play-Dc4sOu4j.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/plus-BakDLPOQ.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/refresh-cw-D16PxAQi.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/rotate-ccw-DPohCPOP.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/save-ClsYSFPY.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/scroll-text-DcycZNoL.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/search--VpLW9nj.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/send-DVAbtzdc.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/server-Dm_11-4p.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/settings-2-fEZHkCMy.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/settings-CvhqcqXt.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/share-2-rmLl0N8p.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/shield-alert-Cf0TUn5o.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/shopping-cart-BzvEOHkJ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/smartphone-HLw6YCwT.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/sparkles-DPd3Bd3c.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/square-DM8apSkh.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/star-BL08tB8F.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/store-BvzQ4PLp.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/target-DWgFlFFe.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/ticket-CngkSd96.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/toggle-left-IMValWbQ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/toggle-right-C82FC5uu.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/trash-2-Cqw6wMi-.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/trending-up-BErLgWxZ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/triangle-alert-t4dgGOYa.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/trophy-CColOwXR.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/upload-QCtGGgQj.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/user-BTJjgk60.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/users-CXeL6Y1R.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/video-DL7dan2k.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/wallet-BbU8LkkO.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/wand-sparkles-CQfI4GNO.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/workflow-H7PWbXoO.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/wrench-BDCj8xAf.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/x-DETwzxyK.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/zap-D_wu2ShZ.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/button-BMoTDBMh.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/radix-CK-o6cE0.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/index-DputBKE7.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/dropdown-menu-DM-a2ZTu.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/avatar-DJyxHRx2.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/language-toggle-Bi84NU57.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/useSiteTemplate-CNlDMu8f.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/badge-6KnSx3PC.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/tabs-CKr_V3nV.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/nudge.service-AsQFeVYQ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/DramaProjectPage-BtwnskMB.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/input-AV5WbS9i.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/dialog-HZgVLJVr.js" rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/CoachChatPanel-DGdKHNtu.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/coach.service-BfAyefhQ.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/ai-model.service-D3RZfPpK.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/knowledge.service-Weh4QHC2.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/coach-template.service-CoFBkVdH.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/user-robot.service-DVQHEuXa.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/memory.service-BY6AAEoN.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/project-export-kj-92FMK.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/jszip.min-COOZn7NF.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/flow-CdlwbdTF.js" rel="modulepreload">
+    <link crossorigin="" href="./薪火AI创作平台_files/flow-BZV40eAE.css" rel="stylesheet">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/drama.service-1A1STW07.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/DramaComposeStep-sBh9BG_Q.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/video-gen.service-RG2tWFup.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/team.service-6e4IF5Wd.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/asset.service-kVL8a11g.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/VideoProcessModal-DPKbvu8d.js"
+          rel="modulepreload">
+    <link as="script" crossorigin="" href="https://ai.xinhuoshixiao.com/assets/featureFlags-BgD9rDHA.js"
+          rel="modulepreload">
+</head>
+<body>
+<div id="root">
+    <div class="w-full text-center text-sm font-medium py-2 px-4 relative"
+         style="background-color: rgb(124, 58, 237); color: rgb(255, 255, 255);"><span>🎉 尊敬的各位用户在使用短剧工坊的时候一定要把项目总控和任务卡锁定之后再执行｜ 邀请新用户注册奖励积分,特价minmaxH3,已经隆重上线。</span>
+        <button class="absolute right-3 top-1/2 -translate-y-1/2 opacity-70 hover:opacity-100 transition-opacity">
+            <svg class="lucide lucide-x h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+            </svg>
+        </button>
+    </div>
+    <div class="min-h-screen relative">
+        <aside class="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-50 flex-col items-center gap-3 rounded-[var(--radius)] bg-[hsl(var(--sidebar))] p-2 shadow-lg">
+            <a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/"
+               title="首页">
+                <svg class="lucide lucide-house h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                     stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                     xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path>
+                    <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                </svg>
+            </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                   href="https://ai.xinhuoshixiao.com/chat"
+                   title="AI 对话">
+            <svg class="lucide lucide-message-square h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/image"
+               title="创作中心">
+            <svg class="lucide lucide-camera h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/assets"
+               title="资产库">
+            <svg class="lucide lucide-folder-open h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/member"
+               title="会员中心">
+            <svg class="lucide lucide-crown h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"></path>
+                <path d="M5 21h14"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/embed/26"
+               title="提示词库">
+            <svg class="lucide lucide-image h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <rect height="18" rx="2" ry="2" width="18" x="3" y="3"></rect>
+                <circle cx="9" cy="9" r="2"></circle>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all bg-cyan-500 text-white shadow-md scale-110"
+               href="https://ai.xinhuoshixiao.com/drama"
+               title="短剧工坊">
+            <svg class="lucide lucide-clapperboard h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"></path>
+                <path d="m6.2 5.3 3.1 3.9"></path>
+                <path d="m12.4 3.4 3.1 4"></path>
+                <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/novel"
+               title="小说改编">
+            <svg class="lucide lucide-book-open h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 7v14"></path>
+                <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/skill-store"
+               title="技能商店">
+            <svg class="lucide lucide-store h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"></path>
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"></path>
+                <path d="M2 7h20"></path>
+                <path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/memories"
+               title="记忆中心">
+            <svg class="lucide lucide-brain h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path>
+                <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"></path>
+                <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"></path>
+                <path d="M17.599 6.5a3 3 0 0 0 .399-1.375"></path>
+                <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"></path>
+                <path d="M3.477 10.896a4 4 0 0 1 .585-.396"></path>
+                <path d="M19.938 10.5a4 4 0 0 1 .585.396"></path>
+                <path d="M6 18a4 4 0 0 1-1.967-.516"></path>
+                <path d="M19.967 17.484A4 4 0 0 1 18 18"></path>
+            </svg>
+        </a><a class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] transition-all text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+               href="https://ai.xinhuoshixiao.com/profile"
+               title="个人中心">
+            <svg class="lucide lucide-user h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                 xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+        </a>
+            <div class="w-8 h-px bg-border my-1"></div>
+            <button id="radix-:r4:"
+                    aria-expanded="false" aria-haspopup="menu" class="flex items-center justify-center w-10 h-10 rounded-[var(--radius)] hover:bg-accent transition-colors" data-state="closed" type="button"><span
+                    class="relative flex shrink-0 overflow-hidden rounded-full h-8 w-8"><span
+                    class="flex h-full w-full items-center justify-center rounded-full bg-muted text-xs">用</span></span>
+            </button>
+        </aside>
+        <div class="min-h-screen flex flex-col md:pl-[72px]">
+            <header class="sticky top-0 z-40 flex h-14 items-center px-4 md:px-6">
+                <button class="md:hidden mr-3 p-1.5 rounded-[var(--radius)] hover:bg-accent">
+                    <svg class="lucide lucide-menu h-5 w-5" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                         stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <line x1="4" x2="20" y1="12" y2="12"></line>
+                        <line x1="4" x2="20" y1="6" y2="6"></line>
+                        <line x1="4" x2="20" y1="18" y2="18"></line>
+                    </svg>
+                </button>
+                <a class="font-bold text-lg mr-4 flex items-center gap-2" href="https://ai.xinhuoshixiao.com/"><img
+                        class="h-7 w-7 rounded-md object-cover"
+                        src="./薪火AI创作平台_files/4f96abe2-38f5-4c2f-9095-7d633370bb5e.png">薪火AI创作平台</a>
+                <div class="flex-1"></div>
+                <div class="flex items-center gap-1">
+                    <div class="flex items-center mr-1">
+                        <button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-accent transition-colors"
+                                title="积分">
+                            <svg class="lucide lucide-coins h-3.5 w-3.5 text-amber-500" fill="none" height="24" stroke="currentColor"
+                                 stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                 width="24" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="8" cy="8" r="6"></circle>
+                                <path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path>
+                                <path d="M7 6h1v4"></path>
+                                <path d="m16.71 13.88.7.71-2.82 2.82"></path>
+                            </svg>
+                            <span>1,027</span></button>
+                        <button class="px-2 py-1 rounded-md text-[11px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-opacity">
+                            充值
+                        </button>
+                    </div>
+                    <button class="relative p-2 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                            title="自治中心">
+                        <svg class="lucide lucide-bell h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                             stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                        </svg>
+                    </button>
+                    <button id="radix-:r0:"
+                            aria-expanded="false" aria-haspopup="menu" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed"
+                            type="button">
+                        <svg class="lucide lucide-sun h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                             stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2"></path>
+                            <path d="M12 20v2"></path>
+                            <path d="m4.93 4.93 1.41 1.41"></path>
+                            <path d="m17.66 17.66 1.41 1.41"></path>
+                            <path d="M2 12h2"></path>
+                            <path d="M20 12h2"></path>
+                            <path d="m6.34 17.66-1.41 1.41"></path>
+                            <path d="m19.07 4.93-1.41 1.41"></path>
+                        </svg>
+                    </button>
+                    <button id="radix-:r2:"
+                            aria-expanded="false" aria-haspopup="menu" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 w-8" data-state="closed"
+                            type="button">
+                        <svg class="lucide lucide-languages h-4 w-4" fill="none" height="24" stroke="currentColor" stroke-linecap="round"
+                             stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path d="m5 8 6 6"></path>
+                            <path d="m4 14 6-6 2-3"></path>
+                            <path d="M2 5h12"></path>
+                            <path d="M7 2h1"></path>
+                            <path d="m22 22-5-10-5 10"></path>
+                            <path d="M14 18h6"></path>
+                        </svg>
+                    </button>
+                    <button id="radix-:r6:"
+                            aria-expanded="false" aria-haspopup="menu" class="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground px-4 py-2 relative h-8 w-8 rounded-full ml-2" data-state="closed"
+                            type="button"><span
+                            class="relative flex shrink-0 overflow-hidden rounded-full h-8 w-8"><span
+                            class="flex h-full w-full items-center justify-center rounded-full bg-muted text-xs">用</span></span>
+                    </button>
+                </div>
+            </header>
+            <main class="flex-1 px-4 md:px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+                <div class="flex">
+                    <aside class="w-48 shrink-0 border-r fixed left-[52px] top-14 bottom-14 text-sm flex flex-col z-10 bg-background">
+                        <div class="border-b flex flex-col" style="max-height: 50%;">
+                            <div class="flex items-center justify-between p-3 pb-1 shrink-0"><span
+                                    class="font-semibold">剧集列表 (1)</span>
+                                <button class="p-1 rounded hover:bg-accent">
+                                    <svg class="lucide lucide-plus h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M5 12h14"></path>
+                                        <path d="M12 5v14"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="overflow-y-auto px-3 pb-3">
+                                <div class="px-3 py-2 rounded-lg cursor-pointer mb-0.5 hover:bg-accent text-muted-foreground">
+                                    <p>☆ 全局视图</p></div>
+                                <div class="px-3 py-2 rounded-lg cursor-pointer mb-0.5 bg-blue-50 dark:bg-blue-950/30 text-primary font-medium">
+                                    <p class="truncate">第001章</p>
+                                    <p class="text-xs text-muted-foreground">1836 字</p></div>
+                            </div>
+                        </div>
+                        <div class="p-3 flex-1 overflow-y-auto border-b"><span class="font-semibold">角色库 (6)</span>
+                            <div class="mt-2 space-y-1">
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">沈长临｜大晟边军主将</p>
+                                        <p class="text-[10px] text-muted-foreground">主角</p></div>
+                                </div>
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">祝无虞</p>
+                                        <p class="text-[10px] text-muted-foreground">主角</p></div>
+                                </div>
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">陈澄</p>
+                                        <p class="text-[10px] text-muted-foreground">配角</p></div>
+                                </div>
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">苏成</p>
+                                        <p class="text-[10px] text-muted-foreground">配角</p></div>
+                                </div>
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">沈夫人</p>
+                                        <p class="text-[10px] text-muted-foreground">配角</p></div>
+                                </div>
+                                <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-accent cursor-pointer">
+                                    <div class="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                                        <svg class="lucide lucide-user h-3.5 w-3.5 text-muted-foreground" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    <div class="min-w-0"><p class="text-xs truncate">沈长临｜星际战甲形态</p>
+                                        <p class="text-[10px] text-muted-foreground">配角</p></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 border-t space-y-1">
+                            <div class="flex justify-between text-muted-foreground"><span>人物</span><span
+                                    class="text-foreground">6</span></div>
+                            <div class="flex justify-between text-muted-foreground"><span>场景</span><span
+                                    class="text-foreground">3</span></div>
+                            <div class="flex justify-between text-muted-foreground"><span>道具</span><span
+                                    class="text-foreground">8</span></div>
+                            <div class="flex justify-between text-muted-foreground"><span>积分</span><span
+                                    class="text-foreground">0</span></div>
+                        </div>
+                    </aside>
+                    <div class="flex-1 ml-48">
+                        <header class="flex items-center justify-between px-6 h-14 border-b">
+                            <div class="flex items-center gap-3">
+                                <button class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+                                    <svg class="lucide lucide-arrow-left h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="m12 19-7-7 7-7"></path>
+                                        <path d="M19 12H5"></path>
+                                    </svg>
+                                    返回
+                                </button>
+                                <span class="text-base font-semibold">1</span><span
+                                    class="text-xs text-muted-foreground">暖调写实真人(剧情/情感类）-香蕉 · 9:16</span>
+                            </div>
+                            <div class="flex items-center gap-3"><span class="text-sm text-muted-foreground">1836 字数 · 0:00</span>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-orange-600 font-medium"
+                                        title="AI 读全文，一键生成项目圣经 + 80 张任务卡草稿">
+                                    <svg class="lucide lucide-sparkles h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path>
+                                        <path d="M20 3v4"></path>
+                                        <path d="M22 5h-4"></path>
+                                        <path d="M4 17v2"></path>
+                                        <path d="M5 18H3"></path>
+                                    </svg>
+                                    AI 总控
+                                </button>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground"
+                                        title="项目圣经：整剧宪法（角色/世界观/视觉/伏笔/禁用），项目级">
+                                    <svg class="lucide lucide-book-open h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 7v14"></path>
+                                        <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path>
+                                    </svg>
+                                    圣经
+                                </button>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground"
+                                        title="每集任务卡：本集主目标 / 必须包含 / 禁止改动">
+                                    <svg class="lucide lucide-clipboard-list h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <rect height="4" rx="1" ry="1" width="8" x="8" y="2"></rect>
+                                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                        <path d="M12 11h4"></path>
+                                        <path d="M12 16h4"></path>
+                                        <path d="M8 11h.01"></path>
+                                        <path d="M8 16h.01"></path>
+                                    </svg>
+                                    任务卡
+                                </button>
+                                <button class="flex items-center gap-1 text-sm text-violet-600 hover:text-violet-700"
+                                        title="一键跑整集：抽取→分镜→分镜图">
+                                    <svg class="lucide lucide-bot h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 8V4H8"></path>
+                                        <rect height="12" rx="2" width="16" x="4" y="8"></rect>
+                                        <path d="M2 14h2"></path>
+                                        <path d="M20 14h2"></path>
+                                        <path d="M15 13v2"></path>
+                                        <path d="M9 13v2"></path>
+                                    </svg>
+                                    一键跑整集
+                                </button>
+                                <button class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                                        title="项目工作空间（所有产出文件）">
+                                    <svg class="lucide lucide-folder h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                                    </svg>
+                                    工作空间
+                                </button>
+                                <button class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                                        title="质检 / 返工">
+                                    <svg class="lucide lucide-shield-alert h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+                                        <path d="M12 8v4"></path>
+                                        <path d="M12 16h.01"></path>
+                                    </svg>
+                                    质检
+                                </button>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground">
+                                    <svg class="lucide lucide-users h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                    协作
+                                </button>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground"
+                                        title="查看本项目积分消耗明细">
+                                    <svg class="lucide lucide-coins h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="8" cy="8" r="6"></circle>
+                                        <path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path>
+                                        <path d="M7 6h1v4"></path>
+                                        <path d="m16.71 13.88.7.71-2.82 2.82"></path>
+                                    </svg>
+                                    积分明细
+                                </button>
+                                <button class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground">
+                                    <svg class="lucide lucide-save h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+                                        <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"></path>
+                                        <path d="M7 3v4a1 1 0 0 0 1 1h7"></path>
+                                    </svg>
+                                    保存
+                                </button>
+                                <button id="radix-:rb:"
+                                        aria-expanded="false" aria-haspopup="menu" class="flex items-center gap-1 text-sm hover:text-foreground text-muted-foreground" data-state="closed"
+                                        title="导出项目（多格式）" type="button">
+                                    <svg class="lucide lucide-download h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line x1="12" x2="12" y1="15" y2="3"></line>
+                                    </svg>
+                                    导出
+                                </button>
+                            </div>
+                        </header>
+                        <nav class="flex items-center justify-center px-2 h-10 border-b overflow-x-auto">
+                            <div class="flex items-center shrink-0">
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold bg-orange-500 text-white"><svg
+                                        class="lucide lucide-check h-3 w-3" fill="none" height="24" stroke="currentColor"
+                                        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                        width="24" xmlns="http://www.w3.org/2000/svg"><path
+                                        d="M20 6 9 17l-5-5"></path></svg></span><span
+                                        class="text-xs whitespace-nowrap text-foreground">剧本导入</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-border"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold bg-orange-500 text-white">2</span><span
+                                        class="text-xs whitespace-nowrap font-semibold">每集任务卡</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-orange-400"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold bg-orange-500 text-white"><svg
+                                        class="lucide lucide-check h-3 w-3" fill="none" height="24" stroke="currentColor"
+                                        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                        width="24" xmlns="http://www.w3.org/2000/svg"><path
+                                        d="M20 6 9 17l-5-5"></path></svg></span><span
+                                        class="text-xs whitespace-nowrap text-foreground">资产管理</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-orange-400"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold bg-orange-500 text-white"><svg
+                                        class="lucide lucide-check h-3 w-3" fill="none" height="24" stroke="currentColor"
+                                        stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                        width="24" xmlns="http://www.w3.org/2000/svg"><path
+                                        d="M20 6 9 17l-5-5"></path></svg></span><span
+                                        class="text-xs whitespace-nowrap text-foreground">分镜规划</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-border"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold text-muted-foreground">5</span><span
+                                        class="text-xs whitespace-nowrap text-muted-foreground">分镜图生成</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-border"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold text-muted-foreground">6</span><span
+                                        class="text-xs whitespace-nowrap text-muted-foreground">画面视频</span></div>
+                            </div>
+                            <div class="flex items-center shrink-0">
+                                <div class="w-5 h-px mx-0.5 bg-border"></div>
+                                <div class="flex items-center gap-1"><span
+                                        class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold text-muted-foreground">7</span><span
+                                        class="text-xs whitespace-nowrap text-muted-foreground">合成导出</span></div>
+                            </div>
+                        </nav>
+                        <div class="mx-auto px-6 py-8 pb-20 max-w-3xl">
+                            <div class="space-y-6">
+                                <div class="text-center space-y-2">
+                                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 dark:bg-blue-950/30">
+                                        <svg class="lucide lucide-clipboard-list h-7 w-7 text-blue-500" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <rect height="4" rx="1" ry="1" width="8" x="8" y="2"></rect>
+                                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                            <path d="M12 11h4"></path>
+                                            <path d="M12 16h4"></path>
+                                            <path d="M8 11h.01"></path>
+                                            <path d="M8 16h.01"></path>
+                                        </svg>
+                                    </div>
+                                    <h2 class="text-xl font-semibold">每集任务卡</h2>
+                                    <p class="text-sm text-muted-foreground max-w-lg mx-auto">每集一张卡：主目标 / 必须包含
+                                        / 禁止改动 / 前集摘要 / 下集目标 / 结尾钩子。锁定后下游分镜/视频 agent
+                                        都会遵守这张卡。</p></div>
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                    <div class="border rounded-lg p-3">
+                                        <div class="text-xs text-muted-foreground">集数</div>
+                                        <div class="text-sm font-semibold mt-1">1</div>
+                                    </div>
+                                    <div class="border rounded-lg p-3">
+                                        <div class="text-xs text-muted-foreground">已创建</div>
+                                        <div class="text-sm font-semibold mt-1">1 / 1</div>
+                                    </div>
+                                    <div class="border rounded-lg p-3">
+                                        <div class="text-xs text-muted-foreground">已锁定</div>
+                                        <div class="text-sm font-semibold mt-1">0</div>
+                                    </div>
+                                    <div class="border rounded-lg p-3">
+                                        <div class="text-xs text-muted-foreground">进度</div>
+                                        <div class="text-sm font-semibold mt-1">0%</div>
+                                    </div>
+                                </div>
+                                <div class="border rounded-lg p-3">
+                                    <div class="text-xs text-muted-foreground mb-2">每集状态</div>
+                                    <div class="grid grid-cols-10 gap-1.5">
+                                        <div class="h-6 rounded text-[10px] flex items-center justify-center bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300"
+                                             title="第 1 · 草稿">1
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-center gap-3 pt-4">
+                                    <button class="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-11 rounded-md px-8 gap-2 bg-blue-500 hover:bg-blue-600 text-white">
+                                        <svg class="lucide lucide-clipboard-list h-4 w-4" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <rect height="4" rx="1" ry="1" width="8" x="8" y="2"></rect>
+                                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                            <path d="M12 11h4"></path>
+                                            <path d="M12 16h4"></path>
+                                            <path d="M8 11h.01"></path>
+                                            <path d="M8 16h.01"></path>
+                                        </svg>
+                                        继续编辑任务卡
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fixed bottom-0 right-0 left-[244px] flex items-center justify-between px-6 h-14 border-t bg-background z-10">
+                            <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 gap-1.5 text-muted-foreground">
+                                <svg class="lucide lucide-chevron-left h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                     stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                     width="24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="m15 18-6-6 6-6"></path>
+                                </svg>
+                                上一步
+                            </button>
+                            <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 gap-1.5 bg-orange-500 hover:bg-orange-600 text-white">
+                                下一步
+                                <svg class="lucide lucide-chevron-right h-4 w-4" fill="none" height="24" stroke="currentColor"
+                                     stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                     width="24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="m9 18 6-6-6-6"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+                        <div class="bg-background rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col">
+                            <header class="flex items-center justify-between p-4 border-b">
+                                <div class="flex items-center gap-3">
+                                    <svg class="lucide lucide-clipboard-list h-5 w-5 text-orange-500" fill="none" height="24" stroke="currentColor"
+                                         stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"
+                                         width="24"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <rect height="4" rx="1" ry="1" width="8" x="8" y="2"></rect>
+                                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                                        <path d="M12 11h4"></path>
+                                        <path d="M12 16h4"></path>
+                                        <path d="M8 11h.01"></path>
+                                        <path d="M8 16h.01"></path>
+                                    </svg>
+                                    <div><h2 class="font-semibold">每集任务卡 · 1</h2>
+                                        <p class="text-xs text-muted-foreground">已创建 1 / 1 张 · 已锁定 0</p></div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm border">
+                                        <svg class="lucide lucide-rotate-ccw h-4 w-4" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                        </svg>
+                                        历史 0
+                                    </button>
+                                    <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm border hover:bg-accent">
+                                        <svg class="lucide lucide-lock-open h-4 w-4" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <rect height="11" rx="2" ry="2" width="18" x="3" y="11"></rect>
+                                            <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                                        </svg>
+                                        锁定
+                                    </button>
+                                    <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm bg-primary text-primary-foreground hover:bg-primary/90 opacity-50 cursor-not-allowed"
+                                            disabled="">
+                                        <svg class="lucide lucide-save h-4 w-4" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+                                            <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"></path>
+                                            <path d="M7 3v4a1 1 0 0 0 1 1h7"></path>
+                                        </svg>
+                                        保存
+                                    </button>
+                                    <button class="p-1.5 hover:bg-accent rounded">
+                                        <svg class="lucide lucide-x h-4 w-4" fill="none" height="24"
+                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                             viewBox="0 0 24 24" width="24"
+                                             xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M18 6 6 18"></path>
+                                            <path d="m6 6 12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </header>
+                            <div class="flex flex-1 overflow-hidden">
+                                <aside class="w-56 shrink-0 border-r overflow-y-auto p-2">
+                                    <button class="w-full text-left px-3 py-2 rounded text-sm mb-0.5 flex items-center justify-between bg-orange-50 dark:bg-orange-950/30 text-orange-600 font-medium">
+                                        <div class="min-w-0">
+                                            <div class="truncate">第 1 集</div>
+                                            <div class="text-xs text-muted-foreground truncate">（无标题）</div>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <svg class="lucide lucide-chevron-right h-3 w-3 text-muted-foreground" fill="none" height="24"
+                                                 stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                 viewBox="0 0 24 24" width="24"
+                                                 xmlns="http://www.w3.org/2000/svg">
+                                                <path d="m9 18 6-6-6-6"></path>
+                                            </svg>
+                                        </div>
+                                    </button>
+                                </aside>
+                                <div class="flex-1 overflow-y-auto p-6">
+                                    <div class="space-y-4 max-w-3xl">
+                                        <div><label class="block text-sm font-medium mb-1">主目标</label><textarea
+                                                class="w-full px-3 py-2 border rounded text-sm" placeholder="本集的主要剧情目标"
+                                                rows="2">本集以沈长临和祝无虞已经身处虫群战场的危机承接开场，先让沈长临以古代将军逻辑误判星际战场，再通过祝无虞、陈澄和苏成的对话建立古今认知冲突。中段让夫妻二人用金钗换取生存资源并发现其可转化为血色能量钥匙，同时让沈长临以武力暂时压制刺蛇，形成阶段性求生兑现；随后以祝无虞早产风险、时空抹除、宋代古墓和死亡碑文把问题从虫群求生升级为沈长临自身的时空身份危机。结尾不解决真相，直接把观众情绪推向‘另一个沈长临为何索要孩子’的身份与家庭生存悬念。</textarea>
+                                        </div>
+                                        <div><label class="block text-sm font-medium mb-1">必须包含</label>
+                                            <div class="space-y-1">
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须以沈长临举刀抵住跳虫獠牙、保护祝无虞的战斗画面开场，并保留紫黑时空裂隙贯穿天空、装甲车被虫群撕裂的奇观。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须明确祝无虞处于孕期并抱着孕肚奔跑，她要当场纠正沈长临把虫群和星际设备误认成妖界、戏台和铜镜的错误判断。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须出现陈澄关于位置正在被时空抹除、监控只剩血雾的通讯警告，以及苏成要求沈长临报告身份和武器的审问。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须保留沈长临自报‘大晟边军主将’和祝无虞替他解释身份、避免被当成虫族间谍的情节。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须拍清古代金钗落入自动贩卖机、换出星币，并由祝无虞提出购买母婴营养剂；沈长临必须拒绝变卖夫人发钗。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须保留沈夫人通讯投影中承诺奶粉、护甲和婴儿舱，并将购物车夸张误认成舰队的喜剧反差。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须表现沈长临单手护住祝无虞、以分筋错骨手化成金色能量锁链锁住刺蛇关节，酸液炮弹在半空反向爆裂。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须让陈澄对沈长临徒手拆刺蛇产生震惊，并让苏成报告其生物信号来自一千年前，作为身份异常线索。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须出现祝无虞突然腹痛，沈长临误判为生产，祝无虞说明高速跃迁颠簸可能诱发早产，明确孩子风险。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须让血色钥匙插入战场地面，浮现宋代古墓石门纹样，并与星际基地金属地板重叠。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须清楚呈现碑文刻有沈长临生辰及‘沈长临死于今日’，同时表现监控画面变成古代DV画面、沈长临身影逐帧被擦除。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须在结尾保留覆盖星纹的巨手、墓门深处的神秘声音、另一个身穿星际战甲且长着沈长临面孔的存在，以及‘把孩子留下’的命令。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：女主找到藏在仓库的账本"
+                                                        value="必须以时空裂隙吞没画面和‘下集：星际古墓中的第二个将军’作为明确的下一集牵引。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <button class="inline-flex items-center gap-1 px-3 py-1 text-xs border rounded hover:bg-accent disabled:opacity-50">
+                                                    <svg class="lucide lucide-plus h-3.5 w-3.5" fill="none" height="24"
+                                                         stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                         stroke-width="2" viewBox="0 0 24 24" width="24"
+                                                         xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M5 12h14"></path>
+                                                        <path d="M12 5v14"></path>
+                                                    </svg>
+                                                    添加一条
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div><label class="block text-sm font-medium mb-1">禁止改动</label>
+                                            <div class="space-y-1">
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="沈长临仍是来自大晟的古代边军主将，不能在本集公开适应或掌握星际科技。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="祝无虞仍处于孕期，早产风险只是迫近危机，不能直接生产或失去孩子。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="沈长临和祝无虞仍站在同一保护关系中，不能因误解互相决裂。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="古代金钗仍是发钗并转化为血色能量钥匙，不能替换成其他饰物或普通货币道具。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="沈长临可以暂时击退或控制虫群个体，但不能消灭虫群、关闭裂隙或彻底解决战场危机。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="沈夫人的购物车不能改成真实舰队支援，通讯投影不能变成舰队抵达。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="陈澄和苏成只能掌握监控、通讯和生物信号异常，不能提前查明沈长临的完整来历。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="宋代古墓与星际基地必须保持重叠状态，不能改成普通古墓或普通星际遗迹。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="碑文写着沈长临今日身死，但本集不能让死亡预言兑现。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="另一个沈长临仍是身份未知的危险存在，不能提前解释他是谁、为何拥有虫群符号瞳孔、为何要留下孩子。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="结尾必须停留在孩子被索取和另一个沈长临睁眼的危机上，不能提前和解、救援或揭晓真相。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="flex items-center gap-2"><input
+                                                        class="flex-1 px-3 py-1.5 border rounded text-sm"
+                                                        placeholder="如：林晚仍未公开身份"
+                                                        value="不得加入剧本未出现的系统、重生、异能来源、额外角色、额外舰队或新的反转。">
+                                                    <button class="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 rounded disabled:opacity-50">
+                                                        <svg class="lucide lucide-trash2 h-4 w-4" fill="none" height="24"
+                                                             stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                             stroke-width="2" viewBox="0 0 24 24"
+                                                             width="24"
+                                                             xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M3 6h18"></path>
+                                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                                                            <line x1="10" x2="10" y1="11" y2="17"></line>
+                                                            <line x1="14" x2="14" y1="11" y2="17"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <button class="inline-flex items-center gap-1 px-3 py-1 text-xs border rounded hover:bg-accent disabled:opacity-50">
+                                                    <svg class="lucide lucide-plus h-3.5 w-3.5" fill="none" height="24"
+                                                         stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                                         stroke-width="2" viewBox="0 0 24 24" width="24"
+                                                         xmlns="http://www.w3.org/2000/svg">
+                                                        <path d="M5 12h14"></path>
+                                                        <path d="M12 5v14"></path>
+                                                    </svg>
+                                                    添加一条
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div><label class="block text-sm font-medium mb-1">前集摘要</label><textarea
+                                                    class="w-full px-3 py-2 border rounded text-sm" placeholder="前一集发生了什么"
+                                                    rows="3">首集，无上一集剧情；开场直接进入沈长临和祝无虞被时空裂隙卷入虫群战场后的生死危机。</textarea>
+                                            </div>
+                                            <div><label class="block text-sm font-medium mb-1">下集目标</label><textarea
+                                                    class="w-full px-3 py-2 border rounded text-sm" placeholder="为下一集要做的铺垫"
+                                                    rows="3">下一集应承接墓门开启和另一个沈长临索要孩子的停点，优先明确夫妻二人如何在墓门、虫群和时空抹除同时逼近的情况下做出即时选择；只能逐步揭示古墓和另一个将军的关系，不能一次性解释全部身份真相。</textarea>
+                                            </div>
+                                        </div>
+                                        <div><label class="block text-sm font-medium mb-1">结尾钩子</label><textarea
+                                                class="w-full px-3 py-2 border rounded text-sm" placeholder="本集结尾设置的悬念 / 钩子"
+                                                rows="2">墓门后的另一个沈长临睁眼，瞳孔浮现虫群符号并抬刀指向祝无虞，提出‘把孩子留下’；沈长临挡在妻子身前，时空裂隙随即吞没画面，观众只知道孩子成为目标，却不知道墓中存在究竟是谁、为何长着沈长临的脸。</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <section aria-atomic="false" aria-label="Notifications alt+T" aria-live="polite" aria-relevant="additions text"
+             tabindex="-1"></section>
+</div>
+
+
+</body>
+</html>

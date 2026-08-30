@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import top.foxball.video.entity.jdbc.AssetStatus
 import top.foxball.video.entity.jdbc.AssetType
+import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.service.AssetService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -26,6 +28,40 @@ class AssetController(
     private val assetService: AssetService,
     private val responseBuilder: ResponseBuilder,
 ) {
+    @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")
+    fun listEpisodeAssets(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long): ResponseEntity<Response> {
+        data class AssetData(val id: Long, val name: String, val type: String, val description: String?, @param:JsonProperty("reference_url") val referenceUrl: String?, val notes: String?, val status: String, @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?)
+        data class Response(val list: List<AssetData>, val completeness: Int)
+        val assets = assetService.loadEpisode(projectId, episodeId) ?: return responseBuilder.notFound().build()
+        val list = assets.map { AssetData(requireNotNull(it.id), it.name, it.type.name, it.description, it.referenceUrl, it.notes, it.status.name, it.updatedAt) }
+        val complete = if (list.isEmpty()) 0 else list.count { it.status == AssetStatus.LOCKED.name || it.status == AssetStatus.READY.name } * 100 / list.size
+        val rs = Response(list, complete)
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")
+    fun createEpisodeAsset(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long, @RequestParam("name") @NotBlank @Size(max = 100) name: String, @RequestParam("type") type: EpisodeAssetType, @RequestParam("description", required = false) @Size(max = 100000) description: String?, @RequestParam("reference_url", required = false) @Size(max = 1000) referenceUrl: String?, @RequestParam("notes", required = false) @Size(max = 100000) notes: String?, @RequestParam("status", defaultValue = "DRAFT") status: AssetStatus): ResponseEntity<Response> {
+        data class Response(val id: Long, val name: String, val type: String, val status: String)
+        val asset = assetService.createEpisodeAsset(projectId, episodeId, name.trim(), type, description, referenceUrl, notes, status) ?: return responseBuilder.notFound().build()
+        val rs = Response(requireNotNull(asset.id), asset.name, asset.type.name, asset.status.name)
+        return responseBuilder.created().data(rs).build()
+    }
+
+    @PutMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}")
+    fun updateEpisodeAsset(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long, @PathVariable("asset_id") assetId: Long, @RequestParam("name") @NotBlank @Size(max = 100) name: String, @RequestParam("type") type: EpisodeAssetType, @RequestParam("description", required = false) @Size(max = 100000) description: String?, @RequestParam("reference_url", required = false) @Size(max = 1000) referenceUrl: String?, @RequestParam("notes", required = false) @Size(max = 100000) notes: String?, @RequestParam("status") status: AssetStatus): ResponseEntity<Response> {
+        data class Response(val id: Long, val name: String, val type: String, val status: String)
+        val asset = assetService.updateEpisodeAsset(projectId, episodeId, assetId, name.trim(), type, description, referenceUrl, notes, status) ?: return responseBuilder.notFound().build()
+        val rs = Response(requireNotNull(asset.id), asset.name, asset.type.name, asset.status.name)
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @DeleteMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}")
+    fun deleteEpisodeAsset(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long, @PathVariable("asset_id") assetId: Long): ResponseEntity<Response> {
+        data class Response(val id: Long, val deleted: Boolean)
+        if (!assetService.deleteEpisodeAsset(projectId, episodeId, assetId)) return responseBuilder.notFound().build()
+        val rs = Response(assetId, true)
+        return responseBuilder.ok().data(rs).build()
+    }
     @GetMapping("/api/projects/{project_id}/assets")
     fun listAssets(@PathVariable("project_id") projectId: Long): ResponseEntity<Response> {
         data class AssetData(val id: Long, val name: String, val type: String, val description: String?, val status: String, @param:JsonProperty("owner_id") val ownerId: Long?, @param:JsonProperty("copyright_required") val copyrightRequired: Boolean, @param:JsonProperty("copyright_status") val copyrightStatus: String, @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?)

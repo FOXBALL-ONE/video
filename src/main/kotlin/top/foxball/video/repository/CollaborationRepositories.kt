@@ -23,6 +23,8 @@ interface ProjectMemberRepository : JpaRepository<ProjectMember, Long> {
 interface AiConversationRepository : JpaRepository<AiConversation, Long> {
     /** 查询项目的 AI 会话，最新会话优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<AiConversation>
+
+    fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<AiConversation>
 }
 
 /** AI 助手消息的数据访问接口。 */
@@ -35,6 +37,8 @@ interface AiMessageRepository : JpaRepository<AiMessage, Long> {
 interface TimelineTrackRepository : JpaRepository<TimelineTrack, Long> {
     /** 查询项目轨道，按时间线排序。 */
     fun findAllByProjectIdOrderBySortOrderAsc(projectId: Long): List<TimelineTrack>
+
+    fun findAllByProjectIdAndEpisodeIdOrderBySortOrderAsc(projectId: Long, episodeId: Long): List<TimelineTrack>
 }
 
 /** 时间线剪辑片段的数据访问接口。 */

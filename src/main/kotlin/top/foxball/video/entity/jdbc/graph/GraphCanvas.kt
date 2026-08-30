@@ -42,6 +42,10 @@ class GraphCanvas(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级画布时为空。 */
+    var episodeId: Long? = null,
+
     @Column(name = "project_version_id")
     /** 所属项目版本主键；同一项目的不同版本可保存相同 ComfyUI 图 ID。 */
     var projectVersionId: Long? = null,

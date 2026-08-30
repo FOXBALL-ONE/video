@@ -4,11 +4,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import top.foxball.video.entity.jdbc.ProductionNodeStatus
 import top.foxball.video.entity.jdbc.ProductionStage
+import top.foxball.video.entity.jdbc.Episode
 import top.foxball.video.entity.jdbc.Project
 import top.foxball.video.entity.jdbc.ProjectActivity
 import top.foxball.video.entity.jdbc.ProjectLifecycleAction
 import top.foxball.video.entity.jdbc.ProjectStatus
 import top.foxball.video.repository.ProjectRepository
+import top.foxball.video.repository.EpisodeRepository
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
@@ -16,6 +18,7 @@ import java.time.LocalDateTime
 @Service
 class ProjectService(
     private val repository: ProjectRepository,
+    private val episodeRepository: EpisodeRepository,
 ) {
     /** 创建项目并在数据库生成主键后派生展示编号。 */
     @Transactional
@@ -31,7 +34,9 @@ class ProjectService(
             ),
         )
         project.code = requireNotNull(project.id).toString().padStart(2, '0')
-        return repository.save(project)
+        val saved = repository.save(project)
+        episodeRepository.save(Episode(projectId = requireNotNull(saved.id), episodeNo = 1, title = "第001集"))
+        return saved
     }
 
     /** 批量创建项目；每个项目都会追加初始活动记录。 */
@@ -42,7 +47,9 @@ class ProjectService(
             it.code = requireNotNull(it.id).toString().padStart(2, '0')
             it.activities.add(ProjectActivity("创建项目，等待开始制作", ProductionStage.SCRIPT))
         }
-        return repository.saveAll(saved)
+        val result = repository.saveAll(saved)
+        episodeRepository.saveAll(result.map { Episode(projectId = requireNotNull(it.id), episodeNo = 1, title = "第001集") })
+        return result
     }
 
     /** 查询单个未删除项目及其活动时间线。 */

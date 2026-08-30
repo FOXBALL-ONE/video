@@ -11,7 +11,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
                 token.value = null;
             }
         }
-        if (token.value && user.value) return navigateTo("/graph");
+        if (token.value && user.value) return navigateTo("/");
         return;
     }
 
@@ -23,5 +23,16 @@ export default defineNuxtRouteMiddleware(async (to) => {
             token.value = null;
             return navigateTo({path: "/login", query: {redirect: to.fullPath}});
         }
+    }
+
+    if (to.path === "/graph/projects") return navigateTo("/projects");
+    if (to.path === "/graph" || to.path === "/graph/overview" || to.path === "/graph/index") {
+        const {activeProjectId} = useWorkspaceStore();
+        return navigateTo(activeProjectId.value ? `/projects/${activeProjectId.value}/canvas` : "/projects");
+    }
+    const legacyStage = {script: "script", tasks: "tasks", assets: "assets", shots: "shots", video: "video"}[to.path.slice("/graph/".length)];
+    if (legacyStage) {
+        const {activeProjectId} = useWorkspaceStore();
+        return navigateTo(activeProjectId.value ? `/projects/${activeProjectId.value}/workflow/${legacyStage}` : "/projects");
     }
 });

@@ -8,6 +8,8 @@ import top.foxball.video.entity.jdbc.AssetTag
 import top.foxball.video.entity.jdbc.AssetTagRelation
 import top.foxball.video.entity.jdbc.AssetVersion
 import top.foxball.video.entity.jdbc.AssetType
+import top.foxball.video.entity.jdbc.EpisodeAsset
+import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.entity.jdbc.VoiceProfile
 
 /** 项目资产的数据访问接口。 */
@@ -20,6 +22,12 @@ interface AssetRepository : JpaRepository<Asset, Long> {
 
     /** 按名称查询项目资产。 */
     fun findByProjectIdAndName(projectId: Long, name: String): Asset?
+}
+
+/** 单集资产的数据访问接口。 */
+interface EpisodeAssetRepository : JpaRepository<EpisodeAsset, Long> {
+    fun findAllByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): List<EpisodeAsset>
+    fun findByIdAndProjectIdAndEpisodeId(id: Long, projectId: Long, episodeId: Long): EpisodeAsset?
 }
 
 /** 资产版本的数据访问接口。 */

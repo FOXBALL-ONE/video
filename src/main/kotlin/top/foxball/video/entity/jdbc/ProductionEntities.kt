@@ -28,6 +28,10 @@ class MediaFile(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级素材时为空。 */
+    var episodeId: Long? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "media_type", nullable = false, length = 30)
     /** 媒体文件类型。 */
@@ -88,6 +92,10 @@ class ProductionTask(
     @Column(name = "project_id", nullable = false)
     /** 所属项目主键。 */
     var projectId: Long = 0,
+
+    @Column(name = "episode_id")
+    /** 所属剧集主键；为空时兼容项目级制作任务。 */
+    var episodeId: Long? = null,
 
     @Column(name = "project_version_id")
     /** 关联的项目版本快照主键。 */
@@ -182,6 +190,10 @@ class VideoRenderSettings(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；为空时兼容项目级成片设置。 */
+    var episodeId: Long? = null,
+
     @Column(name = "project_version_id")
     /** 关联的项目版本快照主键。 */
     var projectVersionId: Long? = null,
@@ -234,6 +246,10 @@ class QualityCheckRun(
     @Column(name = "project_id", nullable = false)
     /** 所属项目主键。 */
     var projectId: Long = 0,
+
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级质检时为空。 */
+    var episodeId: Long? = null,
 
     @Column(name = "project_version_id")
     /** 关联的项目版本快照主键。 */
@@ -333,6 +349,10 @@ class AiConversation(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级对话时为空。 */
+    var episodeId: Long? = null,
+
     @Column(name = "user_id")
     /** 发起会话的用户主键。 */
     var userId: Long? = null,
@@ -396,6 +416,10 @@ class TimelineTrack(
     @Column(name = "project_id", nullable = false)
     /** 所属项目主键。 */
     var projectId: Long = 0,
+
+    @Column(name = "episode_id")
+    /** 所属剧集主键；项目级时间线时为空。 */
+    var episodeId: Long? = null,
 
     @Column(nullable = false, length = 100)
     /** 轨道名称。 */

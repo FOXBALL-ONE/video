@@ -22,9 +22,13 @@ class ScriptDocument(
     /** 数据库主键。 */
     var id: Long? = null,
 
-    @Column(name = "project_id", nullable = false, unique = true)
-    /** 所属项目主键，一个项目对应一份剧本文档。 */
+    @Column(name = "project_id", nullable = false)
+    /** 所属项目主键。项目下可以包含多份剧集剧本文档。 */
     var projectId: Long = 0,
+
+    @Column(name = "episode_id")
+    /** 所属剧集主键；为空时兼容早期项目级剧本文档。 */
+    var episodeId: Long? = null,
 
     @Column(nullable = false, length = 200)
     /** 剧本文档标题。 */
