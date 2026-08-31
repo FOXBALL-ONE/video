@@ -44,3 +44,17 @@ auth:
     username: "${AUTH_TEST_ADMIN_USERNAME:test-admin}"
     email: "${AUTH_TEST_ADMIN_EMAIL:test-admin@localhost}"
     password: "${AUTH_TEST_ADMIN_PASSWORD:admin}"
+
+ai:
+  client:
+    model-catalog-ttl: "${AI_MODEL_CATALOG_TTL:10m}"
+    default-profile:
+      proxy-mode: "${AI_PROXY_MODE:DIRECT}"
+      proxy-host: "${AI_PROXY_HOST:}"
+      proxy-port: "${AI_PROXY_PORT:0}"
+      proxy-username: "${AI_PROXY_USERNAME:}"
+      proxy-password: "${AI_PROXY_PASSWORD:}"
+      dns-mode: "${AI_DNS_MODE:LOCAL}"
+      allow-private-network: "${AI_ALLOW_PRIVATE_NETWORK:false}"
+      connect-timeout: "${AI_CONNECT_TIMEOUT:10s}"
+      response-timeout: "${AI_RESPONSE_TIMEOUT:90s}"

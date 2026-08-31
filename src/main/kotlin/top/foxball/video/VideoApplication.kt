@@ -5,10 +5,11 @@ import org.springframework.boot.runApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import top.foxball.video.config.JwtProperties
 import top.foxball.video.config.TestAdminProperties
+import top.foxball.video.config.AiClientProperties
 import io.github.cdimascio.dotenv.dotenv
 
 @SpringBootApplication
-@EnableConfigurationProperties(JwtProperties::class, TestAdminProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, TestAdminProperties::class, AiClientProperties::class)
 class VideoApplication
 
 fun main(args: Array<String>) {
