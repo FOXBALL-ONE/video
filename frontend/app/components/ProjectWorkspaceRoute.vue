@@ -29,9 +29,13 @@ async function syncProject() {
   const projectId = String(route.params.projectId || '')
   if (!projectId) return
   try {
-    await loadProjects()
+    const projects = await loadProjects()
+    if (!/^\d+$/.test(projectId) || !projects.some((project) => project.id === projectId)) {
+      await navigateTo({ path: '/projects', query: { create: projects.length ? undefined : '1' } })
+      return
+    }
   } catch {
-    // Keep the local project cache available while the API is unavailable.
+    return
   }
   switchProject(projectId)
   try {

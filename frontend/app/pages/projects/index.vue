@@ -38,6 +38,31 @@
         </n-form>
       </section>
 
+      <section v-if="projects.length" class="mt-7">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="m-0 text-lg font-medium">制作流程</h2>
+            <p class="mt-1.5 text-xs text-[#8994a8]">选择一个项目，从剧本输入开始推进完整制作流程。</p>
+          </div>
+          <n-select v-model:value="activeProjectId" class="w-full sm:!w-[220px]" :options="projectOptions"
+                    size="small" placeholder="选择项目"/>
+        </div>
+        <div class="rounded-[15px] border border-[#dfe3eb] bg-white p-4 shadow-[0_6px_18px_rgba(35,43,66,0.03)] sm:p-5">
+          <div class="workflow-nodes">
+            <template v-for="(step, index) in workflowSteps" :key="step.id">
+              <span v-if="index" class="workflow-connector" aria-hidden="true"></span>
+              <NuxtLink :to="step.route" class="workflow-node group"
+                        @click="selectWorkflowProject">
+                <span class="workflow-node-icon" :class="step.iconClass" aria-hidden="true">{{ step.icon }}</span>
+                <span class="mt-3 text-xs font-semibold text-[#303b51] transition-colors group-hover:text-[#594df0]">{{ step.title }}</span>
+                <span class="mt-1 text-[10px] leading-4 text-[#929bad]">{{ step.caption }}</span>
+                <span class="mt-3 inline-flex items-center gap-1 text-[10px] font-medium text-[#6654ee]">{{ step.action }} <span aria-hidden="true">↗</span></span>
+              </NuxtLink>
+            </template>
+          </div>
+        </div>
+      </section>
+
       <section class="mt-7">
         <div class="mb-4 flex items-center justify-between"><h2 class="m-0 text-lg font-medium">我的项目</h2><span
             class="text-xs text-[#929bad]">{{ projects.length }} 个项目</span></div>
@@ -49,7 +74,8 @@
           暂无项目，点击右上角新建项目。
         </div>
         <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <n-card v-for="project in projects" :key="project.id" :class="project.id === activeProjectId ? '!border-[#776cff] shadow-[0_8px_20px_rgba(91,79,235,0.08)]' : ''"
+          <n-card v-for="project in projects" :key="project.id"
+                  :class="project.id === activeProjectId ? '!border-[#776cff] shadow-[0_8px_20px_rgba(91,79,235,0.08)]' : ''"
                   :content-style="{ padding: '20px' }"
                   class="project-card !rounded-[15px] !border-[#dfe3eb]">
             <div class="flex items-start justify-between gap-3">
@@ -98,7 +124,7 @@
 </template>
 
 <script lang="ts" setup>
-import {onMounted, ref} from 'vue'
+import {computed, onMounted, ref} from 'vue'
 
 const route = useRoute()
 const message = useMessage()
@@ -112,6 +138,19 @@ const typeOptions = [
   {label: '科幻概念片', value: '科幻概念片'},
   {label: '品牌宣传片', value: '品牌宣传片'}
 ]
+
+const projectOptions = computed(() => projects.value.map((project) => ({label: project.name, value: project.id})))
+const workflowSteps = computed(() => {
+  const projectId = String(activeProjectId.value || '')
+  const base = `/projects/${projectId}/workflow`
+  return [
+    {id: 'script', title: '剧本导入', caption: '故事结构与对白', action: '开始输入', icon: '✦', iconClass: 'bg-[#eeecff] text-[#6654ee]', route: `${base}/script`},
+    {id: 'tasks', title: '每集任务卡', caption: '目标与制作约束', action: '配置任务', icon: '▤', iconClass: 'bg-[#fff4e5] text-[#e59a37]', route: `${base}/tasks`},
+    {id: 'assets', title: '资产管理', caption: '角色、场景与道具', action: '整理资产', icon: '◇', iconClass: 'bg-[#e9f7f1] text-[#27966c]', route: `${base}/assets`},
+    {id: 'shots', title: '分镜规划', caption: '景别、运镜与连续性', action: '规划分镜', icon: '▦', iconClass: 'bg-[#edf4ff] text-[#4285df]', route: `${base}/shots`},
+    {id: 'video', title: '画面视频', caption: '画面、配音与合成', action: '制作视频', icon: '▶', iconClass: 'bg-[#f4edff] text-[#9a67d6]', route: `${base}/video`}
+  ]
+})
 
 onMounted(async () => {
   loading.value = true
@@ -151,4 +190,72 @@ function openProject(project: { id: string }) {
   switchProject(project.id)
   navigateTo(`/projects/${project.id}`)
 }
+
+function selectWorkflowProject() {
+  if (activeProjectId.value) switchProject(String(activeProjectId.value))
+}
 </script>
+
+<style scoped>
+.workflow-nodes {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: thin;
+}
+
+.workflow-node {
+  display: flex;
+  min-width: 148px;
+  flex: 1 0 148px;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid #e2e5ec;
+  border-radius: 12px;
+  padding: 14px;
+  text-decoration: none;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.workflow-node:hover {
+  transform: translateY(-2px);
+  border-color: #776cff;
+  box-shadow: 0 10px 22px rgba(91, 79, 235, 0.1);
+}
+
+.workflow-node:focus-visible {
+  outline: 2px solid #8f87ff;
+  outline-offset: 2px;
+}
+
+.workflow-node-icon {
+  display: flex;
+  height: 34px;
+  width: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-size: 17px;
+}
+
+.workflow-connector {
+  align-self: center;
+  height: 1px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  background: #dfe2e8;
+}
+
+@media (max-width: 639px) {
+  .workflow-nodes {
+    margin: 0 -2px;
+  }
+
+  .workflow-connector {
+    min-width: 12px;
+    flex-basis: 12px;
+  }
+}
+</style>
