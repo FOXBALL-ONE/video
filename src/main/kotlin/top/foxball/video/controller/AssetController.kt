@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController
 import top.foxball.video.entity.jdbc.AssetStatus
 import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.EpisodeAssetType
+import top.foxball.video.ai.AiAnalysisException
+import top.foxball.video.ai.AiClientException
 import top.foxball.video.service.AssetService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -60,6 +62,33 @@ class AssetController(
         data class Response(val id: Long, val deleted: Boolean)
         if (!assetService.deleteEpisodeAsset(projectId, episodeId, assetId)) return responseBuilder.notFound().build()
         val rs = Response(assetId, true)
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/extract")
+    fun extractEpisodeAssets(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @RequestParam("type") type: EpisodeAssetType,
+        @RequestParam("provider_config_id") providerConfigId: Long,
+        @RequestParam("model") @Size(max = 200) model: String,
+    ): ResponseEntity<Response> {
+        data class AssetData(val id: Long, val name: String, val type: String, val description: String?, val status: String)
+        data class ErrorData(@param:JsonProperty("error_code") val errorCode: Int?, @param:JsonProperty("response_content") val responseContent: String?, val provider: String, @param:JsonProperty("request_id") val requestId: String)
+        data class Response(val type: String, val provider: String, val model: String, @param:JsonProperty("request_id") val requestId: String, val list: List<AssetData>, val error: ErrorData? = null)
+        if (providerConfigId <= 0 || model.isBlank()) return responseBuilder.badRequest().message("请提供有效的解析模型和提供商配置").build()
+        val result = try {
+            assetService.extractEpisodeAssets(projectId, episodeId, type, providerConfigId, model)
+        } catch (exception: AiAnalysisException) {
+            val error = ErrorData(exception.errorCode ?: 503, exception.responseContent, exception.provider, exception.requestId)
+            return responseBuilder.serviceUnavailable().message(exception.message).data(mapOf("error" to error)).build()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } catch (exception: AiClientException) {
+            return responseBuilder.serviceUnavailable().message(exception.message).build()
+        } ?: return responseBuilder.notFound().build()
+        val list = result.assets.map { AssetData(requireNotNull(it.id), it.name, it.type.name, it.description, it.status.name) }
+        val rs = Response(type.name, result.provider, result.model, result.requestId, list)
         return responseBuilder.ok().data(rs).build()
     }
     @GetMapping("/api/projects/{project_id}/assets")

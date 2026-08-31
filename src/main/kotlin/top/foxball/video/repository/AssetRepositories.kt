@@ -28,6 +28,7 @@ interface AssetRepository : JpaRepository<Asset, Long> {
 interface EpisodeAssetRepository : JpaRepository<EpisodeAsset, Long> {
     fun findAllByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): List<EpisodeAsset>
     fun findByIdAndProjectIdAndEpisodeId(id: Long, projectId: Long, episodeId: Long): EpisodeAsset?
+    fun findByProjectIdAndEpisodeIdAndNameAndType(projectId: Long, episodeId: Long, name: String, type: EpisodeAssetType): EpisodeAsset?
 }
 
 /** 资产版本的数据访问接口。 */
