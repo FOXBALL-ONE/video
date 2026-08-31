@@ -1,0 +1,1259 @@
+{
+  "title": "第1集：血色跃迁：将军误入虫群战场",
+  "genre": "科幻、历史穿越、动作、悬疑短剧",
+  "overall_summary": "大晟将军沈长临携孕妻祝无虞穿越至克普鲁星区虫群战场，在误解与追杀中发现宋代古墓及自己的星际复制体，天命与时空危机同时逼近。",
+  "characters": [
+    {
+      "id": "character_001",
+      "name": "沈长临",
+      "aliases": ["将军", "大晟边军主将", "沈将军"],
+      "role_type": "主角",
+      "gender": "男",
+      "age": null,
+      "identity": "大晟边军主将，祝无虞的丈夫，沈夫人的儿子；因时空裂隙进入星际战场",
+      "personality": ["勇猛", "杀伐果断", "护妻", "守旧", "重视天命但敢于反抗"],
+      "appearance": "侧脸染血，手持古代长刀；具体外貌不明确",
+      "costume": [
+        {
+          "description": "古代边军将领服装，具体款式不明确；佩戴长刀",
+          "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004"],
+          "continuity_notes": "保持古代将领装束，脸部血迹贯穿战场段落；未明确是否有铠甲"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "开场遭遇虫群",
+          "emotion": "强烈杀意与护卫欲",
+          "trigger": "跳虫逼近祝无虞"
+        },
+        {
+          "stage": "观察星际战场",
+          "emotion": "困惑、警惕",
+          "trigger": "看到火器、飞船和全息战术屏"
+        },
+        {
+          "stage": "身份盘问",
+          "emotion": "镇定、坚持传统身份",
+          "trigger": "苏成要求报告身份和武器"
+        },
+        {
+          "stage": "金钗交易争执",
+          "emotion": "不舍、坚持原则",
+          "trigger": "祝无虞提出变卖发钗"
+        },
+        {
+          "stage": "刺蛇袭击",
+          "emotion": "冷酷、战斗专注",
+          "trigger": "刺蛇扑向夫妻二人"
+        },
+        {
+          "stage": "祝无虞腹痛",
+          "emotion": "焦急、保护本能爆发",
+          "trigger": "祝无虞担心早产"
+        },
+        {
+          "stage": "面对死亡碑文",
+          "emotion": "不屈、抗争命运",
+          "trigger": "碑文写着自己死于今日"
+        },
+        {
+          "stage": "古墓出现复制体",
+          "emotion": "决绝、戒备",
+          "trigger": "另一个沈长临要求留下孩子"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_002",
+          "relationship": "夫妻",
+          "description": "祝无虞是其夫人且怀有身孕，他始终保护她"
+        },
+        {
+          "target_character_id": "character_005",
+          "relationship": "母子",
+          "description": "沈夫人为其母亲，并通过通讯投影照顾祝无虞"
+        },
+        {
+          "target_character_id": "character_006",
+          "relationship": "神秘复制体或另一时空同体",
+          "description": "古墓中出现与他长相相同、穿星际战甲的存在"
+        },
+        {
+          "target_character_id": "character_007",
+          "relationship": "敌对",
+          "description": "将虫群误认为敌军并主动攻击"
+        }
+      ],
+      "actions": ["举刀抵住跳虫獠牙", "踩着火焰冲锋", "环顾并观察陌生战场", "报告身份与佩刀", "阻止祝无虞变卖金钗", "单手护住祝无虞", "徒手制服三只刺蛇", "以金色能量锁链折转刺蛇", "拔刀挡在祝无虞身前", "向死亡天命宣战"],
+      "dialogue_intent": ["古代将领式威严", "杀伐凌厉", "对科技的古典化误解", "护妻与责任感", "反抗命运"],
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004", "scene_005"],
+      "remarks": "年龄和完整服饰未明确；其生辰刻在古墓碑上"
+    },
+    {
+      "id": "character_002",
+      "name": "祝无虞",
+      "aliases": ["无虞", "沈夫人"],
+      "role_type": "主角",
+      "gender": "女",
+      "age": null,
+      "identity": "沈长临的妻子，孕妇，熟悉星际世界和战场科技",
+      "personality": ["理性", "机敏", "务实", "焦急", "敢于吐槽"],
+      "appearance": "抱着孕肚奔跑；具体外貌不明确",
+      "costume": [
+        {
+          "description": "现代服装，具体款式不明确",
+          "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004", "scene_005"],
+          "continuity_notes": "保持孕妇体态与行动限制，奔跑、躲避和腹痛动作需连续"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "开场冲入战场",
+          "emotion": "惊慌、急切",
+          "trigger": "沈长临把虫子当敌军攻击"
+        },
+        {
+          "stage": "解释世界设定",
+          "emotion": "无奈、吐槽",
+          "trigger": "沈长临误认飞船和战术地图"
+        },
+        {
+          "stage": "应对通讯盘问",
+          "emotion": "机警、护夫",
+          "trigger": "苏成怀疑沈长临是虫族间谍"
+        },
+        {
+          "stage": "金钗与物资",
+          "emotion": "务实、焦虑",
+          "trigger": "缺少星币且需要母婴营养剂"
+        },
+        {
+          "stage": "腹部疼痛",
+          "emotion": "紧张、害怕",
+          "trigger": "高速跃迁导致不适，担心早产"
+        },
+        {
+          "stage": "看到死亡碑文和复制体",
+          "emotion": "恐惧",
+          "trigger": "碑文预言沈长临死亡，墓中出现同脸之人"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "夫妻",
+          "description": "她是沈长临的妻子，怀有两人的孩子"
+        },
+        {
+          "target_character_id": "character_005",
+          "relationship": "婆媳",
+          "description": "沈夫人通过通讯投影向她承诺提供物资和保护"
+        },
+        {
+          "target_character_id": "character_003",
+          "relationship": "通讯协作者",
+          "description": "陈澄通过通讯器监测并警告她的位置状态"
+        },
+        {
+          "target_character_id": "character_004",
+          "relationship": "被盘问对象的协助者",
+          "description": "她替沈长临向苏成解释身份"
+        }
+      ],
+      "actions": ["抱孕肚冲入画面", "翻过残骸", "躲过飞溅酸液", "解释星际战场和战术地图", "抢过通讯器替沈长临回答", "发现金钗可兑换星币", "催促购买母婴营养剂", "在腹痛时捂住腹部", "指出墓碑上的死亡文字", "注视墓中复制体并惊恐质问"],
+      "dialogue_intent": ["快速纠正信息", "现代口语化吐槽", "保护沈长临", "现实物资焦虑", "表达孕期危机与恐惧"],
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004", "scene_005"],
+      "remarks": "孕周未明确；早产风险为剧情中的担忧"
+    },
+    {
+      "id": "character_003",
+      "name": "陈澄",
+      "aliases": [],
+      "role_type": "配角",
+      "gender": "未知",
+      "age": null,
+      "identity": "通过通讯器监控战场和时空异常的人员",
+      "personality": ["急切", "担忧", "震惊"],
+      "appearance": null,
+      "costume": [
+        {
+          "description": "未出镜，服装不明确",
+          "related_scenes": ["scene_002", "scene_004"],
+          "continuity_notes": "仅以通讯声音出现，是否在现场不明确"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "监控异常",
+          "emotion": "急迫、担忧",
+          "trigger": "监控中只剩血雾"
+        },
+        {
+          "stage": "目睹沈长临战斗",
+          "emotion": "失声、震惊",
+          "trigger": "沈长临徒手拆解刺蛇"
+        },
+        {
+          "stage": "古墓出现",
+          "emotion": "困惑",
+          "trigger": "克普鲁星区出现宋代古墓"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_002",
+          "relationship": "通讯联络对象",
+          "description": "呼叫并监控祝无虞一行"
+        },
+        {
+          "target_character_id": "character_001",
+          "relationship": "监控与质疑对象",
+          "description": "对沈长临的异常能力和生物信号感到震惊"
+        }
+      ],
+      "actions": ["通过通讯器呼叫", "报告时空抹除和血雾监控", "惊呼沈长临徒手拆刺蛇", "询问古墓出现原因"],
+      "dialogue_intent": ["提供战场信息", "制造异常感", "表达震惊", "推动悬疑"],
+      "related_scenes": ["scene_002", "scene_004"],
+      "remarks": "性别、年龄、具体组织身份不明确"
+    },
+    {
+      "id": "character_004",
+      "name": "苏成",
+      "aliases": [],
+      "role_type": "配角",
+      "gender": "未知",
+      "age": null,
+      "identity": "通过通讯频道进行警察式身份审问的人员",
+      "personality": ["严谨", "怀疑", "程序化"],
+      "appearance": null,
+      "costume": [
+        {
+          "description": "未出镜，服装不明确",
+          "related_scenes": ["scene_002", "scene_003"],
+          "continuity_notes": "仅通过通讯声音出现"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "远程盘问",
+          "emotion": "警戒、怀疑",
+          "trigger": "沈长临身份和武器均无法核验"
+        },
+        {
+          "stage": "生物信号分析",
+          "emotion": "震动、难以置信",
+          "trigger": "监控显示信号来自一千年前"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "审问对象",
+          "description": "要求其报告姓名、来历和武器"
+        },
+        {
+          "target_character_id": "character_002",
+          "relationship": "被解释对象",
+          "description": "祝无虞试图阻止他将沈长临认定为虫族间谍"
+        }
+      ],
+      "actions": ["通过通讯器盘问身份", "询问大晟所属星球", "分析沈长临生物信号"],
+      "dialogue_intent": ["身份核验", "制造误会", "提供时间异常信息"],
+      "related_scenes": ["scene_002", "scene_003"],
+      "remarks": "是否为警察、军方或其他机构人员不明确"
+    },
+    {
+      "id": "character_005",
+      "name": "沈夫人",
+      "aliases": ["母亲"],
+      "role_type": "配角",
+      "gender": "女",
+      "age": null,
+      "identity": "沈长临的母亲，通过通讯投影联系祝无虞；代表沈家提供物资和舰队支援",
+      "personality": ["豪气", "护短", "慷慨", "强势"],
+      "appearance": "仅以通讯投影出现，具体外貌和服饰不明确",
+      "costume": [
+        {
+          "description": "通讯投影中的服装不明确",
+          "related_scenes": ["scene_003"],
+          "continuity_notes": "需保持全息投影质感"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "联系祝无虞",
+          "emotion": "豪迈、保护欲",
+          "trigger": "得知祝无虞在战场并需要物资"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "母子",
+          "description": "沈长临称其为母亲"
+        },
+        {
+          "target_character_id": "character_002",
+          "relationship": "婆媳",
+          "description": "主动安抚并承诺为其购买物资"
+        }
+      ],
+      "actions": ["通过通讯投影讲话", "承诺包办奶粉、护甲和婴儿舱", "声称可派舰队保护祝无虞"],
+      "dialogue_intent": ["安抚", "展示沈家财力", "强化保护承诺"],
+      "related_scenes": ["scene_003"],
+      "remarks": "舰队说法后来被祝无虞解释为购物车"
+    },
+    {
+      "id": "character_006",
+      "name": "另一个沈长临",
+      "aliases": ["墓中沈长临", "复制体"],
+      "role_type": "配角",
+      "gender": "男",
+      "age": null,
+      "identity": "古墓中的神秘存在，与沈长临拥有相同面孔，穿着星际战甲",
+      "personality": ["神秘", "敌意", "目的不明"],
+      "appearance": "与沈长临长相相同，穿星际战甲，瞳孔浮现虫群符号",
+      "costume": [
+        {
+          "description": "星际战甲",
+          "related_scenes": ["scene_005"],
+          "continuity_notes": "必须与古代装束的沈长临形成明显时代反差"
+        }
+      ],
+      "emotional_arc": [
+        {
+          "stage": "墓门开启",
+          "emotion": "冷峻、威胁",
+          "trigger": "睁眼并将刀指向祝无虞"
+        }
+      ],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "身份未知的同脸存在",
+          "description": "可能是复制体、未来版本或另一时空个体"
+        },
+        {
+          "target_character_id": "character_002",
+          "relationship": "敌对目标",
+          "description": "要求祝无虞留下孩子"
+        }
+      ],
+      "actions": ["在墓门后睁眼", "拔刀指向祝无虞", "要求留下孩子"],
+      "dialogue_intent": ["制造悬念", "威胁", "揭示身份冲突"],
+      "related_scenes": ["scene_005"],
+      "remarks": "真实身份、动机和与虫群符号的关系均不明确"
+    },
+    {
+      "id": "character_007",
+      "name": "虫群",
+      "aliases": ["跳虫", "刺蛇", "虫族生物"],
+      "role_type": "群众",
+      "gender": "未知",
+      "age": null,
+      "identity": "克普鲁星区的外星虫群，与人类及沈长临一行形成敌对威胁",
+      "personality": ["群体攻击性", "凶猛", "具有共鸣协调性"],
+      "appearance": "跳虫有獠牙和甲壳；刺蛇具甲壳并能发射酸液；虫群受时空门影响同步转头",
+      "costume": [],
+      "emotional_arc": [],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "敌对",
+          "description": "遭沈长临攻击和制服"
+        },
+        {
+          "target_character_id": "character_002",
+          "relationship": "威胁",
+          "description": "在战场上追击并逼近孕妇"
+        }
+      ],
+      "actions": ["撕裂装甲车", "向夫妻二人扑击", "钻地", "发射酸液炮弹", "被能量锁链折转", "对血色能量钥匙发出共鸣嘶吼"],
+      "dialogue_intent": [],
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004"],
+      "remarks": "非人类群体角色；具体物种数量不明确"
+    },
+    {
+      "id": "character_008",
+      "name": "神秘声音",
+      "aliases": ["墓门深处的声音"],
+      "role_type": "配角",
+      "gender": "未知",
+      "age": null,
+      "identity": "从古墓门深处传出的未知声音",
+      "personality": ["神秘", "熟悉沈长临", "目的不明"],
+      "appearance": null,
+      "costume": [],
+      "emotional_arc": [],
+      "relationships": [
+        {
+          "target_character_id": "character_001",
+          "relationship": "未知关联",
+          "description":"称呼沈长临为将军并表示其终于归来"
+        }
+      ],
+      "actions": ["从墓门深处发声"],
+      "dialogue_intent": ["揭示沈长临曾与古墓存在联系", "制造悬念"],
+      "related_scenes": ["scene_005"],
+      "remarks": "身份、实体形态和立场均不明确"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "sequence": 1,
+      "name": "虫群战场开场",
+      "location": "克普鲁星区虫群战场，装甲车残骸附近",
+      "environment_type": "室外/现实/时空异常",
+      "time": "战斗进行中，具体时间不明确",
+      "weather": null,
+      "lighting": "紫黑色时空裂隙贯穿天空，火焰、血色能量与蓝紫色波纹交错",
+      "visual_style": "动态手持怼脸跟拍，贴近沈长临染血侧脸后快速甩镜；高对比、强烈运动感",
+      "characters": ["character_001", "character_002", "character_007"],
+      "props": ["prop_001", "prop_002", "prop_003"],
+      "actions": ["虫群撕裂装甲车", "沈长临举刀抵住跳虫獠牙", "祝无虞抱孕肚冲入画面", "刀锋劈出血色声波", "跳虫甲壳炸裂", "时空裂隙卷起波纹并折叠半座战场"],
+      "plot_purpose": "直接建立生死危机、夫妻关系和时空穿越的视觉奇观",
+      "sound_design": ["虫群嘶吼", "装甲车撕裂声", "刀锋破空声", "甲壳爆裂声", "时空低频轰鸣", "紧张高速音乐"],
+      "transition": "以时空裂隙和战场折叠切入快速蒙太奇",
+      "remarks": "开场即高潮，需保持动作连续和空间方向清晰"
+    },
+    {
+      "id": "scene_002",
+      "sequence": 2,
+      "name": "陌生星际战场与远程盘问",
+      "location": "虫群战场残骸区及空域",
+      "environment_type": "室外/现实",
+      "time": "紧接开场",
+      "weather": null,
+      "lighting": "战火橙红、酸液冷光、飞船爆炸光与紫黑裂隙光源并存",
+      "visual_style": "手持跟拍祝无虞翻越残骸，快速蒙太奇切换坠落战列巡洋舰、钻地异虫和沈长临踩火冲锋",
+      "characters": ["character_001", "character_002", "character_003", "character_004", "character_007"],
+      "props": ["prop_002", "prop_004", "prop_005", "prop_006", "prop_007"],
+      "actions": ["祝无虞翻过残骸", "战列巡洋舰坠落", "异虫钻地", "沈长临踩火焰冲锋", "沈长临观察全息战术屏", "陈澄和苏成通过通讯频道介入"],
+      "plot_purpose": "交代两人误入未来战场、技术认知冲突和身份危机",
+      "sound_design": ["飞船坠落爆炸声", "地面震动", "异虫钻地声", "酸液飞溅声", "通讯器电流声", "远处枪炮声"],
+      "transition": "由蒙太奇快速推近至全息战术屏和通讯频道",
+      "remarks": "现代科技与沈长临古代认知形成反差"
+    },
+    {
+      "id": "scene_003",
+      "sequence": 3,
+      "name": "金钗兑换与沈家投影",
+      "location": "战场边缘自动贩卖机和临时通讯区域",
+      "environment_type": "室外/现实",
+      "time": "战斗间隙，具体时间不明确",
+      "weather": null,
+      "lighting": "战火环境光与自动贩卖机冷白光交错，金钗转化时出现血色光芒",
+      "visual_style": "快速推近沈长临腰间，金钗从裂缝掉落并落入自动贩卖机；投影画面与战场实景交叉剪辑",
+      "characters": ["character_001", "character_002", "character_003", "character_004", "character_005"],
+      "props": ["prop_007", "prop_008", "prop_009", "prop_010", "prop_011", "prop_012", "prop_013", "prop_014"],
+      "actions": ["古代金钗掉入自动贩卖机", "机器吐出星币", "祝无虞提出兑换物资", "沈长临阻止变卖发钗", "沈夫人以通讯投影承诺物资和舰队", "金钗化作血色能量钥匙", "自动贩卖机裂成时空门", "远处虫群同步转头"],
+      "plot_purpose": "将生活物资困境与时空钥匙功能结合，并开启下一阶段危机",
+      "sound_design": ["金属掉落声", "自动贩卖机提示音", "星币吐出声", "通讯投影启动声", "能量转化嗡鸣", "虫群共鸣嘶吼"],
+      "transition": "血色能量钥匙形成并插入地面的视觉动作，引向古墓场景",
+      "remarks": "沈夫人所称舰队实际被祝无虞解释为购物车"
+    },
+    {
+      "id": "scene_004",
+      "sequence": 4,
+      "name": "战场中央的宋代古墓",
+      "location": "克普鲁星区战场中央，星际基地金属地板上",
+      "environment_type": "室外/现实/时空重叠",
+      "time": "钥匙开启时，具体时间不明确",
+      "weather": null,
+      "lighting": "血色钥匙光芒、金色能量锁链、血雾和基地冷色金属反光叠加",
+      "visual_style": "动态环绕跟拍战斗，镜头猛推指尖锁链，再猛转向战场中央；古墓石门纹样与金属地板重叠",
+      "characters": ["character_001", "character_002", "character_003", "character_007"],
+      "props": ["prop_001", "prop_002", "prop_005", "prop_006", "prop_007", "prop_014", "prop_015", "prop_016", "prop_017", "prop_018", "prop_019"],
+      "actions": ["沈长临单手护住祝无虞", "按住扑来的刺蛇", "指尖释放金色能量锁链", "三只刺蛇关节被锁并折转", "酸液炮弹半空反向爆裂", "祝无虞捂腹", "血色钥匙插入地面", "宋代古墓石门纹样浮现", "碑文显现生辰与死亡日期", "墓门裂开", "血色雾气逆流升空", "监控画面变成古代DV画面", "沈长临身影被逐帧擦除"],
+      "plot_purpose": "展示沈长临超常战力，提出早产危机和死亡预言，揭开古墓悬疑",
+      "sound_design": ["金色锁链穿透甲壳声", "酸液炮弹爆裂声", "通讯失真声", "腹痛急促呼吸", "石门开裂声", "血雾逆流声", "监控故障噪声"],
+      "transition": "监控画面被擦除后切入墓门内部的黑暗和巨手",
+      "remarks": "现实星际基地与宋代古墓发生明显时空重叠"
+    },
+    {
+      "id": "scene_005",
+      "sequence": 5,
+      "name": "古墓中的第二个将军",
+      "location": "宋代古墓门后及墓门前",
+      "environment_type": "室内/现实/时空异常",
+      "time": "紧接墓门开启",
+      "weather": null,
+      "lighting": "墓内幽暗，巨手覆盖星纹，血色钥匙和虫群符号提供局部高光",
+      "visual_style": "动态手持怼脸，在沈长临、祝无虞和墓门之间疯狂切换；突出倒影、同脸和瞳孔特写",
+      "characters": ["character_001", "character_002", "character_006", "character_008"],
+      "props": ["prop_001", "prop_002", "prop_014", "prop_015", "prop_016", "prop_018"],
+      "actions": ["墓门后伸出覆盖星纹的巨手", "沈长临拔刀挡在祝无虞身前", "神秘声音呼唤将军", "祝无虞看到墓中同脸之人", "另一个沈长临睁眼", "其瞳孔浮现虫群符号", "长刀转化为血色能量钥匙", "复制体抬刀指向祝无虞", "时空裂隙吞没画面"],
+      "plot_purpose": "完成本集悬念钩子，确立复制体、孩子和古墓之间的核心冲突",
+      "sound_design": ["墓内回声", "神秘低语", "刀刃变形声", "心跳与紧张呼吸", "裂隙吞噬轰鸣", "悬念收尾音乐"],
+      "transition": "时空裂隙吞没画面，叠加下集标题",
+      "remarks": "屏幕角落出现“下集：星际古墓中的第二个将军”"
+    }
+  ],
+  "props": [
+    {
+      "id": "prop_001",
+      "name": "沈长临佩刀",
+      "category": "关键道具/武器",
+      "description": "古代长刀，沈长临称为佩刀",
+      "owner": "character_001",
+      "function": "近战斩杀虫群并保护祝无虞",
+      "first_appearance": "scene_001",
+      "related_scenes": ["scene_001", "scene_002", "scene_004", "scene_005"],
+      "continuity_notes": "前期为实体古代长刀；结尾可瞬间变为血色能量钥匙",
+      "remarks": "刀锋劈出血色声波"
+    },
+    {
+      "id": "prop_002",
+      "name": "紫黑色时空裂隙",
+      "category": "关键道具/时空现象",
+      "description": "贯穿天空的紫黑色裂隙，带有蓝紫色波纹和折叠空间能力",
+      "owner": "未知",
+      "function": "连接不同时空并抹除、吞没战场画面",
+      "first_appearance": "scene_001",
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_005"],
+      "continuity_notes": "开场造成战场折叠，结尾吞没整个画面",
+      "remarks": "裂隙成因不明确"
+    },
+    {
+      "id": "prop_003",
+      "name": "装甲车",
+      "category": "交通工具/战场设施",
+      "description": "军用装甲车辆，被虫群撕裂",
+      "owner": "未知军方",
+      "function": "展示虫群破坏力和战场危机",
+      "first_appearance": "scene_001",
+      "related_scenes": ["scene_001"],
+      "continuity_notes": "应保持被撕裂后的残骸状态",
+      "remarks": "车型和所属阵营不明确"
+    },
+    {
+      "id": "prop_004",
+      "name": "战列巡洋舰",
+      "category": "交通工具/军用飞船",
+      "description": "大型星际战舰，在蒙太奇中坠落",
+      "owner": "未知军方",
+      "function": "建立星际战争规模",
+      "first_appearance": "scene_002",
+      "related_scenes": ["scene_002"],
+      "continuity_notes": "坠落并燃烧，具体损毁程度不明确",
+      "remarks": "未交代所属军队"
+    },
+    {
+      "id": "prop_005",
+      "name": "全息战术屏",
+      "category": "电子设备",
+      "description": "发光的全息战术地图，显示远方军阵",
+      "owner": "星际战场系统",
+      "function": "提供战场态势信息",
+      "first_appearance": "scene_002",
+      "related_scenes": ["scene_002", "scene_004"],
+      "continuity_notes": "沈长临误认为铜镜；后续监控画面发生异常",
+      "remarks": "可显示千里之外军阵"
+    },
+    {
+      "id": "prop_006",
+      "name": "战场终端",
+      "category": "电子设备/通讯设备",
+      "description": "星际战场使用的通讯与信息终端",
+      "owner": "星际战场系统",
+      "function": "承担世界内的通讯功能",
+      "first_appearance": "scene_002",
+      "related_scenes": ["scene_002", "scene_004"],
+      "continuity_notes": "不应表现为互联网或普通民用网络",
+      "remarks": "祝无虞明确说明此世界没有网络"
+    },
+    {
+      "id": "prop_007",
+      "name": "通讯器",
+      "category": "电子设备",
+      "description": "便携式语音通讯设备",
+      "owner": "未知战场人员",
+      "function": "陈澄、苏成和沈夫人与现场联络",
+      "first_appearance": "scene_002",
+      "related_scenes": ["scene_002", "scene_003", "scene_004"],
+      "continuity_notes": "祝无虞曾抢过通讯器与苏成通话",
+      "remarks": "具体型号不明确"
+    },
+    {
+      "id": "prop_008",
+      "name": "古代金钗",
+      "category": "关键道具/饰品",
+      "description": "从时空裂缝掉出的古代发钗，属于沈夫人",
+      "owner": "character_005",
+      "function": "兑换星币并转化为血色能量钥匙",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "先保持金属发钗形态，后转化为能量钥匙",
+      "remarks": "沈长临拒绝将其变卖"
+    },
+    {
+      "id": "prop_009",
+      "name": "自动贩卖机",
+      "category": "普通道具/电子设备",
+      "description": "可识别金钗并吐出星币的自动机器",
+      "owner": "未知",
+      "function": "触发金钗兑换和时空门开启",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "金钗转化后机器裂成时空门",
+      "remarks": "具体售卖商品不明确"
+    },
+    {
+      "id": "prop_010",
+      "name": "星币",
+      "category": "货币",
+      "description": "自动贩卖机吐出的未来货币",
+      "owner": "character_002",
+      "function": "购买母婴物资",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "数量不明确",
+      "remarks": "由古代金钗兑换而来"
+    },
+    {
+      "id": "prop_011",
+      "name": "母婴营养剂",
+      "category": "关键道具/医疗补给",
+      "description": "供孕妇使用的未来营养补给品",
+      "owner": "character_002",
+      "function": "体现孕妇在异世界的生存需求",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "是否实际购买成功不明确",
+      "remarks": "祝无虞称无星币便买不起"
+    },
+    {
+      "id": "prop_012",
+      "name": "母婴店物资",
+      "category": "普通道具/生活物资",
+      "description": "奶粉、护甲、婴儿舱等物资",
+      "owner": "沈家",
+      "function": "体现沈夫人对孕妇和孩子的支援",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "是否已运抵现场不明确",
+      "remarks": "沈夫人声称已包办整间母婴店"
+    },
+    {
+      "id": "prop_013",
+      "name": "沈家舰队投影/购物车",
+      "category": "关键道具/全息投影",
+      "description": "通讯投影中看似庞大的星际舰队，实际被祝无虞指出是购物车",
+      "owner": "character_005",
+      "function": "制造身份与科技认知误会，表现沈家资源",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "视觉上需先呈现为舰队投影，再通过对白揭示购物车含义",
+      "remarks": "真实视觉形态存在不明确之处"
+    },
+    {
+      "id": "prop_014",
+      "name": "血色能量钥匙",
+      "category": "关键道具/时空装置",
+      "description": "由金钗或长刀转化而来的血色能量钥匙",
+      "owner": "未知",
+      "function": "开启时空门和古墓入口",
+      "first_appearance": "scene_003",
+      "related_scenes": ["scene_003", "scene_004", "scene_005"],
+      "continuity_notes": "来源存在两种视觉描述：金钗化成钥匙，结尾长刀也瞬间变成钥匙",
+      "remarks": "具体是否为同一把钥匙不明确"
+    },
+    {
+      "id": "prop_015",
+      "name": "宋代古墓石门",
+      "category": "关键道具/建筑遗迹",
+      "description": "带有宋代古墓纹样的石门，与星际基地地板重叠",
+      "owner": "未知",
+      "function": "通往墓内神秘空间和复制体",
+      "first_appearance": "scene_004",
+      "related_scenes": ["scene_004", "scene_005"],
+      "continuity_notes": "由血色钥匙触发出现，随后裂开并开启",
+      "remarks": "古墓来源不明确"
+    },
+    {
+      "id": "prop_016",
+      "name": "墓碑",
+      "category": "关键道具/文字载体",
+      "description": "刻有沈长临生辰及“沈长临死于今日”碑文的墓碑",
+      "owner": "未知",
+      "function": "揭示死亡预言和命运冲突",
+      "first_appearance": "scene_004",
+      "related_scenes": ["scene_004", "scene_005"],
+      "continuity_notes": "碑文内容需保持清晰可读",
+      "remarks": "墓碑与沈长临的关系未解释"
+    },
+    {
+      "id": "prop_017",
+      "name": "星际基地金属地板",
+      "category": "场景设施",
+      "description": "现代星际基地的金属地面",
+      "owner": "未知星际基地",
+      "function": "与宋代古墓石门纹样形成时空重叠",
+      "first_appearance": "scene_004",
+      "related_scenes": ["scene_004"],
+      "continuity_notes": "需同时保留金属材质和古墓纹样",
+      "remarks": "基地具体用途不明确"
+    },
+    {
+      "id": "prop_018",
+      "name": "星际监控系统",
+      "category": "电子设备/监控系统",
+      "description": "监测人物生物信号和战场画面的系统",
+      "owner": "未知战场机构",
+      "function": "显示时空抹除、生物信号异常和画面变形",
+      "first_appearance": "scene_002",
+      "related_scenes": ["scene_002", "scene_004", "scene_005"],
+      "continuity_notes": "监控先只剩血雾，后同步变成古代DV画面，再被时空异常影响",
+      "remarks": "监控设备具体位置不明确"
+    },
+    {
+      "id": "prop_019",
+      "name": "古代DV画面",
+      "category": "视觉媒介/异常影像",
+      "description": "星际监控同步转换出的古代DV风格画面",
+      "owner": "未知",
+      "function": "表现时空与历史影像相互侵入",
+      "first_appearance": "scene_004",
+      "related_scenes": ["scene_004"],
+      "continuity_notes": "画面应具有逐帧擦除沈长临身影的效果",
+      "remarks": "影像来源不明确"
+    }
+  ],
+  "costumes": [
+    {
+      "id": "costume_001",
+      "character_id": "character_001",
+      "description": "古代边军将领服装，具体款式不明确，佩戴长刀；面部染血",
+      "style": "古代军旅/将领",
+      "color_palette": ["未明确", "血红"],
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004"],
+      "continuity_notes": "保持古代时代感和血迹连续性，避免误穿星际战甲"
+    },
+    {
+      "id": "costume_002",
+      "character_id": "character_002",
+      "description": "现代服装，具体款式、颜色和鞋帽不明确",
+      "style": "现代日常",
+      "color_palette": ["未明确"],
+      "related_scenes": ["scene_001", "scene_002", "scene_003", "scene_004", "scene_005"],
+      "continuity_notes": "始终保持孕妇体态，动作幅度需符合腹部不适状态"
+    },
+    {
+      "id": "costume_003",
+      "character_id": "character_003",
+      "description": "未出镜，服装不明确",
+      "style": "不明确",
+      "color_palette": [],
+      "related_scenes": ["scene_002", "scene_004"],
+      "continuity_notes": "以通讯声音为主"
+    },
+    {
+      "id": "costume_004",
+      "character_id": "character_004",
+      "description": "未出镜，服装不明确",
+      "style": "不明确",
+      "color_palette": [],
+      "related_scenes": ["scene_002", "scene_003"],
+      "continuity_notes": "以通讯声音为主"
+    },
+    {
+      "id": "costume_005",
+      "character_id": "character_005",
+      "description": "通讯投影中的服装不明确",
+      "style": "不明确",
+      "color_palette": [],
+      "related_scenes": ["scene_003"],
+      "continuity_notes": "保持全息投影的透明、发光和通讯质感"
+    },
+    {
+      "id": "costume_006",
+      "character_id": "character_006",
+      "description": "覆盖身体的星际战甲",
+      "style": "未来科幻战甲",
+      "color_palette": ["未明确"],
+      "related_scenes": ["scene_005"],
+      "continuity_notes": "与沈长临的古代服装形成强烈视觉区别，瞳孔带虫群符号"
+    }
+  ],
+  "plot_beats": [
+    {
+      "sequence": 1,
+      "scene_id": "scene_001",
+      "event": "沈长临在虫群战场持刀抵挡跳虫，祝无虞抱孕肚冲入并试图制止他",
+      "participants": ["character_001", "character_002", "character_007"],
+      "conflict": "沈长临把外星虫群当作敌军，祝无虞担心他继续误判",
+      "result": "刀锋击裂跳虫甲壳，时空裂隙折叠战场",
+      "importance": "核心"
+    },
+    {
+      "sequence": 2,
+      "scene_id": "scene_002",
+      "event": "夫妻二人在残骸和战火中穿行，沈长临误认飞船、战术地图等科技",
+      "participants": ["character_001", "character_002", "character_007"],
+      "conflict": "古代认知与星际战场现实冲突",
+      "result": "祝无虞解释世界设定，但危机仍在持续",
+      "importance": "重要"
+    },
+    {
+      "sequence": 3,
+      "scene_id": "scene_002",
+      "event": "陈澄和苏成通过通讯器介入，要求确认身份",
+      "participants": ["character_001", "character_002", "character_003", "character_004"],
+      "conflict": "沈长临无现代证件且携带冷兵器，被怀疑为虫族间谍",
+      "result": "祝无虞暂时替他搪塞，苏成发现其生物信号来自一千年前",
+      "importance": "重要"
+    },
+    {
+      "sequence": 4,
+      "scene_id": "scene_003",
+      "event": "古代金钗落入自动贩卖机并兑换出星币",
+      "participants": ["character_001", "character_002"],
+      "conflict": "祝无虞急需母婴营养剂，沈长临拒绝变卖母亲发钗",
+      "result": "金钗转化为血色能量钥匙",
+      "importance": "核心"
+    },
+    {
+      "sequence": 5,
+      "scene_id": "scene_003",
+      "event": "沈夫人通过通讯投影承诺提供母婴物资和舰队保护",
+      "participants": ["character_002", "character_005", "character_001"],
+      "conflict": "沈长临将购物车投影误认为舰队",
+      "result": "以幽默误会缓解片刻紧张，同时强化沈家支援背景",
+      "importance": "一般"
+    },
+    {
+      "sequence": 6,
+      "scene_id": "scene_004",
+      "event": "沈长临以分筋错骨手形成的金色能量锁链制服三只刺蛇",
+      "participants": ["character_001", "character_002", "character_003", "character_007"],
+      "conflict": "刺蛇酸液攻击夫妻二人",
+      "result": "刺蛇被强行折转，酸液炮弹反向爆裂，陈澄怀疑沈长临非人类",
+      "importance": "核心"
+    },
+    {
+      "sequence": 7,
+      "scene_id": "scene_004",
+      "event": "祝无虞腹痛并警告继续跃迁可能导致早产",
+      "participants": ["character_001", "character_002"],
+      "conflict": "战场逃生与孕妇安全无法兼顾",
+      "result": "沈长临从战斗状态转为保护妻子",
+      "importance": "重要"
+    },
+    {
+      "sequence": 8,
+      "scene_id": "scene_004",
+      "event": "血色钥匙插地后，宋代古墓石门和墓碑在星际基地地板上显现",
+      "participants": ["character_001", "character_002", "character_003"],
+      "conflict": "历史遗迹不应出现在克普鲁星区",
+      "result": "碑文显示沈长临生辰及当日死亡预言",
+      "importance": "核心"
+    },
+    {
+      "sequence": 9,
+      "scene_id": "scene_004",
+      "event": "墓门裂开，血雾逆流，星际监控变为古代DV画面并逐帧擦除沈长临",
+      "participants": ["character_001", "character_002", "character_003"],
+      "conflict": "时空异常开始直接抹除人物和监控记录",
+      "result": "古墓内部的神秘存在即将现身",
+      "importance": "核心"
+    },
+    {
+      "sequence": 10,
+      "scene_id": "scene_005",
+      "event": "墓门后出现覆盖星纹的巨手和另一个穿星际战甲的沈长临",
+      "participants": ["character_001", "character_002", "character_006", "character_008"],
+      "conflict": "复制体威胁祝无虞并要求留下孩子",
+      "result": "时空裂隙吞没画面，留下第二个将军的悬念",
+      "importance": "核心"
+    }
+  ],
+  "dialogues": [
+    {
+      "scene_id": "scene_001",
+      "speaker_id": "character_001",
+      "text": "退后！再敢近我夫人半步，便将尔等尽数斩尽！",
+      "target": "character_007",
+      "emotion": "杀伐凌厉、护妻",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_001",
+      "speaker_id": "character_002",
+      "text": "沈长临！那不是敌军，是虫子！你拿冷兵器砍星际生物，疯了吗！",
+      "target": "character_001",
+      "emotion": "惊慌、焦急、吐槽",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_001",
+      "text": "此地无城无驿，百姓却皆持火器，莫非已入妖界？",
+      "target": "character_002",
+      "emotion": "困惑、警惕",
+      "purpose": "交代人物认知冲突"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_002",
+      "text": "这里叫星际战场！那艘飞船不是电视，你别再问“戏台为何飞上天”了！",
+      "target": "character_001",
+      "emotion": "无奈、急躁",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_001",
+      "text": "方才那面发光铜镜，竟能显出千里之外的军阵？",
+      "target": "character_002",
+      "emotion": "惊异、疑惑",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_002",
+      "text": "那叫战术地图，不是铜镜！还有，这个世界没有网络，所有通讯都靠战场终端，懂了吗！",
+      "target": "character_001",
+      "emotion": "不耐烦、解释",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_003",
+      "text": "祝无虞，听到回话！你们的位置正在被时空抹除，监控里只剩一片血雾！",
+      "target": "character_002",
+      "emotion": "急促、担忧",
+      "purpose": "推动剧情"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_004",
+      "text": "沈长临，报身份！姓名、来历、有没有武器？",
+      "target": "character_001",
+      "emotion": "警戒、审问",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_001",
+      "text": "沈长临，大晟边军主将，手中之物乃佩刀。",
+      "target": "character_004",
+      "emotion": "镇定、严肃",
+      "purpose": "交代身份"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_004",
+      "text": "大晟是哪颗星球？",
+      "target": "character_001",
+      "emotion": "困惑、怀疑",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_002",
+      "speaker_id": "character_002",
+      "text": "他身份洗白中，证件马上补，先别把我们当虫族间谍！",
+      "target": "character_004",
+      "emotion": "机警、辩解",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_002",
+      "text": "等等，这根金钗能换星币！",
+      "target": "character_001",
+      "emotion": "惊喜、现实焦虑",
+      "purpose": "推动剧情"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_001",
+      "text": "那是夫人发钗，岂可变卖？",
+      "target": "character_002",
+      "emotion": "不舍、严肃",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_002",
+      "text": "不卖我们连母婴营养剂都买不起！沈夫人已经把整间母婴店包圆了，还在通讯里催你回去！",
+      "target": "character_001",
+      "emotion": "焦急、务实",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_005",
+      "text": "无虞放心，奶粉、护甲、婴儿舱，全由我沈家包了！谁敢欺你，我便派舰队过去！",
+      "target": "character_002",
+      "emotion": "豪气、护短",
+      "purpose": "表达情感"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_001",
+      "text": "母亲竟已拥百万雄兵？",
+      "target": "character_005",
+      "emotion": "震惊、误解",
+      "purpose": "制造误会"
+    },
+    {
+      "scene_id": "scene_003",
+      "speaker_id": "character_002",
+      "text": "那是购物车，不是舰队！",
+      "target": "character_001",
+      "emotion": "无奈、吐槽",
+      "purpose": "制造冲突"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_001",
+      "text": "筋脉既乱，便伏地受死！",
+      "target": "character_007",
+      "emotion": "冷酷、威压",
+      "purpose": "推动动作"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_003",
+      "text": "他徒手拆了刺蛇？这不是人类！",
+      "target": "character_002",
+      "emotion": "失声、震惊",
+      "purpose": "制造悬念"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_002",
+      "text": "不好！肚子疼！",
+      "target": "character_001",
+      "emotion": "疼痛、惊慌",
+      "purpose": "推动剧情"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_001",
+      "text": "无虞，你要生产？",
+      "target": "character_002",
+      "emotion": "焦急、担心",
+      "purpose": "表达情感"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_002",
+      "text": "不是！是高速跃迁把我颠着了！但再拖下去，早产真要来了！",
+      "target": "character_001",
+      "emotion": "紧张、解释",
+      "purpose": "推动剧情"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_003",
+      "text": "那是什么？这里明明是克普鲁星区，为什么会出现宋代古墓？",
+      "target": "character_002",
+      "emotion": "困惑、惊惧",
+      "purpose": "制造悬念"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_001",
+      "text": "此墓碑上，刻的是本将军的生辰。",
+      "target": "character_002",
+      "emotion": "凝重、难以置信",
+      "purpose": "交代信息"
+    },
+    {
+      "scene_id": "scene_004",
+      "speaker_id": "character_002",
+      "text": "可碑文最后一行写着——“沈长临死于今日”。",
+      "target": "character_001",
+      "emotion": "声音发紧、恐惧",
+      "purpose": "制造悬念"
+    },
+    {
+      "scene_id": "scene_005",
+      "speaker_id": "character_001",
+      "text": "碑上写我今日身死，可我偏要让这天命先死！",
+      "target": "character_002",
+      "emotion": "决绝、不屈",
+      "purpose": "表达主题"
+    },
+    {
+      "scene_id": "scene_005",
+      "speaker_id": "character_008",
+      "text": "将军，你终于回来了。",
+      "target": "character_001",
+      "emotion": "神秘、低沉",
+      "purpose": "制造悬念"
+    },
+    {
+      "scene_id": "scene_005",
+      "speaker_id": "character_002",
+      "text": "沈长临……里面那个穿星际战甲的人，为什么长着你的脸？",
+      "target": "character_001",
+      "emotion": "惊恐、难以置信",
+      "purpose": "揭示异常"
+    },
+    {
+      "scene_id": "scene_005",
+      "speaker_id": "character_006",
+      "text": "把孩子留下。",
+      "target": "character_002",
+      "emotion": "冷酷、威胁",
+      "purpose": "制造悬念"
+    }
+  ],
+  "visual_requirements": [
+    {
+      "scene_id": "scene_001",
+      "requirement_type": "人物特写",
+      "description": "贴近沈长临染血侧脸动态跟拍，随后猛甩露出虫群和天空裂隙",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_001",
+      "requirement_type": "动作",
+      "description": "沈长临举刀抵住跳虫獠牙，祝无虞抱孕肚冲入并躲避战斗",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_001",
+      "requirement_type": "特效",
+      "description": "刀锋劈出血色声波，跳虫甲壳炸裂，紫黑裂隙卷起蓝紫波纹并折叠战场",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_002",
+      "requirement_type": "环境全景",
+      "description": "坠落战列巡洋舰、燃烧残骸、钻地异虫和火器战场共同构成星际战争景观",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_002",
+      "requirement_type": "特殊构图",
+      "description": "将沈长临古代视角中的飞船、全息战术屏与祝无虞现代解释进行快速交叉剪辑",
+      "priority": "中"
+    },
+    {
+      "scene_id": "scene_002",
+      "requirement_type": "电子界面",
+      "description": "全息战术屏显示远方军阵，通讯器界面叠加陈澄和苏成的语音",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_003",
+      "requirement_type": "道具特写",
+      "description": "金钗从裂缝掉落进入自动贩卖机，机器吐出星币",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_003",
+      "requirement_type": "特效",
+      "description": "金钗化为血色能量钥匙，自动贩卖机裂成时空门，远处虫群同步转头",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_003",
+      "requirement_type": "人物投影",
+      "description": "沈夫人以豪气冲天的通讯投影出现，背景或画面中呈现舰队与购物车的误会",
+      "priority": "中"
+    },
+    {
+      "scene_id": "scene_004",
+      "requirement_type": "动作",
+      "description": "沈长临单手护住祝无虞，徒手按住刺蛇并释放金色能量锁链",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_004",
+      "requirement_type": "特效",
+      "description": "金色锁链穿透刺蛇甲壳并锁住关节，三只刺蛇折转，酸液炮弹反向爆裂",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_004",
+      "requirement_type": "环境与道具",
+      "description": "血色钥匙插入金属地板后，宋代古墓石门纹样与星际基地地板重叠出现",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_004",
+      "requirement_type": "文字与影像",
+      "description": "墓碑清晰显示沈长临生辰和“沈长临死于今日”，监控同步变为古代DV画面并逐帧擦除人物",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_005",
+      "requirement_type": "特殊构图",
+      "description": "手持怼脸镜头在沈长临、祝无虞和墓门之间高速切换，突出墓中倒影和同脸关系",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_005",
+      "requirement_type": "人物特写",
+      "description": "另一个沈长临穿星际战甲睁眼，瞳孔浮现虫群符号",
+      "priority": "高"
+    },
+    {
+      "scene_id": "scene_005",
+      "requirement_type": "特效",
+      "description": "墓门后伸出覆盖星纹的巨手，长刀转化为血色能量钥匙，裂隙吞没画面",
+      "priority": "高"
+    }
+  ],
+  "continuity_risks": [
+    {
+      "type": "人物",
+      "description": "沈长临的身份横跨大晟古代将领与星际异常生物信号",
+      "related_ids": ["character_001", "scene_002", "scene_004"],
+      "solution": "始终保留古代身份对白、佩刀和装束，同时用通讯监控单独呈现一千年前生物信号"
+    },
+    {
+      "type": "人物",
+      "description": "古墓中的另一个沈长临可能是复制体、未来版本或另一时空个体",
+      "related_ids": ["character_001", "character_006", "scene_005"],
+      "solution": "不要提前确定身份，只固定同脸、星际战甲和虫群符号瞳孔"
+    },
+    {
+      "type": "服装",
+      "description": "沈长临古代服装与另一个沈长临的星际战甲容易混淆",
+      "related_ids": ["costume_001", "costume_006"],
+      "solution": "用时代材质、轮廓和色彩明确区分两人"
+    },
+    {
+      "type": "服装",
+      "description": "祝无虞全程孕妇状态，快速奔跑和战斗躲避可能造成体态不一致",
+      "related_ids": ["character_002", "costume_002"],
+      "solution": "保持明显孕肚、护腹动作和动作幅度限制"
+    },
+    {
+      "type": "道具",
+      "description": "金钗与长刀都被描述为转化成血色能量钥匙",
+      "related_ids": ["prop_001", "prop_008", "prop_014"],
+      "solution": "将其处理为同源或同类时空装置，具体关系暂不解释"
+    },
+    {
+      "type": "场景",
+      "description": "星际基地金属地板与宋代古墓石门同时存在，空间层级容易混乱",
+      "related_ids": ["scene_004", "scene_005", "prop_015", "prop_017"],
+      "solution": "固定石门从金属地板表面浮现，墓内再切换为独立黑暗空间"
+    },
+    {
+      "type": "时间线",
+      "description": "沈长临来自一千年前，但墓碑却记录其当日死亡",
+      "related_ids": ["character_001", "prop_016", "scene_004"],
+      "solution": "将碑文作为未解释的预言或时空循环线索，不表现为已证实事实"
+    },
+    {
+      "type": "道具",
+      "description": "沈夫人所说的舰队与祝无虞所说的购物车存在视觉和语义冲突",
+      "related_ids": ["character_005", "prop_013", "scene_003"],
+      "solution": "先用宏大舰队式投影制造误导，再通过对白揭示其购物车属性"
+    },
+    {
+      "type": "场景",
+      "description": "星际监控画面由血雾转为古代DV画面并擦除人物，影像规则可能不一致",
+      "related_ids": ["prop_018", "prop_019", "scene_004"],
+      "solution": "统一使用时空抹除作为画面变化原因，并保持逐帧失真效果"
+    }
+  ]
+}
