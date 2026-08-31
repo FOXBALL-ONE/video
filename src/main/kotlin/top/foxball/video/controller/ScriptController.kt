@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import top.foxball.video.ai.AiClientException
+import top.foxball.video.ai.AiAnalysisException
 import top.foxball.video.service.ScriptService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -24,6 +28,7 @@ import java.time.LocalDateTime
 class ScriptController(
     private val scriptService: ScriptService,
     private val responseBuilder: ResponseBuilder,
+    private val objectMapper: ObjectMapper,
 ) {
     @GetMapping("/api/projects/{project_id}/script")
     fun getScript(
@@ -35,7 +40,8 @@ class ScriptController(
         data class CharacterData(val id: Long, val name: String, val description: String?, val motivation: String?, val relationship: String?)
         data class DialogueData(val id: Long, @param:JsonProperty("script_scene_id") val scriptSceneId: Long, @param:JsonProperty("character_id") val characterId: Long?, @param:JsonProperty("sequence_no") val sequenceNo: Int, val content: String, @param:JsonProperty("dialogue_type") val dialogueType: String, @param:JsonProperty("duration_seconds") val durationSeconds: Int)
         data class QualityData(val id: Long, @param:JsonProperty("rule_code") val ruleCode: String, val title: String, val note: String?, val passed: Boolean, val score: BigDecimal?)
-        data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val versions: List<VersionData>, val content: String, val scenes: List<SceneData>, val characters: List<CharacterData>, val dialogues: List<DialogueData>, @param:JsonProperty("quality_checks") val qualityChecks: List<QualityData>, val stats: Map<String, Any?>)
+        data class AnalysisData(@param:JsonProperty("status") val status: String, @param:JsonProperty("provider_config_id") val providerConfigId: Long?, val model: String?, @param:JsonProperty("analyzed_at") val analyzedAt: LocalDateTime?, val result: JsonNode?)
+        data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val versions: List<VersionData>, val content: String, val scenes: List<SceneData>, val characters: List<CharacterData>, val dialogues: List<DialogueData>, @param:JsonProperty("quality_checks") val qualityChecks: List<QualityData>, val stats: Map<String, Any?>, val analysis: AnalysisData)
 
         val snapshot = scriptService.load(projectId, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(
@@ -48,7 +54,36 @@ class ScriptController(
             snapshot.dialogues.map { DialogueData(requireNotNull(it.id), it.scriptSceneId, it.characterId, it.sequenceNo, it.content, it.dialogueType.name, it.durationSeconds) },
             snapshot.qualityChecks.map { QualityData(requireNotNull(it.id), it.ruleCode, it.title, it.note, it.passed, it.score) },
             mapOf("scene_count" to snapshot.version.sceneCount, "character_count" to snapshot.version.characterCount, "dialogue_count" to snapshot.version.dialogueCount, "estimated_duration_seconds" to snapshot.version.estimatedDurationSeconds, "structure_score" to snapshot.version.structureScore),
+            AnalysisData(snapshot.version.aiAnalysisStatus.name, snapshot.version.aiAnalysisProviderConfigId, snapshot.version.aiAnalysisModel, snapshot.version.aiAnalysisAt, snapshot.version.aiAnalysisJson?.let { runCatching { objectMapper.readTree(it) }.getOrNull() }),
         )
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @PostMapping("/api/projects/{project_id}/script/parse")
+    fun analyzeScript(
+        @PathVariable("project_id") projectId: Long,
+        @RequestParam("provider_config_id") providerConfigId: Long,
+        @RequestParam("model") @Size(max = 200) model: String,
+        @RequestParam("episode_id", required = false) episodeId: Long?,
+    ): ResponseEntity<Response> {
+        data class ErrorData(@param:JsonProperty("error_code") val errorCode: Int?, @param:JsonProperty("response_content") val responseContent: String?, val provider: String, @param:JsonProperty("request_id") val requestId: String)
+        data class Response(@param:JsonProperty("document_id") val documentId: Long, @param:JsonProperty("version_id") val versionId: Long, @param:JsonProperty("analysis_status") val analysisStatus: String, val result: JsonNode?, val error: ErrorData? = null)
+        if (model.isBlank() || providerConfigId <= 0) return responseBuilder.badRequest().message("请提供有效的解析模型和提供商配置").build()
+        val snapshot = try {
+            scriptService.analyze(projectId, episodeId, providerConfigId, model)
+        } catch (exception: AiAnalysisException) {
+            val error = ErrorData(exception.errorCode ?: 503, exception.responseContent, exception.provider, exception.requestId)
+            return responseBuilder.serviceUnavailable().message(exception.message).data(mapOf("error" to error)).build()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } catch (exception: AiClientException) {
+            return responseBuilder.serviceUnavailable().message(exception.message).build()
+        } catch (exception: IllegalStateException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        }
+            ?: return responseBuilder.notFound().build()
+        val result = snapshot.version.aiAnalysisJson?.let { runCatching { objectMapper.readTree(it) }.getOrNull() }
+        val rs = Response(requireNotNull(snapshot.document.id), requireNotNull(snapshot.version.id), snapshot.version.aiAnalysisStatus.name, result)
         return responseBuilder.ok().data(rs).build()
     }
 

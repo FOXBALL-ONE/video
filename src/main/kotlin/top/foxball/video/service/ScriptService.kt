@@ -2,10 +2,22 @@ package top.foxball.video.service
 
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import top.foxball.video.ai.AiChatCompletionCommand
+import top.foxball.video.ai.AiChatMessage
+import top.foxball.video.ai.AiChatRole
+import top.foxball.video.ai.AiAnalysisException
+import top.foxball.video.ai.AiClientException
+import top.foxball.video.ai.AiRateLimitException
+import top.foxball.video.ai.AiUpstreamAuthenticationException
+import top.foxball.video.ai.AiUpstreamException
+import top.foxball.video.ai.AiInvocationService
 import top.foxball.video.entity.jdbc.*
 import top.foxball.video.repository.*
 import java.math.BigDecimal
 import java.time.LocalDateTime
+import java.util.UUID
 
 /** 剧本文档及其版本的持久化服务。 */
 @Service
@@ -18,6 +30,10 @@ class ScriptService(
     private val characterRepository: ScriptCharacterRepository,
     private val dialogueRepository: ScriptDialogueRepository,
     private val qualityCheckRepository: ScriptQualityCheckRepository,
+    private val episodeAssetRepository: EpisodeAssetRepository,
+    private val aiInvocationService: AiInvocationService,
+    private val objectMapper: ObjectMapper,
+    private val providerConfigRepository: AiModelProviderConfigRepository,
 ) {
     data class ScriptSnapshot(
         val document: ScriptDocument,
@@ -65,6 +81,11 @@ class ScriptService(
         } else {
             version.content = content
         }
+        version.aiAnalysisJson = null
+        version.aiAnalysisStatus = ScriptAnalysisStatus.NOT_PARSED
+        version.aiAnalysisProviderConfigId = null
+        version.aiAnalysisModel = null
+        version.aiAnalysisAt = null
         updateParsedData(version)
         val savedVersion = versionRepository.save(version)
         project.versionName = savedVersion.versionName
@@ -86,6 +107,64 @@ class ScriptService(
         documentRepository.save(document)
         replaceStructuredData(savedVersion)
         return snapshot(document, savedVersion)
+    }
+
+    /** 使用固定拆解模板调用大模型，并将原始 JSON 与可执行资产同步保存。 */
+    @Transactional
+    fun analyze(projectId: Long, episodeId: Long?, providerConfigId: Long, model: String): ScriptSnapshot? {
+        val project = projectRepository.findById(projectId).orElse(null) ?: return null
+        if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
+        val document = (if (episodeId == null) documentRepository.findByProjectIdAndEpisodeIdIsNull(projectId) else documentRepository.findByProjectIdAndEpisodeId(projectId, episodeId)) ?: return null
+        val version = currentVersion(document) ?: return null
+        if (version.content.isBlank()) throw IllegalArgumentException("剧本内容不能为空")
+        version.aiAnalysisStatus = ScriptAnalysisStatus.PROCESSING
+        version.aiAnalysisProviderConfigId = providerConfigId
+        version.aiAnalysisModel = model.trim()
+        versionRepository.save(version)
+        val requestId = UUID.randomUUID().toString()
+        val providerName = providerConfigRepository.findById(providerConfigId).orElse(null)?.provider?.trim().orEmpty().ifBlank { "unknown" }
+        try {
+            val result = aiInvocationService.createChatCompletion(
+                AiChatCompletionCommand(
+                    providerConfigId = providerConfigId,
+                    model = model.trim(),
+                    messages = listOf(AiChatMessage(AiChatRole.SYSTEM, ANALYSIS_TEMPLATE.replace("{{剧本文本}}", version.content))),
+                    temperature = 0.1,
+                    maxCompletionTokens = 32_000,
+                    requestId = requestId,
+                )
+            ).block() ?: throw IllegalStateException("模型服务未返回结果")
+            val raw = result.primaryChoice?.message?.content?.trim().orEmpty()
+            val analysis = parseAnalysisJson(raw)
+            version.aiAnalysisJson = objectMapper.writeValueAsString(analysis)
+            version.aiAnalysisStatus = ScriptAnalysisStatus.COMPLETED
+            version.aiAnalysisAt = LocalDateTime.now()
+            updateParsedDataFromAnalysis(version, analysis)
+            val savedVersion = versionRepository.save(version)
+            replaceStructuredDataFromAnalysis(savedVersion, analysis)
+            syncEpisodeAssets(projectId, episodeId, analysis)
+        } catch (exception: AiClientException) {
+            version.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
+            versionRepository.save(version)
+            val errorCode = when (exception) {
+                is AiUpstreamException -> exception.statusCode
+                is AiUpstreamAuthenticationException -> exception.statusCode
+                is AiRateLimitException -> 429
+                else -> null
+            }
+            val responseContent = when (exception) {
+                is AiUpstreamException -> exception.responseContent
+                is AiUpstreamAuthenticationException -> exception.responseContent
+                is AiRateLimitException -> exception.responseContent
+                else -> null
+            }
+            throw AiAnalysisException(exception.message ?: "模型服务调用失败", errorCode, responseContent, providerName, requestId, exception)
+        } catch (exception: Exception) {
+            version.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
+            versionRepository.save(version)
+            throw exception
+        }
+        return snapshot(document, version)
     }
 
     @Transactional
@@ -161,6 +240,76 @@ class ScriptService(
                 )
             }"
         ).setScale(2)
+    }
+
+    private fun updateParsedDataFromAnalysis(version: ScriptVersion, analysis: JsonNode) {
+        val scenes = analysis.path("scenes").takeIf { it.isArray }?.size() ?: 0
+        val characters = analysis.path("characters").takeIf { it.isArray }?.size() ?: 0
+        val dialogues = analysis.path("dialogues").takeIf { it.isArray }?.size() ?: 0
+        version.sceneCount = scenes
+        version.characterCount = characters
+        version.dialogueCount = dialogues
+        version.estimatedDurationSeconds = (version.content.length / 4).coerceAtLeast(0)
+        version.structureScore = if (version.content.isBlank()) BigDecimal.ZERO else BigDecimal("10.00")
+    }
+
+    private fun parseAnalysisJson(raw: String): JsonNode {
+        val normalized = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        if (normalized.isBlank()) throw IllegalStateException("模型未返回剧本解析结果")
+        val node = try { objectMapper.readTree(normalized) } catch (exception: Exception) {
+            throw IllegalStateException("模型返回的解析结果不是合法 JSON", exception)
+        }
+        if (!node.isObject) throw IllegalStateException("模型返回的解析结果必须是 JSON 对象")
+        return node
+    }
+
+    private fun replaceStructuredDataFromAnalysis(version: ScriptVersion, analysis: JsonNode) {
+        val versionId = requireNotNull(version.id)
+        val oldScenes = sceneRepository.findAllByScriptVersionIdOrderBySortOrderAsc(versionId)
+        oldScenes.forEach { scene -> dialogueRepository.deleteAllByScriptSceneId(requireNotNull(scene.id)) }
+        sceneRepository.deleteAllByScriptVersionId(versionId)
+        characterRepository.deleteAllByScriptVersionId(versionId)
+        qualityCheckRepository.deleteAllByScriptVersionId(versionId)
+
+        val sceneNodes = analysis.path("scenes").takeIf { it.isArray }?.toList().orEmpty()
+        val scenes = (if (sceneNodes.isEmpty()) listOf(objectMapper.createObjectNode().put("name", "正文")) else sceneNodes).mapIndexed { index, node ->
+            val title = node.path("name").textValue()?.takeIf { it.isNotBlank() } ?: node.path("location").textValue()?.takeIf { it.isNotBlank() } ?: "场景${index + 1}"
+            sceneRepository.save(ScriptScene(scriptVersionId = versionId, sceneNo = index + 1, title = title, location = node.path("location").textValue(), timeOfDay = node.path("time").textValue(), interiorExterior = node.path("environment_type").textValue(), content = node.toString(), durationSeconds = version.estimatedDurationSeconds / sceneNodes.size.coerceAtLeast(1), sortOrder = index))
+        }
+        val characterNodes = analysis.path("characters").takeIf { it.isArray }?.toList().orEmpty()
+        val characters = characterNodes.mapNotNull { node ->
+            val name = node.path("name").textValue()?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val description = listOfNotNull(node.path("identity").textValue(), node.path("appearance").textValue(), node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() }).filter { it.isNotBlank() }.joinToString("；").ifBlank { null }
+            name to characterRepository.save(ScriptCharacter(scriptVersionId = versionId, name = name, description = description, motivation = node.path("dialogue_intent").takeIf { it.isArray }?.joinToString("、") { it.textValue() }, relationship = node.path("relationships").toString().takeIf { it != "[]" }))
+        }.toMap()
+        val sceneBySourceId = sceneNodes.mapIndexedNotNull { index, node -> node.path("id").textValue()?.let { it to scenes[index] } }.toMap()
+        analysis.path("dialogues").takeIf { it.isArray }?.toList().orEmpty().forEachIndexed { index, node ->
+            val scene = node.path("scene_id").textValue()?.let(sceneBySourceId::get) ?: scenes.firstOrNull() ?: return@forEachIndexed
+            val speaker = node.path("speaker_id").textValue()?.let { sourceId -> characterNodes.firstOrNull { it.path("id").textValue() == sourceId }?.path("name")?.textValue() } ?: node.path("speaker").textValue()
+            val character = speaker?.let(characters::get)
+            val text = node.path("text").textValue() ?: node.path("content").textValue() ?: return@forEachIndexed
+            dialogueRepository.save(ScriptDialogue(scriptSceneId = requireNotNull(scene.id), characterId = character?.id, sequenceNo = index, content = text, dialogueType = if (character == null) DialogueType.NARRATION else DialogueType.DIALOGUE, durationSeconds = (text.length / 4).coerceAtLeast(1)))
+        }
+        qualityCheckRepository.saveAll(listOf(ScriptQualityCheck(scriptVersionId = versionId, ruleCode = "AI_ANALYSIS", title = "AI 结构化解析", note = "已保存大模型拆解结果", passed = true, score = BigDecimal("1.00"))))
+    }
+
+    private fun syncEpisodeAssets(projectId: Long, episodeId: Long?, analysis: JsonNode) {
+        if (episodeId == null) return
+        fun sync(nodes: JsonNode, type: EpisodeAssetType, description: (JsonNode) -> String?, notes: (JsonNode) -> String?) {
+            if (!nodes.isArray) return
+            nodes.forEach { node ->
+                val name = node.path("name").textValue()?.trim()?.takeIf { it.isNotBlank() } ?: return@forEach
+                val existing = episodeAssetRepository.findByProjectIdAndEpisodeIdAndNameAndType(projectId, episodeId, name, type)
+                val asset = existing ?: EpisodeAsset(projectId = projectId, episodeId = episodeId, name = name, type = type)
+                asset.description = description(node)?.take(100_000)
+                asset.notes = notes(node)?.take(100_000)
+                episodeAssetRepository.save(asset)
+            }
+        }
+        sync(analysis.path("characters"), EpisodeAssetType.CHARACTER, { node -> listOfNotNull(node.path("identity").textValue(), node.path("appearance").textValue(), node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() }).joinToString("；").ifBlank { null } }, { it.toString() })
+        sync(analysis.path("scenes"), EpisodeAssetType.SCENE_BACKGROUND, { node -> listOfNotNull(node.path("location").textValue(), node.path("time").textValue(), node.path("lighting").textValue(), node.path("visual_style").textValue()).joinToString("；").ifBlank { null } }, { it.toString() })
+        sync(analysis.path("props"), EpisodeAssetType.PROP, { it.path("description").textValue() }, { it.toString() })
+        sync(analysis.path("costumes"), EpisodeAssetType.COSTUME, { it.path("description").textValue() }, { it.toString() })
     }
 
     private fun replaceStructuredData(version: ScriptVersion) {
@@ -250,5 +399,133 @@ class ScriptService(
             dialogues,
             qualityCheckRepository.findAllByScriptVersionIdOrderByCreatedAtDesc(versionId)
         )
+    }
+
+    companion object {
+        private const val ANALYSIS_TEMPLATE = """你是一名专业的影视剧本拆解师和 AI 短剧制作策划。
+
+请阅读下面的剧本文本，系统提取其中的人物、场景、道具、服装、动作、情绪、剧情节点、对白、音效和视觉要求，服务于后续的分镜设计、角色设定、场景生成和视频制作。
+
+【剧本文本】
+{{剧本文本}}
+
+【提取要求】
+1. 只提取剧本中明确出现或可以合理推断的内容，不要凭空补充。
+2. 对同一对象进行合并，避免重复。
+3. 为每个实体生成唯一 ID，例如：character_001、scene_001、prop_001。
+4. 如果信息不明确，填写 null，并在 remarks 中说明“不明确”。
+5. 保留人物在不同剧情阶段的状态变化，例如身份、年龄、服装、受伤、情绪变化。
+6. 区分主要人物、次要人物、群众人物；区分室内、室外、现实、回忆、梦境等场景；区分关键道具、普通道具和具有剧情功能的道具。
+7. 保留实体之间的关联，例如人物出现在哪个场景、使用了什么道具、与谁发生关系。
+8. 输出必须是合法 JSON，不要输出 Markdown、解释文字或额外内容。
+
+【输出格式】
+{
+  "title": "剧本标题",
+  "genre": "题材类型",
+  "overall_summary": "不超过100字的剧情概述",
+  "characters": [
+    {
+      "id": "character_001",
+      "name": "人物名称",
+      "aliases": ["别名或称呼"],
+      "role_type": "主角/配角/群众",
+      "gender": "男/女/未知",
+      "age": "年龄或年龄段",
+      "identity": "身份、职业或社会关系",
+      "personality": ["性格关键词"],
+      "appearance": "外貌特征",
+      "costume": [{"description": "服装描述", "related_scenes": ["scene_001"], "continuity_notes": "服装连续性要求"}],
+      "emotional_arc": [{"stage": "剧情阶段", "emotion": "情绪", "trigger": "引发情绪的事件"}],
+      "relationships": [{"target_character_id": "character_002", "relationship": "关系", "description": "关系说明"}],
+      "actions": ["关键动作"],
+      "dialogue_intent": ["对白意图或语言风格"],
+      "related_scenes": ["scene_001"],
+      "remarks": "其他信息"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene_001",
+      "sequence": 1,
+      "name": "场景名称",
+      "location": "具体地点",
+      "environment_type": "室内/室外/现实/回忆/梦境",
+      "time": "时间、季节或时间段",
+      "weather": "天气",
+      "lighting": "光线和氛围",
+      "visual_style": "画面风格、色调或镜头氛围",
+      "characters": ["character_001"],
+      "props": ["prop_001"],
+      "actions": ["场景中发生的动作"],
+      "plot_purpose": "该场景对剧情的作用",
+      "sound_design": ["环境音、音效或音乐"],
+      "transition": "与前后场景的衔接方式",
+      "remarks": "其他信息"
+    }
+  ],
+  "props": [
+    {
+      "id": "prop_001",
+      "name": "道具名称",
+      "category": "关键道具/普通道具/交通工具/电子设备/武器/文件等",
+      "description": "外观和材质",
+      "owner": "所属人物或组织",
+      "function": "剧情功能",
+      "first_appearance": "scene_001",
+      "related_scenes": ["scene_001"],
+      "continuity_notes": "道具在不同场景中的状态变化",
+      "remarks": "其他信息"
+    }
+  ],
+  "costumes": [
+    {
+      "id": "costume_001",
+      "character_id": "character_001",
+      "description": "服装、鞋帽和配饰",
+      "style": "服装风格",
+      "color_palette": ["颜色"],
+      "related_scenes": ["scene_001"],
+      "continuity_notes": "服装变化或连续性要求"
+    }
+  ],
+  "plot_beats": [
+    {
+      "sequence": 1,
+      "scene_id": "scene_001",
+      "event": "剧情事件",
+      "participants": ["character_001"],
+      "conflict": "冲突或矛盾",
+      "result": "事件结果",
+      "importance": "核心/重要/一般"
+    }
+  ],
+  "dialogues": [
+    {
+      "scene_id": "scene_001",
+      "speaker_id": "character_001",
+      "text": "对白原文",
+      "target": "对白对象",
+      "emotion": "说话时的情绪",
+      "purpose": "推动剧情/交代信息/制造冲突/表达情感"
+    }
+  ],
+  "visual_requirements": [
+    {
+      "scene_id": "scene_001",
+      "requirement_type": "人物特写/环境全景/动作/特效/特殊构图",
+      "description": "AI 生成画面时必须体现的内容",
+      "priority": "高/中/低"
+    }
+  ],
+  "continuity_risks": [
+    {
+      "type": "人物/服装/道具/场景/时间线",
+      "description": "可能产生前后不一致的地方",
+      "related_ids": ["character_001", "scene_001"],
+      "solution": "建议的连续性处理方式"
+    }
+  ]
+}"""
     }
 }

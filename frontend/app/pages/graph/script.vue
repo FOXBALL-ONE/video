@@ -46,11 +46,32 @@
             ></textarea>
           </div>
 
-          <div class="mt-4 flex flex-col gap-3 border-b border-[#e8eaf0] pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <span class="text-xs text-[#929bad]">支持 .txt 文本文件</span>
-            <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || parsing" @click="parseScript">
+          <div class="mt-4 border-b border-[#e8eaf0] pb-5">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <n-form-item label="解析提供商" class="!mb-0">
+                <n-select v-model:value="selectedProviderId" :disabled="!providerConfigs.length" :options="providerOptions" placeholder="选择提供商" />
+              </n-form-item>
+              <div v-if="parseError" class="rounded-[9px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d] sm:col-span-2" role="alert">
+                <strong class="block font-medium">解析失败：{{ parseError.message }}</strong>
+                <div class="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-[#8e6262] sm:grid-cols-2">
+                  <span>错误代码：{{ parseError.error_code ?? '未返回' }}</span>
+                  <span>服务提供商：{{ parseError.provider || '未返回' }}</span>
+                  <span class="sm:col-span-2">请求 ID：{{ parseError.request_id || '未返回' }}</span>
+                </div>
+                <pre v-if="parseError.response_content" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white px-2 py-1.5 text-[10px] leading-4 text-[#765858]">{{ parseError.response_content }}</pre>
+              </div>
+              <n-form-item label="解析模型" class="!mb-0">
+                <n-select v-if="modelOptions.length" v-model:value="selectedModelId" :options="modelOptions" filterable placeholder="选择模型 ID" />
+                <n-input v-else v-model:value="selectedModelId" placeholder="请先获取模型列表" readonly />
+                <n-button :disabled="!selectedProvider" :loading="fetchingModels" attr-type="button" class="!mt-2" size="small" @click="fetchModels">获取模型</n-button>
+              </n-form-item>
+            </div>
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span class="text-xs text-[#929bad]">支持 .txt 文本文件</span>
+              <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || parsing || !selectedProviderId || !selectedModelId" @click="parseScript">
               <span aria-hidden="true" class="text-base">✦</span>{{ parsing ? '解析中...' : '开始解析' }}
-            </button>
+              </button>
+            </div>
           </div>
 
           <div class="pt-5" aria-labelledby="generate-title">
@@ -80,6 +101,30 @@
             <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <div v-for="stat in parsedStats" :key="stat.label" class="rounded-[9px] bg-white px-3 py-2.5"><strong class="block text-lg font-semibold text-[#30394a]">{{ stat.value }}</strong><span class="mt-0.5 block text-[11px] text-[#8b93a2]">{{ stat.label }}</span></div>
             </div>
+            <div v-if="analysisResult" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div class="rounded-[9px] bg-white p-3">
+                <span class="text-[11px] text-[#929bad]">人物资产</span>
+                <div v-if="analysisResult.characters?.length" class="mt-2 flex flex-wrap gap-1.5">
+                  <span v-for="item in analysisResult.characters" :key="item.id || item.name" class="rounded-md bg-[#eceaff] px-2 py-1 text-[11px] text-[#5d52dd]">{{ item.name }}</span>
+                </div>
+                <p v-else class="mt-2 text-xs text-[#a1a8b5]">未识别到人物</p>
+              </div>
+              <div class="rounded-[9px] bg-white p-3">
+                <span class="text-[11px] text-[#929bad]">场景资产</span>
+                <div v-if="analysisResult.scenes?.length" class="mt-2 space-y-1.5">
+                  <p v-for="item in analysisResult.scenes.slice(0, 4)" :key="item.id || item.name" class="m-0 truncate text-xs text-[#4f596d]">{{ item.name || item.location || '未命名场景' }}</p>
+                </div>
+                <p v-else class="mt-2 text-xs text-[#a1a8b5]">未识别到场景</p>
+              </div>
+              <div class="rounded-[9px] bg-white p-3">
+                <span class="text-[11px] text-[#929bad]">道具资产</span>
+                <div v-if="analysisResult.props?.length" class="mt-2 space-y-1.5">
+                  <p v-for="item in analysisResult.props.slice(0, 4)" :key="item.id || item.name" class="m-0 truncate text-xs text-[#4f596d]">{{ item.name }}</p>
+                </div>
+                <p v-else class="mt-2 text-xs text-[#a1a8b5]">未识别到道具</p>
+              </div>
+            </div>
+            <p v-if="analysisResult?.overall_summary" class="mt-3 text-xs leading-5 text-[#687388]">{{ analysisResult.overall_summary }}</p>
           </section>
         </n-card>
 
@@ -150,6 +195,26 @@ interface ScriptResponse {
   dialogues: unknown[]
   quality_checks: unknown[]
   stats: ScriptStats
+  analysis?: { status: string; provider_config_id: number | null; model: string | null; analyzed_at: string | null; result: ScriptAnalysis | null }
+}
+
+interface ScriptAnalysisItem { id?: string; name?: string; location?: string; description?: string }
+interface ScriptAnalysis { title?: string; genre?: string; overall_summary?: string; characters?: ScriptAnalysisItem[]; scenes?: ScriptAnalysisItem[]; props?: ScriptAnalysisItem[]; costumes?: ScriptAnalysisItem[] }
+
+interface ProviderConfig {
+  id: number
+  provider: string
+  model_id: string
+  base_url: string
+  enabled: boolean
+}
+
+interface ParseError {
+  message: string
+  error_code?: number | null
+  response_content?: string | null
+  provider?: string
+  request_id?: string
 }
 
 const styles = ['古风', '悬疑', '甜宠', '科幻', '都市', '奇幻']
@@ -162,6 +227,11 @@ const parsed = ref(false)
 const parsing = ref(false)
 const generating = ref(false)
 const isDragging = ref(false)
+const providerConfigs = ref<ProviderConfig[]>([])
+const selectedProviderId = ref<number | null>(null)
+const selectedModelId = ref('')
+const modelOptions = ref<{ label: string; value: string }[]>([])
+const fetchingModels = ref(false)
 const scriptStats = ref<ScriptStats>({
   scene_count: 0,
   character_count: 0,
@@ -169,6 +239,8 @@ const scriptStats = ref<ScriptStats>({
   estimated_duration_seconds: 0,
   structure_score: null,
 })
+const analysisResult = ref<ScriptAnalysis | null>(null)
+const parseError = ref<ParseError | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const hasProject = computed(() => Boolean(activeProject.value?.id || activeProjectId.value))
@@ -182,6 +254,8 @@ const episodeQuery = computed(() => {
   return Number.isInteger(id) && id > 0 ? { episode_id: id } : undefined
 })
 const wordCount = computed(() => scriptText.value.length)
+const providerOptions = computed(() => providerConfigs.value.map((config) => ({ label: config.provider, value: config.id })))
+const selectedProvider = computed(() => providerConfigs.value.find((config) => config.id === selectedProviderId.value))
 const parsedStats = computed(() => [
   { label: '场景', value: scriptStats.value.scene_count || estimateScenes(scriptText.value) },
   { label: '角色', value: scriptStats.value.character_count || estimateCharacters(scriptText.value) },
@@ -214,7 +288,8 @@ function formatDuration(seconds: number) {
 function applyResponse(data: ScriptResponse) {
   scriptText.value = data.content || ''
   scriptStats.value = data.stats || scriptStats.value
-  parsed.value = Boolean(data.scenes?.length || data.characters?.length || data.dialogues?.length)
+  analysisResult.value = data.analysis?.result || null
+  parsed.value = data.analysis?.status === 'COMPLETED' || Boolean(data.scenes?.length || data.characters?.length || data.dialogues?.length)
 }
 
 async function loadScript() {
@@ -229,21 +304,47 @@ async function loadScript() {
   }
 }
 
+async function loadProviderConfigs() {
+  try {
+    const response = await http.get<{ list: ProviderConfig[] }>('/ai/model-providers')
+    providerConfigs.value = response.list.filter((config) => config.enabled)
+    if (providerConfigs.value.length === 1) {
+      selectedProviderId.value = providerConfigs.value[0].id
+      selectedModelId.value = providerConfigs.value[0].model_id || ''
+    }
+  } catch {
+    providerConfigs.value = []
+  }
+}
+
+async function fetchModels() {
+  if (!selectedProvider.value) return
+  const formData = new FormData()
+  formData.append('base_url', selectedProvider.value.base_url)
+  formData.append('config_id', String(selectedProvider.value.id))
+
+  fetchingModels.value = true
+  try {
+    const response = await http.post<{ list: { id: string }[] }, FormData>('/ai/model-providers/models', formData)
+    modelOptions.value = response.list.map((model) => ({ label: model.id, value: model.id }))
+    if (!modelOptions.value.length) message.warning('该提供商未返回可用模型')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '获取模型列表失败')
+  } finally {
+    fetchingModels.value = false
+  }
+}
+
 async function saveScript() {
   const id = Number(projectId.value)
-  if (!Number.isInteger(id) || id <= 0) return false
-  try {
-    const data = await http.put<{ content: string; stats: ScriptStats }>(`/projects/${id}/script`, scriptText.value, {
-      payloadMode: 'json',
-      params: episodeQuery.value,
-      headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
-    })
-    scriptStats.value = data.stats || scriptStats.value
-    scriptText.value = data.content || scriptText.value
-    return true
-  } catch {
-    return false
-  }
+  if (!Number.isInteger(id) || id <= 0) throw new Error('当前项目未保存到服务器，请先创建项目')
+  const data = await http.put<{ content: string; stats: ScriptStats }>(`/projects/${id}/script`, scriptText.value, {
+    payloadMode: 'json',
+    params: episodeQuery.value,
+    headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+  })
+  scriptStats.value = data.stats || scriptStats.value
+  scriptText.value = data.content || scriptText.value
 }
 
 async function parseScript() {
@@ -251,17 +352,46 @@ async function parseScript() {
     message.warning('请先粘贴或上传剧本内容')
     return
   }
-  parsing.value = true
-  generatedNotice.value = ''
-  const saved = await saveScript()
-  try {
-    await Promise.all([loadEpisodes(projectId.value), loadLibrary(projectId.value)])
-  } catch {
-    // Keep the local navigation summary when the API is unavailable.
+  if (!selectedProviderId.value || !selectedModelId.value) {
+    message.warning('请选择解析提供商和模型')
+    return
   }
-  parsed.value = true
+  parsing.value = true
+  parseError.value = null
+  generatedNotice.value = ''
+  try {
+    await saveScript()
+  } catch (error) {
+    parsing.value = false
+    parseError.value = extractParseError(error, '剧本保存失败，无法开始解析')
+    message.error(parseError.value.message)
+    return
+  }
+  try {
+    const id = Number(projectId.value)
+    const response = await http.post<{ document_id: number; version_id: number; analysis_status: string; result: ScriptAnalysis | null }>(`/projects/${id}/script/parse`, {
+      provider_config_id: selectedProviderId.value,
+      model: selectedModelId.value,
+      ...(episodeQuery.value || {}),
+    })
+    analysisResult.value = response.result || null
+    await Promise.all([loadEpisodes(projectId.value), loadLibrary(projectId.value)])
+    parsed.value = response.analysis_status === 'COMPLETED'
+  } catch (error) {
+    parsed.value = false
+    parseError.value = extractParseError(error, '剧本解析失败')
+    message.error(parseError.value.message)
+    parsing.value = false
+    return
+  }
   parsing.value = false
-  message.success(saved ? '剧本解析完成，结构化结果已保存' : '剧本解析完成，已保留当前编辑内容')
+  message.success('剧本解析完成，结构化结果已保存')
+}
+
+function extractParseError(error: unknown, fallback: string): ParseError {
+  const value = error as { message?: string; data?: { data?: { error?: ParseError }; message?: string } }
+  const structured = value.data?.data?.error
+  return structured ? { ...structured, message: value.data?.message || value.message || fallback } : { message: value.data?.message || value.message || fallback }
 }
 
 function generateScript() {
@@ -319,7 +449,7 @@ onMounted(async () => {
   } catch {
     // Keep the local project cache available when the API is unavailable.
   }
-  await loadScript()
+  await Promise.all([loadScript(), loadProviderConfigs()])
 })
 
 watch(() => activeProject.value?.id, (next, previous) => {
@@ -328,6 +458,13 @@ watch(() => activeProject.value?.id, (next, previous) => {
 
 watch(episodeId, (next, previous) => {
   if (next && next !== previous) loadScript()
+})
+
+watch(selectedProviderId, (next, previous) => {
+  if (previous !== undefined && previous !== null && next !== previous) {
+    selectedModelId.value = ''
+    modelOptions.value = []
+  }
 })
 </script>
 

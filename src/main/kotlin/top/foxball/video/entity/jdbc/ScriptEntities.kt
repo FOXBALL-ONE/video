@@ -137,6 +137,27 @@ class ScriptVersion(
     /** 版本最近更新时间。 */
     var updatedAt: LocalDateTime? = null,
 
+    @Column(name = "ai_analysis_json", columnDefinition = "text")
+    /** 大模型剧本拆解结果，保留原始 JSON 以便前端完整展示和后续重放。 */
+    var aiAnalysisJson: String? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_analysis_status", nullable = false, length = 20)
+    /** 大模型解析状态。 */
+    var aiAnalysisStatus: ScriptAnalysisStatus = ScriptAnalysisStatus.NOT_PARSED,
+
+    @Column(name = "ai_analysis_provider_config_id")
+    /** 执行解析时使用的提供商配置。 */
+    var aiAnalysisProviderConfigId: Long? = null,
+
+    @Column(name = "ai_analysis_model", length = 200)
+    /** 执行解析时使用的模型 ID。 */
+    var aiAnalysisModel: String? = null,
+
+    @Column(name = "ai_analysis_at")
+    /** 最近一次解析完成时间。 */
+    var aiAnalysisAt: LocalDateTime? = null,
+
     @Version
     /** JPA 乐观锁版本号。 */
     var entityVersion: Long = 0,
@@ -315,3 +336,6 @@ enum class DialogueType {
     /** 以文字表示的音效提示。 */
     SFX_TEXT,
 }
+
+/** 剧本拆解任务状态。 */
+enum class ScriptAnalysisStatus { NOT_PARSED, PROCESSING, COMPLETED, FAILED }
