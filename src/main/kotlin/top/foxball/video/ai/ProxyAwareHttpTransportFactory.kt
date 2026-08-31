@@ -13,8 +13,14 @@ import java.util.concurrent.ConcurrentHashMap
 class ProxyAwareHttpTransportFactory {
     private val clients = ConcurrentHashMap<TransportCacheKey, WebClient>()
 
-    fun client(profile: AiConnectionProfile): WebClient =
-        clients.computeIfAbsent(TransportCacheKey.from(profile)) { createClient(profile) }
+    fun client(profile: AiConnectionProfile): WebClient {
+        val cacheKey = profile.cacheKey ?: return createClient(profile)
+        return clients.computeIfAbsent(TransportCacheKey.from(profile, cacheKey)) { createClient(profile) }
+    }
+
+    fun invalidate(cacheKey: String) {
+        clients.entries.removeIf { it.key.cacheKey == cacheKey }
+    }
 
     private fun createClient(profile: AiConnectionProfile): WebClient {
         var httpClient = HttpClient.create()
@@ -40,7 +46,7 @@ class ProxyAwareHttpTransportFactory {
 
     /** 缓存键不包含代理用户名和密码，避免将密钥以键对象形式长期保留。 */
     private data class TransportCacheKey(
-        val name: String,
+        val cacheKey: String,
         val proxyMode: AiProxyMode,
         val proxyHost: String?,
         val proxyPort: Int?,
@@ -50,8 +56,8 @@ class ProxyAwareHttpTransportFactory {
         val responseTimeoutMillis: Long,
     ) {
         companion object {
-            fun from(profile: AiConnectionProfile) = TransportCacheKey(
-                profile.name,
+            fun from(profile: AiConnectionProfile, cacheKey: String) = TransportCacheKey(
+                cacheKey,
                 profile.proxyMode,
                 profile.proxyHost,
                 profile.proxyPort,

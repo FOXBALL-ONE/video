@@ -18,8 +18,13 @@ class AiInvocationService(
     }
 
     /** 仅在新增提供商配置前校验连接时使用，密钥不会离开服务端。 */
-    fun listTransientModels(provider: String, baseUrl: String, apiKey: String): Mono<List<AiModelDescriptor>> {
-        val connection = providerResolver.resolveTransient(provider, baseUrl, apiKey)
+    fun listTransientModels(
+        provider: String,
+        baseUrl: String,
+        apiKey: String,
+        connectionSettings: AiProviderConnectionSettings = AiProviderConnectionSettings(),
+    ): Mono<List<AiModelDescriptor>> {
+        val connection = providerResolver.resolveTransient(provider, baseUrl, apiKey, connectionSettings)
         return client.listModels(connection)
     }
 
@@ -27,8 +32,13 @@ class AiInvocationService(
      * 兼容现有 Spring MVC 模型列表接口的过渡适配器。
      * 上游 I/O 使用响应式客户端；该方法仍等待结果，后续应由响应式端点或异步任务替换。
      */
-    fun listModelsBlocking(provider: String, baseUrl: String, apiKey: String): List<AiModelDescriptor> =
-        listTransientModels(provider, baseUrl, apiKey)
+    fun listModelsBlocking(
+        provider: String,
+        baseUrl: String,
+        apiKey: String,
+        connectionSettings: AiProviderConnectionSettings = AiProviderConnectionSettings(),
+    ): List<AiModelDescriptor> =
+        listTransientModels(provider, baseUrl, apiKey, connectionSettings)
             .subscribeOn(Schedulers.boundedElastic())
             .block()
             .orEmpty()

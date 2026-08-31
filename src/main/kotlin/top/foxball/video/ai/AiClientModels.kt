@@ -1,6 +1,121 @@
 package top.foxball.video.ai
 
 import tools.jackson.databind.JsonNode
+import top.foxball.video.config.AiClientProperties
+import java.time.Duration
+
+/** 可由 API 管理页覆盖的提供商网络设置；缺省时沿用应用级连接档案。 */
+data class AiProviderConnectionSettings(
+    val useDefaultTransport: Boolean = true,
+    val proxyMode: AiProxyMode = AiProxyMode.DIRECT,
+    val proxyHost: String? = null,
+    val proxyPort: Int? = null,
+    val proxyUsername: String? = null,
+    val proxyPassword: String? = null,
+    val nonProxyHosts: List<String> = emptyList(),
+    val dnsMode: AiDnsMode = AiDnsMode.LOCAL,
+    val proxyRemoteDnsAllowedHosts: List<String> = emptyList(),
+    val allowPrivateNetwork: Boolean = false,
+    val connectTimeoutSeconds: Long = 10,
+    val responseTimeoutSeconds: Long = 90,
+) {
+    fun toStorage(): Map<String, String> {
+        if (useDefaultTransport) return mapOf("use_default_transport" to "true")
+        return buildMap {
+            put("use_default_transport", "false")
+            put("proxy_mode", proxyMode.name)
+            if (proxyMode != AiProxyMode.DIRECT) {
+                proxyHost?.trim()?.takeIf(String::isNotBlank)?.let { put("proxy_host", it) }
+                proxyPort?.let { put("proxy_port", it.toString()) }
+                proxyUsername?.trim()?.takeIf(String::isNotBlank)?.let { put("proxy_username", it) }
+                proxyPassword?.takeIf(String::isNotBlank)?.let { put("proxy_password", it) }
+                if (nonProxyHosts.isNotEmpty()) put("non_proxy_hosts", nonProxyHosts.joinToString(","))
+                put("dns_mode", dnsMode.name)
+                if (proxyRemoteDnsAllowedHosts.isNotEmpty()) {
+                    put("proxy_remote_dns_allowed_hosts", proxyRemoteDnsAllowedHosts.joinToString(","))
+                }
+            } else {
+                put("dns_mode", AiDnsMode.LOCAL.name)
+            }
+            put("allow_private_network", allowPrivateNetwork.toString())
+            put("connect_timeout_seconds", connectTimeoutSeconds.toString())
+            put("response_timeout_seconds", responseTimeoutSeconds.toString())
+        }
+    }
+
+    fun resolveProfile(
+        source: AiClientProperties.ConnectionProfile,
+        name: String,
+        cacheKey: String?,
+    ): AiConnectionProfile {
+        if (useDefaultTransport) {
+            return AiConnectionProfile(
+                name = name,
+                proxyMode = AiProxyMode.valueOf(source.proxyMode.name),
+                proxyHost = source.proxyHost?.trim()?.ifBlank { null },
+                proxyPort = source.proxyPort,
+                proxyUsername = source.proxyUsername?.trim()?.ifBlank { null },
+                proxyPassword = source.proxyPassword?.takeIf(String::isNotBlank),
+                nonProxyHosts = source.nonProxyHosts.map(String::trim).filter(String::isNotBlank),
+                dnsMode = AiDnsMode.valueOf(source.dnsMode.name),
+                proxyRemoteDnsAllowedHosts = source.proxyRemoteDnsAllowedHosts.map(String::trim).filter(String::isNotBlank),
+                allowPrivateNetwork = source.allowPrivateNetwork,
+                connectTimeout = source.connectTimeout,
+                responseTimeout = source.responseTimeout,
+                maxInFlightChatRequests = source.maxInFlightChatRequests,
+                maxInFlightImageRequests = source.maxInFlightImageRequests,
+                maxInFlightModelListRequests = source.maxInFlightModelListRequests,
+                cacheKey = cacheKey,
+            )
+        }
+        return AiConnectionProfile(
+            name = name,
+            proxyMode = proxyMode,
+            proxyHost = proxyHost?.trim()?.ifBlank { null },
+            proxyPort = proxyPort,
+            proxyUsername = proxyUsername?.trim()?.ifBlank { null },
+            proxyPassword = proxyPassword?.takeIf(String::isNotBlank),
+            nonProxyHosts = nonProxyHosts.map(String::trim).filter(String::isNotBlank),
+            dnsMode = dnsMode,
+            proxyRemoteDnsAllowedHosts = proxyRemoteDnsAllowedHosts.map(String::trim).filter(String::isNotBlank),
+            allowPrivateNetwork = allowPrivateNetwork,
+            connectTimeout = Duration.ofSeconds(connectTimeoutSeconds),
+            responseTimeout = Duration.ofSeconds(responseTimeoutSeconds),
+            maxInFlightChatRequests = source.maxInFlightChatRequests,
+            maxInFlightImageRequests = source.maxInFlightImageRequests,
+            maxInFlightModelListRequests = source.maxInFlightModelListRequests,
+            cacheKey = cacheKey,
+        )
+    }
+
+    companion object {
+        fun fromStorage(storage: Map<String, String>?): AiProviderConnectionSettings {
+            if (storage.isNullOrEmpty()) return AiProviderConnectionSettings()
+            val useDefaultTransport = storage["use_default_transport"]?.toBooleanStrictOrNull() ?: true
+            return AiProviderConnectionSettings(
+                useDefaultTransport = useDefaultTransport,
+                proxyMode = storage["proxy_mode"]?.let {
+                    runCatching { AiProxyMode.valueOf(it) }
+                        .getOrElse { throw AiConfigurationException("AI 代理模式配置不正确") }
+                } ?: AiProxyMode.DIRECT,
+                proxyHost = storage["proxy_host"],
+                proxyPort = storage["proxy_port"]?.toIntOrNull(),
+                proxyUsername = storage["proxy_username"],
+                proxyPassword = storage["proxy_password"],
+                nonProxyHosts = storage["non_proxy_hosts"]?.split(',')?.map(String::trim)?.filter(String::isNotBlank).orEmpty(),
+                dnsMode = storage["dns_mode"]?.let {
+                    runCatching { AiDnsMode.valueOf(it) }
+                        .getOrElse { throw AiConfigurationException("AI DNS 模式配置不正确") }
+                } ?: AiDnsMode.LOCAL,
+                proxyRemoteDnsAllowedHosts = storage["proxy_remote_dns_allowed_hosts"]?.split(',')?.map(String::trim)
+                    ?.filter(String::isNotBlank).orEmpty(),
+                allowPrivateNetwork = storage["allow_private_network"]?.toBooleanStrictOrNull() ?: false,
+                connectTimeoutSeconds = storage["connect_timeout_seconds"]?.toLongOrNull() ?: 10,
+                responseTimeoutSeconds = storage["response_timeout_seconds"]?.toLongOrNull() ?: 90,
+            )
+        }
+    }
+}
 
 /** 经校验、可用于单次上游调用的提供商连接。密钥仅在客户端内部使用。 */
 data class AiProviderConnection(
@@ -28,6 +143,8 @@ data class AiConnectionProfile(
     val maxInFlightChatRequests: Int,
     val maxInFlightImageRequests: Int,
     val maxInFlightModelListRequests: Int,
+    /** null 时不缓存，避免临时连接携带的代理密钥长期驻留内存。 */
+    val cacheKey: String? = name,
 )
 
 enum class AiProxyMode { DIRECT, HTTP, SOCKS5 }

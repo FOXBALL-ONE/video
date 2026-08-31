@@ -3,57 +3,60 @@ package top.foxball.video.ai
 import org.springframework.stereotype.Component
 import top.foxball.video.config.AiClientProperties
 import top.foxball.video.repository.AiModelProviderConfigRepository
+import java.util.concurrent.ConcurrentHashMap
 
 /** 将数据库中的提供商配置与应用连接档案组合为一次可调用的 AI 连接。 */
 @Component
 class AiProviderResolver(
     private val repository: AiModelProviderConfigRepository,
     private val properties: AiClientProperties,
+    private val transportFactory: ProxyAwareHttpTransportFactory,
 ) {
     private val uriPolicy = AiProviderUriPolicy()
+    private val cachedProfileKeys = ConcurrentHashMap<Long, String>()
 
     fun resolveSaved(providerConfigId: Long): AiProviderConnection {
         val config = repository.findById(providerConfigId).orElseThrow {
             AiConfigurationException("AI 提供商配置不存在")
         }
         if (!config.enabled) throw AiConfigurationException("AI 提供商配置已停用")
-        return resolve(
+        val connection = resolve(
             providerConfigId = requireNotNull(config.id),
             provider = config.provider,
             baseUrl = config.baseUrl,
             apiKey = config.secretKey,
+            connectionSettings = AiProviderConnectionSettings.fromStorage(config.connectionConfig),
+            profileVersion = config.updatedAt?.toString().orEmpty(),
         )
+        val cacheKey = requireNotNull(connection.profile.cacheKey)
+        cachedProfileKeys.put(requireNotNull(config.id), cacheKey)?.takeIf { it != cacheKey }?.let(transportFactory::invalidate)
+        return connection
     }
 
-    fun resolveTransient(provider: String, baseUrl: String, apiKey: String): AiProviderConnection =
-        resolve(null, provider, baseUrl, apiKey)
+    fun resolveTransient(
+        provider: String,
+        baseUrl: String,
+        apiKey: String,
+        connectionSettings: AiProviderConnectionSettings = AiProviderConnectionSettings(),
+    ): AiProviderConnection = resolve(null, provider, baseUrl, apiKey, connectionSettings, "")
 
     private fun resolve(
         providerConfigId: Long?,
         provider: String,
         baseUrl: String,
         apiKey: String,
+        connectionSettings: AiProviderConnectionSettings,
+        profileVersion: String,
     ): AiProviderConnection {
         val normalizedProvider = provider.trim().ifBlank { "default" }
         if (apiKey.isBlank()) throw AiConfigurationException("AI 服务 API Key 不能为空")
-        val profileName = properties.connectionProfiles.keys.firstOrNull { it == normalizedProvider } ?: "default"
         val source = properties.connectionProfiles[normalizedProvider] ?: properties.defaultProfile
-        val profile = AiConnectionProfile(
+        val profileName = providerConfigId?.let { "provider:$it" } ?: "transient:$normalizedProvider"
+        val cacheKey = providerConfigId?.let { "$profileName:$profileVersion" }
+        val profile = connectionSettings.resolveProfile(
+            source = source,
             name = profileName,
-            proxyMode = AiProxyMode.valueOf(source.proxyMode.name),
-            proxyHost = source.proxyHost?.trim()?.ifBlank { null },
-            proxyPort = source.proxyPort,
-            proxyUsername = source.proxyUsername?.trim()?.ifBlank { null },
-            proxyPassword = source.proxyPassword?.takeIf { it.isNotBlank() },
-            nonProxyHosts = source.nonProxyHosts.map(String::trim).filter(String::isNotBlank),
-            dnsMode = AiDnsMode.valueOf(source.dnsMode.name),
-            proxyRemoteDnsAllowedHosts = source.proxyRemoteDnsAllowedHosts.map(String::trim).filter(String::isNotBlank),
-            allowPrivateNetwork = source.allowPrivateNetwork,
-            connectTimeout = source.connectTimeout,
-            responseTimeout = source.responseTimeout,
-            maxInFlightChatRequests = source.maxInFlightChatRequests,
-            maxInFlightImageRequests = source.maxInFlightImageRequests,
-            maxInFlightModelListRequests = source.maxInFlightModelListRequests,
+            cacheKey = cacheKey,
         )
         validateProfile(profile)
         val baseUri = uriPolicy.normalizeBaseUri(baseUrl)

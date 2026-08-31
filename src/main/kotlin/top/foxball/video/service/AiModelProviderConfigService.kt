@@ -1,7 +1,9 @@
 package top.foxball.video.service
 
 import org.springframework.stereotype.Service
+import top.foxball.video.ai.AiProviderConnectionSettings
 import top.foxball.video.ai.AiInvocationService
+import top.foxball.video.ai.AiProxyMode
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
 import top.foxball.video.repository.AiModelProviderConfigRepository
 
@@ -22,8 +24,13 @@ class AiModelProviderConfigService(
     /** 批量按主键查询配置。 */
     fun findAllByIds(ids: Iterable<Long>) = repository.findAllById(ids)
     /** 按 OpenAI 兼容协议请求服务端暴露的模型 ID。 */
-    fun fetchModelIds(provider: String, baseUrl: String, apiKey: String): List<String> =
-        aiInvocationService.listModelsBlocking(provider, baseUrl, apiKey)
+    fun fetchModelIds(
+        provider: String,
+        baseUrl: String,
+        apiKey: String,
+        connectionSettings: AiProviderConnectionSettings,
+    ): List<String> =
+        aiInvocationService.listModelsBlocking(provider, baseUrl, apiKey, connectionSettings)
             .map { it.id }
     /** 更新配置；空白密钥表示保留原密钥。 */
     fun update(
@@ -32,11 +39,20 @@ class AiModelProviderConfigService(
         modelId: String,
         baseUrl: String,
         secretKey: String?,
-        enabled: Boolean
+        enabled: Boolean,
+        connectionSettings: AiProviderConnectionSettings,
     ): AiModelProviderConfig? {
         val config = findById(id) ?: return null
+        val previousSettings = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
         config.provider = provider; config.model = mapOf("id" to modelId); config.baseUrl = baseUrl; config.enabled = enabled
         if (!secretKey.isNullOrBlank()) config.secretKey = secretKey
+        config.connectionConfig = connectionSettings.copy(
+            proxyPassword = if (!connectionSettings.useDefaultTransport && connectionSettings.proxyMode != AiProxyMode.DIRECT) {
+                connectionSettings.proxyPassword ?: previousSettings.proxyPassword
+            } else {
+                null
+            },
+        ).toStorage()
         return repository.save(config)
     }
 

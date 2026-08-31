@@ -32,6 +32,11 @@ class AiModelProviderConfig(
     @Column(name = "api_key", nullable = false, length = 1024)
     /** 提供商访问密钥，对外响应时必须忽略。 */
     var secretKey: String = "",
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "connection_config", columnDefinition = "jsonb")
+    /** 提供商专属的网络连接设置；代理密码只保存在服务端。 */
+    var connectionConfig: Map<String, String>? = null,
     
     @Column(nullable = false)
     /** 是否允许业务使用该提供商。 */
