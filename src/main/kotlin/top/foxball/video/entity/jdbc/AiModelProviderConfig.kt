@@ -22,7 +22,7 @@ class AiModelProviderConfig(
     
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
-    /** 模型名称到模型 ID 的 JSON 映射。 */
+    /** 模型配置 JSON，目前仅保存模型 ID。 */
     var model: Map<String, String> = emptyMap(),
     
     @Column(name = "base_url", nullable = false, length = 500)

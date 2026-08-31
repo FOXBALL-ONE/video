@@ -7,6 +7,10 @@ import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
+import top.foxball.video.ai.AiClientException
+import top.foxball.video.ai.AiConfigurationException
+import top.foxball.video.ai.AiRateLimitException
+import top.foxball.video.ai.AiUpstreamAuthenticationException
 import top.foxball.video.service.AiModelProviderConfigService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -23,7 +27,6 @@ class AiModelProviderConfigController(
     /** 保存提供商配置；api_key 只写入数据库，不包含在响应中。 */
     fun save(
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
-        @RequestParam("model_name") @NotBlank @Size(max = 100) modelName: String,
         @RequestParam("model_id") @NotBlank @Size(max = 200) modelId: String,
         @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
         @RequestParam("api_key") @NotBlank @Size(max = 1024) secretKey: String,
@@ -32,7 +35,7 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
-            val model: Map<String, String>,
+            @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
             @param:JsonProperty("created_at") val createdAt: LocalDateTime?,
@@ -42,7 +45,7 @@ class AiModelProviderConfigController(
         val config = service.save(
             AiModelProviderConfig(
                 provider = provider,
-                model = mapOf(modelName to modelId),
+                model = mapOf("id" to modelId),
                 baseUrl = baseUrl,
                 secretKey = secretKey,
                 enabled = enabled
@@ -51,7 +54,7 @@ class AiModelProviderConfigController(
         val rs = ResponseData(
             requireNotNull(config.id),
             config.provider,
-            config.model,
+            config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl,
             config.enabled,
             config.createdAt,
@@ -66,7 +69,7 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
-            val model: Map<String, String>,
+            @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
             @param:JsonProperty("created_at") val createdAt: LocalDateTime?,
@@ -77,7 +80,7 @@ class AiModelProviderConfigController(
         val rs = ResponseData(
             requireNotNull(config.id),
             config.provider,
-            config.model,
+            config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl,
             config.enabled,
             config.createdAt,
@@ -87,12 +90,12 @@ class AiModelProviderConfigController(
     }
     
     @GetMapping("/api/ai/model-providers")
-    /** 按主键批量查询提供商配置。 */
-    fun getBatch(@RequestParam("ids") ids: List<Long>): ResponseEntity<Response> {
+    /** 查询全部提供商配置，传入 ids 时仅返回对应配置。 */
+    fun list(@RequestParam("ids", required = false) ids: List<Long>?): ResponseEntity<Response> {
         data class ConfigData(
             val id: Long,
             val provider: String,
-            val model: Map<String, String>,
+            @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
             @param:JsonProperty("created_at") val createdAt: LocalDateTime?,
@@ -101,8 +104,38 @@ class AiModelProviderConfigController(
         
         data class ResponseData(val list: List<ConfigData>)
         
-        val list = service.findAllByIds(ids).map {
-            ConfigData(requireNotNull(it.id), it.provider, it.model, it.baseUrl, it.enabled, it.createdAt, it.updatedAt)
+        val configs = ids?.takeIf { it.isNotEmpty() }?.let(service::findAllByIds) ?: service.findAll()
+        val list = configs.map {
+            ConfigData(requireNotNull(it.id), it.provider, it.model["id"] ?: it.model.values.firstOrNull().orEmpty(), it.baseUrl, it.enabled, it.createdAt, it.updatedAt)
+        }
+        val rs = ResponseData(list)
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @PostMapping("/api/ai/model-providers/models")
+    /** 通过 OpenAI 兼容的 /v1/models 接口拉取模型 ID；编辑已有配置时可复用已保存的密钥。 */
+    fun fetchModels(
+        @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
+        @RequestParam("api_key", required = false) @Size(max = 1024) apiKey: String?,
+        @RequestParam("config_id", required = false) configId: Long?,
+        @RequestParam("provider", required = false) @Size(max = 50) provider: String?,
+    ): ResponseEntity<Response> {
+        data class ModelData(val id: String)
+        data class ResponseData(val list: List<ModelData>)
+
+        val config = configId?.let { service.findById(it) ?: return responseBuilder.notFound().build() }
+        val secretKey = apiKey?.takeIf { it.isNotBlank() } ?: config?.secretKey
+            ?: return responseBuilder.badRequest().message("请先填写 API Key").build()
+        val list = try {
+            service.fetchModelIds(config?.provider ?: provider?.trim().orEmpty().ifBlank { "default" }, baseUrl, secretKey).map(::ModelData)
+        } catch (exception: AiConfigurationException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } catch (exception: AiUpstreamAuthenticationException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } catch (exception: AiRateLimitException) {
+            return responseBuilder.tooManyRequests().retryAfter(exception.retryAfterSeconds ?: 1).message(exception.message).build()
+        } catch (exception: AiClientException) {
+            return responseBuilder.serviceUnavailable().message(exception.message).build()
         }
         val rs = ResponseData(list)
         return responseBuilder.ok().data(rs).build()
@@ -113,7 +146,6 @@ class AiModelProviderConfigController(
     fun update(
         @PathVariable("id") id: Long,
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
-        @RequestParam("model_name") @NotBlank @Size(max = 100) modelName: String,
         @RequestParam("model_id") @NotBlank @Size(max = 200) modelId: String,
         @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
         @RequestParam("api_key", required = false) @Size(max = 1024) secretKey: String?,
@@ -122,19 +154,19 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
-            val model: Map<String, String>,
+            @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
             @param:JsonProperty("created_at") val createdAt: LocalDateTime?,
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
         )
         
-        val config = service.update(id, provider, mapOf(modelName to modelId), baseUrl, secretKey, enabled)
+        val config = service.update(id, provider, modelId, baseUrl, secretKey, enabled)
             ?: return responseBuilder.notFound().build()
         val rs = ResponseData(
             requireNotNull(config.id),
             config.provider,
-            config.model,
+            config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl,
             config.enabled,
             config.createdAt,

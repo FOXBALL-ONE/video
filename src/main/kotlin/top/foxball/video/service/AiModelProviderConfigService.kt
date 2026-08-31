@@ -1,31 +1,41 @@
 package top.foxball.video.service
 
 import org.springframework.stereotype.Service
+import top.foxball.video.ai.AiInvocationService
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
 import top.foxball.video.repository.AiModelProviderConfigRepository
 
 /** AI 模型提供商配置服务，封装配置的持久化和批量生命周期操作。 */
 @Service
-class AiModelProviderConfigService(private val repository: AiModelProviderConfigRepository) {
+class AiModelProviderConfigService(
+    private val repository: AiModelProviderConfigRepository,
+    private val aiInvocationService: AiInvocationService,
+) {
     /** 保存单个提供商配置。 */
     fun save(config: AiModelProviderConfig) = repository.save(config)
     /** 批量保存提供商配置。 */
     fun saveAll(configs: Iterable<AiModelProviderConfig>) = repository.saveAll(configs)
     /** 按主键查询配置。 */
     fun findById(id: Long): AiModelProviderConfig? = repository.findById(id).orElse(null)
+    /** 查询全部提供商配置。 */
+    fun findAll() = repository.findAll()
     /** 批量按主键查询配置。 */
     fun findAllByIds(ids: Iterable<Long>) = repository.findAllById(ids)
+    /** 按 OpenAI 兼容协议请求服务端暴露的模型 ID。 */
+    fun fetchModelIds(provider: String, baseUrl: String, apiKey: String): List<String> =
+        aiInvocationService.listModelsBlocking(provider, baseUrl, apiKey)
+            .map { it.id }
     /** 更新配置；空白密钥表示保留原密钥。 */
     fun update(
         id: Long,
         provider: String,
-        model: Map<String, String>,
+        modelId: String,
         baseUrl: String,
         secretKey: String?,
         enabled: Boolean
     ): AiModelProviderConfig? {
         val config = findById(id) ?: return null
-        config.provider = provider; config.model = model; config.baseUrl = baseUrl; config.enabled = enabled
+        config.provider = provider; config.model = mapOf("id" to modelId); config.baseUrl = baseUrl; config.enabled = enabled
         if (!secretKey.isNullOrBlank()) config.secretKey = secretKey
         return repository.save(config)
     }

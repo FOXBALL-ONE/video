@@ -8,10 +8,11 @@
             <span class="hidden h-5 w-px bg-[#e5e8ef] sm:block" aria-hidden="true"></span>
             <ProjectSwitcher />
           </div>
-          <nav class="flex items-center gap-2 text-xs text-[#8994a8]" aria-label="工作区导航">
+          <nav class="flex min-w-0 items-center gap-2 overflow-x-auto text-xs text-[#8994a8]" aria-label="工作区导航">
             <NuxtLink :to="canvasRoute" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">画布工作台</NuxtLink>
             <NuxtLink :to="workflowRoute" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">线性工作流</NuxtLink>
             <NuxtLink to="/projects" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">项目管理</NuxtLink>
+            <NuxtLink to="/api" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">API 管理</NuxtLink>
             <n-dropdown trigger="click" :options="accountOptions" @select="handleAccountAction">
               <button type="button" class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[#f0eeff]">
                 <span class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#6654ee] text-[11px] font-semibold text-white">{{ user?.username?.slice(0, 1).toUpperCase() || 'U' }}</span>
@@ -55,7 +56,7 @@ const workflowRoute = computed(() => {
     ? `/projects/${activeProject.value.id}/episodes/${episodeId}/workflow/script`
     : `/projects/${activeProject.value.id}/workflow/script`
 })
-const showEpisodeSidebar = computed(() => route.path !== '/login' && /^\/projects\/[^/]+/.test(route.path))
+const showEpisodeSidebar = computed(() => route.path !== '/login' && Boolean(activeProject.value) && /^\/projects\/\d+/.test(route.path))
 const accountOptions = [{label: '退出登录', key: 'logout'}];
 
 async function handleAccountAction(key: string) {
