@@ -37,6 +37,19 @@ export interface ApiProject {
     updated_at: string | null;
 }
 
+export interface ApiProjectDetail extends ApiProject {
+    current_stage: string;
+    script_status: string;
+    asset_status: string;
+    shot_status: string;
+    video_status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    archived_at: string | null;
+    created_at: string | null;
+    activities: Array<{ title: string; stage: string | null; created_at: string }>;
+}
+
 export const useWorkspaceStore = defineStore("workspace", () => {
     const projects = ref<WorkspaceProject[]>([]);
     const activeProjectId = ref<string | null>(null);
