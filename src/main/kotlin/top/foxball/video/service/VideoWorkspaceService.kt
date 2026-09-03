@@ -20,11 +20,13 @@ class VideoWorkspaceService(
     private val episodeRepository: EpisodeRepository,
     private val settingsRepository: VideoRenderSettingsRepository,
     private val taskRepository: ProductionTaskRepository,
+    private val taskCenterService: TaskCenterService,
 ) {
     data class Snapshot(val settings: VideoRenderSettings, val tasks: List<ProductionTask>)
 
     @Transactional
-    fun load(projectId: Long, episodeId: Long? = null): Snapshot? {
+    fun load(projectId: Long, userId: Long?, episodeId: Long? = null): Snapshot? {
+        if (!taskCenterService.canReadProject(projectId, userId)) return null
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val settings = (if (episodeId == null) settingsRepository.findFirstByProjectIdOrderByUpdatedAtDesc(projectId) else settingsRepository.findFirstByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId, episodeId))
@@ -34,7 +36,8 @@ class VideoWorkspaceService(
     }
 
     @Transactional
-    fun saveSettings(projectId: Long, aspectRatio: String, resolution: String, style: String, fps: Int, subtitleMode: SubtitleMode, episodeId: Long? = null): VideoRenderSettings? {
+    fun saveSettings(projectId: Long, userId: Long?, aspectRatio: String, resolution: String, style: String, fps: Int, subtitleMode: SubtitleMode, episodeId: Long? = null): VideoRenderSettings? {
+        if (!taskCenterService.canWriteProject(projectId, userId)) return null
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val settings = (if (episodeId == null) settingsRepository.findFirstByProjectIdOrderByUpdatedAtDesc(projectId) else settingsRepository.findFirstByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId, episodeId))
@@ -48,7 +51,8 @@ class VideoWorkspaceService(
     }
 
     @Transactional
-    fun queue(projectId: Long, episodeId: Long? = null): Snapshot? {
+    fun queue(projectId: Long, userId: Long?, episodeId: Long? = null): Snapshot? {
+        if (!taskCenterService.canWriteProject(projectId, userId)) return null
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val settings = (if (episodeId == null) settingsRepository.findFirstByProjectIdOrderByUpdatedAtDesc(projectId) else settingsRepository.findFirstByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId, episodeId))
@@ -57,8 +61,9 @@ class VideoWorkspaceService(
         val active = existing.filter { it.status == ProductionTaskStatus.PENDING || it.status == ProductionTaskStatus.QUEUED || it.status == ProductionTaskStatus.RUNNING }
         if (active.isEmpty()) {
             val payload = mapOf("aspect_ratio" to settings.aspectRatio, "resolution" to settings.resolution, "style" to settings.style, "fps" to settings.fps, "subtitle_mode" to settings.subtitleMode.name)
-            val tasks = listOf(ProductionTaskType.IMAGE_GENERATION, ProductionTaskType.VOICEOVER, ProductionTaskType.MUSIC, ProductionTaskType.SUBTITLE, ProductionTaskType.COMPOSITION).map { type -> ProductionTask(projectId = projectId, episodeId = episodeId, projectVersionId = project.currentVersionId, taskType = type, status = ProductionTaskStatus.QUEUED, inputPayload = payload) }
-            taskRepository.saveAll(tasks)
+            val tasks = listOf(ProductionTaskType.IMAGE_GENERATION, ProductionTaskType.VOICEOVER, ProductionTaskType.MUSIC, ProductionTaskType.SUBTITLE, ProductionTaskType.COMPOSITION).map { type -> ProductionTask(projectId = projectId, createdBy = userId, episodeId = episodeId, projectVersionId = project.currentVersionId, taskType = type, status = ProductionTaskStatus.QUEUED, inputPayload = payload) }
+            val savedTasks = taskRepository.saveAll(tasks)
+            taskCenterService.recordEnqueued(savedTasks)
         }
         if (episodeId != null) {
             val episode = episodeRepository.findById(episodeId).orElse(null)

@@ -48,7 +48,7 @@ export const useEpisodeStore = defineStore('episode', () => {
   const activeEpisodeId = ref<string | null>(fallbackEpisodes[0].id)
   const library = ref<ProjectLibrary>({
     characters: [{ name: '林夏', description: '失意摄影师，正在追查信件来源。' }],
-    assetSummary: { character: 1, scene: 1, prop: 1, voice: 0, music: 0, sound_effect: 0, total: 3 },
+    assetSummary: { character: 1, scene_background: 0, prop: 1, costume: 0, voice: 0, music: 0, sound_effect: 0, total: 2 },
   })
 
   const activeEpisode = computed(() => episodes.value.find((episode) => episode.id === activeEpisodeId.value) || episodes.value[0] || null)

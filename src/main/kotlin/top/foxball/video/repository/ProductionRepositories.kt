@@ -6,6 +6,12 @@ import top.foxball.video.entity.jdbc.MediaType
 import top.foxball.video.entity.jdbc.ProductionTask
 import top.foxball.video.entity.jdbc.ProductionTaskDependency
 import top.foxball.video.entity.jdbc.ProductionTaskStatus
+import top.foxball.video.entity.jdbc.ProductionTaskType
+import top.foxball.video.entity.jdbc.TaskEvent
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.Lock
+import jakarta.persistence.LockModeType
 import top.foxball.video.entity.jdbc.QualityCheckItem
 import top.foxball.video.entity.jdbc.QualityCheckRun
 import top.foxball.video.entity.jdbc.VideoRenderSettings
@@ -29,13 +35,31 @@ interface ProductionTaskRepository : JpaRepository<ProductionTask, Long> {
     /** 查询项目的全部任务，最新任务优先。 */
     fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long): List<ProductionTask>
 
+    /** 查询当前用户创建的跨项目任务，供“我的任务”视图使用。 */
+    fun findAllByCreatedByOrderByCreatedAtDesc(createdBy: Long): List<ProductionTask>
+
     fun findAllByProjectIdAndEpisodeIdOrderByCreatedAtDesc(projectId: Long, episodeId: Long): List<ProductionTask>
 
     /** 按项目和任务状态查询任务。 */
     fun findAllByProjectIdAndStatusOrderByCreatedAtAsc(projectId: Long, status: ProductionTaskStatus): List<ProductionTask>
 
+    /** 查询指定类型且处于给定状态集合的任务，供执行器恢复未完成任务。 */
+    fun findAllByTaskTypeAndStatusIn(taskType: ProductionTaskType, statuses: Collection<ProductionTaskStatus>): List<ProductionTask>
+
     /** 查询项目版本的全部任务。 */
     fun findAllByProjectVersionIdOrderByCreatedAtDesc(projectVersionId: Long): List<ProductionTask>
+
+    fun findAllByProjectIdOrderByCreatedAtDesc(projectId: Long, pageable: Pageable): Page<ProductionTask>
+
+    fun findByIdAndProjectId(id: Long, projectId: Long): ProductionTask?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    fun findWithLockById(id: Long): ProductionTask?
+}
+
+/** 任务状态和执行阶段事件的数据访问接口。 */
+interface TaskEventRepository : JpaRepository<TaskEvent, Long> {
+    fun findAllByTaskIdOrderByCreatedAtAsc(taskId: Long): List<TaskEvent>
 }
 
 /** 制作任务依赖关系的数据访问接口。 */

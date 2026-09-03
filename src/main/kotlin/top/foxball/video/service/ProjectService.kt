@@ -23,7 +23,7 @@ class ProjectService(
     /** 创建项目并在数据库生成主键后派生展示编号。 */
     @Transactional
     fun create(name: String, type: String, description: String, editor: String?): Project {
-        val project = repository.save(
+        val project = repository.saveAndFlush(
             Project(
                 name = name,
                 type = type,
@@ -34,8 +34,8 @@ class ProjectService(
             ),
         )
         project.code = requireNotNull(project.id).toString().padStart(2, '0')
-        val saved = repository.save(project)
-        episodeRepository.save(Episode(projectId = requireNotNull(saved.id), episodeNo = 1, title = "第001集"))
+        val saved = repository.saveAndFlush(project)
+        episodeRepository.saveAndFlush(Episode(projectId = requireNotNull(saved.id), episodeNo = 1, title = "第001集"))
         return saved
     }
 

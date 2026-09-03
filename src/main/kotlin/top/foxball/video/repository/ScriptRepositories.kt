@@ -1,7 +1,11 @@
 package top.foxball.video.repository
 
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import jakarta.persistence.LockModeType
 import top.foxball.video.entity.jdbc.ScriptCharacter
+import top.foxball.video.entity.jdbc.ScriptAnalysisResult
+import top.foxball.video.entity.jdbc.ScriptAnalysisResultStatus
 import top.foxball.video.entity.jdbc.ScriptDialogue
 import top.foxball.video.entity.jdbc.ScriptDocument
 import top.foxball.video.entity.jdbc.ScriptQualityCheck
@@ -85,4 +89,24 @@ interface ScriptQualityCheckRepository : JpaRepository<ScriptQualityCheck, Long>
 
     /** 删除剧本版本的历史质量检查。 */
     fun deleteAllByScriptVersionId(scriptVersionId: Long)
+}
+
+/** 异步剧本资产解析结果的数据访问接口。 */
+interface ScriptAnalysisResultRepository : JpaRepository<ScriptAnalysisResult, Long> {
+    fun findByTaskId(taskId: Long): ScriptAnalysisResult?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    fun findWithLockByTaskId(taskId: Long): ScriptAnalysisResult?
+
+    fun findFirstByProjectIdAndEpisodeIdAndIdempotencyKey(
+        projectId: Long,
+        episodeId: Long,
+        idempotencyKey: String,
+    ): ScriptAnalysisResult?
+
+    fun findAllByProjectIdAndEpisodeIdAndResultStatusIn(
+        projectId: Long,
+        episodeId: Long,
+        statuses: Collection<ScriptAnalysisResultStatus>,
+    ): List<ScriptAnalysisResult>
 }

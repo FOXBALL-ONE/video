@@ -234,6 +234,7 @@ class GlobalExceptionHandler {
             "uk_shipment_item_active" in detail -> "商品已分配给其他有效运单"
             "uk_shipment_carrier_tracking" in detail -> "承运商追踪号已绑定其他运单"
             "uk_logistics_idempotency" in detail -> "幂等键冲突，请重试查询原结果"
+            "uk_script_analysis_result_idempotency" in detail -> "解析任务幂等键冲突，请重试查询原任务"
             "uk_order_idempotency" in detail -> "下单幂等键冲突，请重试查询原订单"
             "fk_support_ticket_message_attachment_file" in detail -> "工单消息使用中的附件不能删除"
             else -> null

@@ -2,26 +2,20 @@ package top.foxball.video.service
 
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.Episode
 import top.foxball.video.entity.jdbc.EpisodeStatus
-import top.foxball.video.repository.AssetRepository
+import top.foxball.video.entity.jdbc.EpisodeAssetType
+import top.foxball.video.repository.EpisodeAssetRepository
 import top.foxball.video.repository.EpisodeRepository
 import top.foxball.video.repository.ProjectRepository
-import top.foxball.video.repository.ScriptCharacterRepository
-import top.foxball.video.repository.ScriptDocumentRepository
-import top.foxball.video.repository.ScriptVersionRepository
+import java.util.Locale
 
-/** 项目剧集及项目级资产导航数据服务。 */
+/** 项目剧集及工作流剧集资产导航数据服务。 */
 @Service
 class EpisodeService(
     private val projectRepository: ProjectRepository,
     private val episodeRepository: EpisodeRepository,
-    private val assetRepository: AssetRepository,
-    private val documentRepository: ScriptDocumentRepository,
-    private val versionRepository: ScriptVersionRepository,
-    private val characterRepository: ScriptCharacterRepository,
-    private val sceneRepository: top.foxball.video.repository.ScriptSceneRepository,
+    private val episodeAssetRepository: EpisodeAssetRepository,
 ) {
     data class CharacterSummary(val name: String, val description: String?)
 
@@ -66,30 +60,23 @@ class EpisodeService(
     @Transactional(readOnly = true)
     fun library(projectId: Long): LibrarySnapshot? {
         if (!projectRepository.existsById(projectId)) return null
-        val assets = assetRepository.findAllByProjectIdOrderByUpdatedAtDesc(projectId)
+        val assets = episodeAssetRepository.findAllByProjectIdOrderByUpdatedAtDesc(projectId)
         val counts = linkedMapOf(
-            "character" to assets.count { it.type == AssetType.CHARACTER },
-            "scene" to assets.count { it.type == AssetType.SCENE },
-            "prop" to assets.count { it.type == AssetType.PROP },
-            "voice" to assets.count { it.type == AssetType.VOICE },
-            "music" to assets.count { it.type == AssetType.MUSIC },
-            "sound_effect" to assets.count { it.type == AssetType.SOUND_EFFECT },
+            "character" to assets.count { it.type == EpisodeAssetType.CHARACTER },
+            "scene_background" to assets.count { it.type == EpisodeAssetType.SCENE_BACKGROUND },
+            "prop" to assets.count { it.type == EpisodeAssetType.PROP },
+            "costume" to assets.count { it.type == EpisodeAssetType.COSTUME },
+            "voice" to assets.count { it.type == EpisodeAssetType.VOICE },
+            "music" to assets.count { it.type == EpisodeAssetType.MUSIC },
+            "sound_effect" to assets.count { it.type == EpisodeAssetType.SOUND_EFFECT },
             "total" to assets.size,
         )
-        val latestCharacters = linkedMapOf<String, CharacterSummary>()
-        var scriptSceneCount = 0
-        documentRepository.findAllByProjectId(projectId).forEach { document ->
-            val versionId = document.currentVersionId
-                ?: versionRepository.findFirstByScriptDocumentIdOrderByVersionNoDesc(requireNotNull(document.id))?.id
-            if (versionId != null) {
-                scriptSceneCount += sceneRepository.findAllByScriptVersionIdOrderBySortOrderAsc(versionId).size
-                characterRepository.findAllByScriptVersionIdOrderByNameAsc(versionId).forEach { character ->
-                    latestCharacters.putIfAbsent(character.name, CharacterSummary(character.name, character.description))
-                }
-            }
-        }
-        if (latestCharacters.size > (counts["character"] ?: 0)) counts["character"] = latestCharacters.size
-        if (scriptSceneCount > (counts["scene"] ?: 0)) counts["scene"] = scriptSceneCount
-        return LibrarySnapshot(latestCharacters.values.toList(), counts)
+        val characters = assets
+            .asSequence()
+            .filter { it.type == EpisodeAssetType.CHARACTER }
+            .distinctBy { it.name.trim().lowercase(Locale.ROOT) }
+            .map { CharacterSummary(it.name, it.description) }
+            .toList()
+        return LibrarySnapshot(characters, counts)
     }
 }

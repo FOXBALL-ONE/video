@@ -93,6 +93,10 @@ class ProductionTask(
     /** 所属项目主键。 */
     var projectId: Long = 0,
 
+    @Column(name = "created_by")
+    /** 创建任务的用户；系统任务可以为空。 */
+    var createdBy: Long? = null,
+
     @Column(name = "episode_id")
     /** 所属剧集主键；为空时兼容项目级制作任务。 */
     var episodeId: Long? = null,
@@ -115,6 +119,18 @@ class ProductionTask(
     /** 任务完成百分比。 */
     var progress: Int = 0,
 
+    @Column(name = "progress_indeterminate")
+    /** 执行器无法估算进度时为 true。 */
+    var progressIndeterminate: Boolean = false,
+
+    @Column(length = 80)
+    /** 执行器当前阶段，例如 CALL_PROVIDER。 */
+    var stage: String? = null,
+
+    @Column(length = 200)
+    /** 面向用户展示的任务标题。 */
+    var title: String? = null,
+
     @Column(name = "provider_config_id")
     /** 使用的 AI 提供商配置主键。 */
     var providerConfigId: Long? = null,
@@ -136,9 +152,45 @@ class ProductionTask(
     /** 失败时的错误信息。 */
     var errorMessage: String? = null,
 
+    @Column(name = "error_code", length = 100)
+    /** 脱敏后的稳定错误码。 */
+    var errorCode: String? = null,
+
+    @Column(name = "correlation_id", length = 100)
+    /** 贯穿任务、AI 调用和日志的关联 ID。 */
+    var correlationId: String? = null,
+
+    @Column(name = "cancel_requested_at")
+    /** 用户或系统发起取消请求的时间。 */
+    var cancelRequestedAt: LocalDateTime? = null,
+
+    @Column(name = "cancelled_by")
+    /** 发起取消的用户主键。 */
+    var cancelledBy: Long? = null,
+
+    @Column(name = "cancel_reason", length = 200)
+    /** 取消原因。 */
+    var cancelReason: String? = null,
+
+    @Column
+    /** 当前执行尝试次数。 */
+    var attempt: Int = 0,
+
+    @Column(name = "max_attempts")
+    /** 任务最大执行尝试次数。 */
+    var maxAttempts: Int = 1,
+
+    @Column(name = "parent_task_id")
+    /** 批量或派生任务的父任务。 */
+    var parentTaskId: Long? = null,
+
     @Column(name = "started_at")
     /** 任务开始执行时间。 */
     var startedAt: LocalDateTime? = null,
+
+    @Column(name = "queued_at")
+    /** 任务进入可执行队列的时间。 */
+    var queuedAt: LocalDateTime? = null,
 
     @Column(name = "completed_at")
     /** 任务完成或失败时间。 */
@@ -153,6 +205,10 @@ class ProductionTask(
     @Column(name = "updated_at", nullable = false)
     /** 任务最近更新时间。 */
     var updatedAt: LocalDateTime? = null,
+
+    @Column(name = "idempotency_key", length = 200)
+    /** 调用方提供的幂等键。 */
+    var idempotencyKey: String? = null,
 
     @Version
     /** JPA 乐观锁版本号。 */
@@ -476,9 +532,9 @@ class TimelineClip(
 /** 媒体文件类型。 */
 enum class MediaType { SCRIPT_SOURCE, IMAGE, AUDIO, VIDEO, SUBTITLE }
 /** 生产任务类型。 */
-enum class ProductionTaskType { IMAGE_GENERATION, VOICEOVER, MUSIC, SOUND_EFFECT, SUBTITLE, COMPOSITION }
+enum class ProductionTaskType { SCRIPT_ANALYSIS, ASSET_EXTRACTION, IMAGE_GENERATION, IMAGE_EDIT, VOICEOVER, MUSIC, SOUND_EFFECT, SUBTITLE, COMPOSITION }
 /** 生产任务执行状态。 */
-enum class ProductionTaskStatus { PENDING, QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED }
+enum class ProductionTaskStatus { PENDING, QUEUED, RUNNING, CANCEL_REQUESTED, SUCCEEDED, FAILED, CANCELLED }
 /** 字幕生成模式。 */
 enum class SubtitleMode { SMART, OFF }
 /** 项目成员角色。 */

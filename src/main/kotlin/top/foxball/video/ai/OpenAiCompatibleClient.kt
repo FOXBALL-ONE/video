@@ -1,5 +1,6 @@
 package top.foxball.video.ai
 
+import org.slf4j.LoggerFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.http.HttpHeaders
@@ -17,7 +18,9 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.time.Duration
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /** 使用固定 OpenAI 兼容路径发送模型、对话和图像请求。 */
 @Component
@@ -29,14 +32,27 @@ class OpenAiCompatibleClient(
 ) : AiModelClient {
     private val uriPolicy = AiProviderUriPolicy()
     private val modelCatalog = ConcurrentHashMap<String, CachedModels>()
+    private val log = LoggerFactory.getLogger(OpenAiCompatibleClient::class.java)
 
     override fun listModels(connection: AiProviderConnection): Mono<List<AiModelDescriptor>> {
         val cacheKey = "${connection.providerConfigId ?: connection.baseUri}|${connection.profile.name}"
         val cached = modelCatalog[cacheKey]
-        if (cached != null && cached.expiresAt.isAfter(Instant.now())) return Mono.just(cached.models)
+        if (cached != null && cached.expiresAt.isAfter(Instant.now())) {
+            log.debug(
+                "AI model call cache hit operation={} provider_config_id={} provider={} model_count={}",
+                AiOperation.MODEL_LIST,
+                connection.providerConfigId,
+                safeLog(connection.provider),
+                cached.models.size,
+            )
+            return Mono.just(cached.models)
+        }
 
+        val requestId = invocationId(null)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(connection, AiOperation.MODEL_LIST, requestId, null, "")
         return invocationGuard.protect(connection, AiOperation.MODEL_LIST) {
-            exchangeJson(connection, "models", AiOperation.MODEL_LIST)
+            exchangeJson(connection, "models", AiOperation.MODEL_LIST, requestId = requestId)
                 .map(::parseModels)
                 .retryWhen(
                     Retry.backoff(2, Duration.ofMillis(150))
@@ -47,11 +63,25 @@ class OpenAiCompatibleClient(
                                 exception is AiProxyException ||
                                 exception is AiRateLimitException ||
                                 exception is AiUpstreamException && exception.statusCode >= 500
+                        }
+                        .doBeforeRetry { signal ->
+                            log.warn(
+                                "AI model call retry operation={} provider_config_id={} request_id={} attempt={} reason={}",
+                                AiOperation.MODEL_LIST,
+                                connection.providerConfigId,
+                                requestId,
+                                signal.totalRetries() + 1,
+                                errorSummary(signal.failure()),
+                            )
                         },
                 )
                 .doOnNext { models ->
                     modelCatalog[cacheKey] = CachedModels(models, Instant.now().plus(properties.modelCatalogTtl))
                 }
+        }.doOnSuccess { models ->
+            logInvocationSucceeded(connection, AiOperation.MODEL_LIST, requestId, startedAt, "model_count=${models?.size ?: 0}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.MODEL_LIST, requestId, startedAt, exception)
         }
     }
 
@@ -61,9 +91,29 @@ class OpenAiCompatibleClient(
     ): Mono<AiChatCompletionResult> {
         validateCommandConnection(connection, command.providerConfigId)
         val payload = chatPayload(command, stream = false)
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(
+            connection,
+            AiOperation.CHAT,
+            requestId,
+            command.model,
+            "stream=false message_count=${command.messages.size} input_chars=${command.messages.sumOf { it.content?.length ?: 0 }} tool_count=${command.tools.size}",
+        )
         return invocationGuard.protect(connection, AiOperation.CHAT) {
-            exchangeJson(connection, "chat/completions", AiOperation.CHAT, payload, command.requestId)
+            exchangeJson(connection, "chat/completions", AiOperation.CHAT, payload, requestId)
                 .map(::parseChatCompletion)
+        }.doOnSuccess { result ->
+            val usage = result?.usage
+            logInvocationSucceeded(
+                connection,
+                AiOperation.CHAT,
+                requestId,
+                startedAt,
+                "stream=false choice_count=${result?.choices?.size ?: 0} input_tokens=${usage?.inputTokens ?: "-"} output_tokens=${usage?.outputTokens ?: "-"} total_tokens=${usage?.totalTokens ?: "-"}",
+            )
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception)
         }
     }
 
@@ -73,16 +123,27 @@ class OpenAiCompatibleClient(
     ): Flux<AiChatCompletionDelta> {
         validateCommandConnection(connection, command.providerConfigId)
         val payload = chatPayload(command, stream = true)
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        val deltaCount = AtomicInteger()
+        logInvocationStarted(
+            connection,
+            AiOperation.CHAT,
+            requestId,
+            command.model,
+            "stream=true message_count=${command.messages.size} input_chars=${command.messages.sumOf { it.content?.length ?: 0 }} tool_count=${command.tools.size}",
+        )
         return invocationGuard.protectFlux(connection, AiOperation.CHAT) {
             val uri = uriPolicy.endpoint(connection.baseUri, "chat/completions")
             transportFactory.client(connection.profile)
                 .post()
                 .uri(uri)
-                .headers { headers -> applyHeaders(headers, connection, command.requestId) }
+                .headers { headers -> applyHeaders(headers, connection, requestId) }
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(payload)
                 .exchangeToFlux<AiChatCompletionDelta> { response ->
+                    logUpstreamResponse(connection, AiOperation.CHAT, requestId, "chat/completions", response)
                     if (!response.statusCode().is2xxSuccessful) errorFlux(response)
                     else response.bodyToFlux(SSE_TYPE)
                         .mapNotNull(ServerSentEvent<String>::data)
@@ -90,6 +151,19 @@ class OpenAiCompatibleClient(
                         .map(::parseChatDelta)
                 }
                 .onErrorMap(::mapTransportException)
+                .doOnNext { deltaCount.incrementAndGet() }
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception, "stream=true delta_count=${deltaCount.get()}")
+        }.doFinally { signal ->
+            if (signal != reactor.core.publisher.SignalType.ON_ERROR) {
+                logInvocationFinished(
+                    connection,
+                    AiOperation.CHAT,
+                    requestId,
+                    startedAt,
+                    "stream=true signal=${signal.name} delta_count=${deltaCount.get()}",
+                )
+            }
         }
     }
 
@@ -109,9 +183,22 @@ class OpenAiCompatibleClient(
             command.quality?.let { put("quality", it) }
             command.style?.let { put("style", it) }
         }
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(
+            connection,
+            AiOperation.IMAGE,
+            requestId,
+            command.model,
+            "mode=generation image_count=${command.count ?: 1} response_format=${command.responseFormat.wireValue}",
+        )
         return invocationGuard.protect(connection, AiOperation.IMAGE) {
-            exchangeJson(connection, "images/generations", AiOperation.IMAGE, payload, command.requestId)
+            exchangeJson(connection, "images/generations", AiOperation.IMAGE, payload, requestId)
                 .map(::parseImages)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.IMAGE, requestId, startedAt, "mode=generation image_count=${result?.images?.size ?: 0}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.IMAGE, requestId, startedAt, exception, "mode=generation")
         }
     }
 
@@ -138,17 +225,33 @@ class OpenAiCompatibleClient(
         command.count?.let { multipart.part("n", it.toString()) }
         command.size?.let { multipart.part("size", it) }
 
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(
+            connection,
+            AiOperation.IMAGE,
+            requestId,
+            command.model,
+            "mode=edit image_count=${command.images.size} image_bytes=${command.images.sumOf { it.bytes.size.toLong() }} mask=${command.mask != null} response_format=${command.responseFormat.wireValue}",
+        )
         return invocationGuard.protect(connection, AiOperation.IMAGE) {
             val uri = uriPolicy.endpoint(connection.baseUri, "images/edits")
             transportFactory.client(connection.profile)
                 .post()
                 .uri(uri)
-                .headers { headers -> applyHeaders(headers, connection, command.requestId) }
+                .headers { headers -> applyHeaders(headers, connection, requestId) }
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(BodyInserters.fromMultipartData(multipart.build()))
-                .exchangeToMono { response -> jsonResponse(response) }
+                .exchangeToMono { response ->
+                    logUpstreamResponse(connection, AiOperation.IMAGE, requestId, "images/edits", response)
+                    jsonResponse(response)
+                }
                 .map(::parseImages)
                 .onErrorMap(::mapTransportException)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.IMAGE, requestId, startedAt, "mode=edit image_count=${result?.images?.size ?: 0}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.IMAGE, requestId, startedAt, exception, "mode=edit")
         }
     }
 
@@ -166,8 +269,122 @@ class OpenAiCompatibleClient(
             .headers { headers -> applyHeaders(headers, connection, requestId) }
             .accept(MediaType.APPLICATION_JSON)
         return (if (payload == null) request else request.contentType(MediaType.APPLICATION_JSON).bodyValue(payload))
-            .exchangeToMono(::jsonResponse)
+            .exchangeToMono { response ->
+                logUpstreamResponse(connection, operation, requestId, resource, response)
+                jsonResponse(response)
+            }
             .onErrorMap(::mapTransportException)
+    }
+
+    private fun invocationId(requestId: String?): String =
+        requestId?.trim()?.takeIf(String::isNotBlank)?.take(MAX_REQUEST_ID_CHARS)?.map { character ->
+            if (character.isISOControl()) '_' else character
+        }?.joinToString("") ?: UUID.randomUUID().toString()
+
+    private fun logInvocationStarted(
+        connection: AiProviderConnection,
+        operation: AiOperation,
+        requestId: String,
+        model: String?,
+        details: String,
+    ) {
+        log.info(
+            "AI model call started operation={} provider_config_id={} provider={} model={} request_id={} {}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            safeLog(model ?: "-"),
+            safeLog(requestId),
+            details,
+        )
+    }
+
+    private fun logInvocationSucceeded(
+        connection: AiProviderConnection,
+        operation: AiOperation,
+        requestId: String,
+        startedAt: Long,
+        details: String,
+    ) {
+        log.info(
+            "AI model call succeeded operation={} provider_config_id={} provider={} request_id={} elapsed_ms={} {}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            safeLog(requestId),
+            elapsedMillis(startedAt),
+            details,
+        )
+    }
+
+    private fun logInvocationFailed(
+        connection: AiProviderConnection,
+        operation: AiOperation,
+        requestId: String,
+        startedAt: Long,
+        exception: Throwable,
+        details: String = "",
+    ) {
+        log.warn(
+            "AI model call failed operation={} provider_config_id={} provider={} request_id={} elapsed_ms={} error={} {}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            safeLog(requestId),
+            elapsedMillis(startedAt),
+            errorSummary(exception),
+            details,
+        )
+    }
+
+    private fun logInvocationFinished(
+        connection: AiProviderConnection,
+        operation: AiOperation,
+        requestId: String,
+        startedAt: Long,
+        details: String,
+    ) {
+        log.info(
+            "AI model call finished operation={} provider_config_id={} provider={} request_id={} elapsed_ms={} {}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            safeLog(requestId),
+            elapsedMillis(startedAt),
+            details,
+        )
+    }
+
+    private fun logUpstreamResponse(
+        connection: AiProviderConnection,
+        operation: AiOperation,
+        requestId: String?,
+        resource: String,
+        response: ClientResponse,
+    ) {
+        log.info(
+            "AI upstream response operation={} provider_config_id={} provider={} endpoint=/v1/{} request_id={} status={}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            resource,
+            safeLog(requestId ?: "-"),
+            response.statusCode().value(),
+        )
+    }
+
+    private fun elapsedMillis(startedAt: Long): Long = Duration.ofNanos(System.nanoTime() - startedAt).toMillis()
+
+    private fun safeLog(value: String, maxChars: Int = MAX_LOG_FIELD_CHARS): String =
+        value.map { character ->
+            if (character.isISOControl() || character == '\u2028' || character == '\u2029') '_' else character
+        }.joinToString("").take(maxChars)
+
+    private fun errorSummary(exception: Throwable): String = when (exception) {
+        is AiUpstreamAuthenticationException -> "${exception::class.simpleName}(status=${exception.statusCode})"
+        is AiRateLimitException -> "${exception::class.simpleName}(status=429)"
+        is AiUpstreamException -> "${exception::class.simpleName}(status=${exception.statusCode})"
+        else -> exception::class.simpleName ?: "UnknownException"
     }
 
     private fun jsonResponse(response: ClientResponse): Mono<JsonNode> {
@@ -354,5 +571,7 @@ class OpenAiCompatibleClient(
         const val MAX_IMAGE_BYTES = 20 * 1024 * 1024
         const val MAX_CHAT_CONTENT_CHARS = 2_000_000
         const val MAX_ERROR_RESPONSE_CHARS = 8_000
+        const val MAX_REQUEST_ID_CHARS = 128
+        const val MAX_LOG_FIELD_CHARS = 256
     }
 }

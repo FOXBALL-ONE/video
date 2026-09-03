@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import top.foxball.video.entity.jdbc.ProductionTask
 import top.foxball.video.entity.jdbc.SubtitleMode
 import top.foxball.video.service.VideoWorkspaceService
@@ -31,11 +32,12 @@ class VideoWorkspaceController(
     fun getVideo(
         @PathVariable("project_id") projectId: Long,
         @RequestParam("episode_id", required = false) episodeId: Long?,
+        @AuthenticationPrincipal userId: Long?,
     ): ResponseEntity<Response> {
         data class SettingsData(val id: Long, @param:JsonProperty("aspect_ratio") val aspectRatio: String, val resolution: String, val style: String, val fps: Int, @param:JsonProperty("subtitle_mode") val subtitleMode: String)
         data class TaskData(val id: Long, @param:JsonProperty("task_type") val taskType: String, val status: String, val progress: Int, @param:JsonProperty("error_message") val errorMessage: String?, @param:JsonProperty("created_at") val createdAt: LocalDateTime?)
         data class Response(val settings: SettingsData, val tasks: List<TaskData>, val counts: Map<String, Int>)
-        val snapshot = videoService.load(projectId, episodeId) ?: return responseBuilder.notFound().build()
+        val snapshot = videoService.load(projectId, userId, episodeId) ?: return responseBuilder.notFound().build()
         val settings = SettingsData(requireNotNull(snapshot.settings.id), snapshot.settings.aspectRatio, snapshot.settings.resolution, snapshot.settings.style, snapshot.settings.fps, snapshot.settings.subtitleMode.name)
         val tasks = snapshot.tasks.map { TaskData(requireNotNull(it.id), it.taskType.name, it.status.name, it.progress, it.errorMessage, it.createdAt) }
         val counts = tasks.groupingBy { it.taskType }.eachCount()
@@ -52,9 +54,10 @@ class VideoWorkspaceController(
         @RequestParam("fps") @Min(1) @Max(240) fps: Int,
         @RequestParam("subtitle_mode") subtitleMode: SubtitleMode,
         @RequestParam("episode_id", required = false) episodeId: Long?,
+        @AuthenticationPrincipal userId: Long?,
     ): ResponseEntity<Response> {
         data class Response(val id: Long, @param:JsonProperty("aspect_ratio") val aspectRatio: String, val resolution: String, val style: String, val fps: Int, @param:JsonProperty("subtitle_mode") val subtitleMode: String)
-        val settings = videoService.saveSettings(projectId, aspectRatio, resolution, style, fps, subtitleMode, episodeId) ?: return responseBuilder.notFound().build()
+        val settings = videoService.saveSettings(projectId, userId, aspectRatio, resolution, style, fps, subtitleMode, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(requireNotNull(settings.id), settings.aspectRatio, settings.resolution, settings.style, settings.fps, settings.subtitleMode.name)
         return responseBuilder.ok().data(rs).build()
     }
@@ -63,10 +66,11 @@ class VideoWorkspaceController(
     fun queue(
         @PathVariable("project_id") projectId: Long,
         @RequestParam("episode_id", required = false) episodeId: Long?,
+        @AuthenticationPrincipal userId: Long?,
     ): ResponseEntity<Response> {
         data class TaskData(val id: Long, @param:JsonProperty("task_type") val taskType: String, val status: String, val progress: Int)
         data class Response(val list: List<TaskData>)
-        val snapshot = videoService.queue(projectId, episodeId) ?: return responseBuilder.notFound().build()
+        val snapshot = videoService.queue(projectId, userId, episodeId) ?: return responseBuilder.notFound().build()
         val rs = Response(snapshot.tasks.map { TaskData(requireNotNull(it.id), it.taskType.name, it.status.name, it.progress) })
         return responseBuilder.created().data(rs).build()
     }

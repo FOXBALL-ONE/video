@@ -68,7 +68,7 @@
             </div>
             <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span class="text-xs text-[#929bad]">支持 .txt 文本文件</span>
-              <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || parsing || !selectedProviderId || !selectedModelId" @click="parseScript">
+              <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || !episodeQuery || parsing || !selectedProviderId || !selectedModelId" @click="parseScript">
               <span aria-hidden="true" class="text-base">✦</span>{{ parsing ? '解析中...' : '开始解析' }}
               </button>
             </div>
@@ -139,6 +139,118 @@
       </section>
     </div>
 
+    <n-modal
+      v-model:show="analysisSummaryVisible"
+      preset="card"
+      title="采纳解析结果"
+      class="w-[min(94vw,760px)]"
+      :mask-closable="false"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="m-0 text-xs leading-5 text-[#7e899e]">本次结果已暂存。采纳后会创建尚不存在的剧集资产。</p>
+        <div class="flex items-center gap-2">
+          <n-button text size="tiny" @click="analysisDetailsVisible = !analysisDetailsVisible">{{ analysisDetailsVisible ? '收起详情' : '查看详情' }}</n-button>
+          <span v-if="analysisAdoptionStatus === 'ADOPTED'" class="rounded-md bg-[#e9f7f1] px-2 py-1 text-[10px] font-medium text-[#278d68]">已采纳</span>
+        </div>
+      </div>
+      <n-checkbox-group v-if="adoptableTypeResults.length" v-model:value="analysisAdoptionTypes" class="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+        <n-checkbox v-for="typeResult in adoptableTypeResults" :key="typeResult.type" :value="typeResult.type">
+          {{ assetTypeLabel(typeResult.type) }} · {{ typeResult.count }}
+        </n-checkbox>
+      </n-checkbox-group>
+      <div v-if="failedTypeResults.length" class="mt-4 space-y-2">
+        <div v-for="typeResult in failedTypeResults" :key="typeResult.type" class="rounded-[8px] border border-[#f1d3d3] bg-[#fff8f8] px-3 py-2 text-xs text-[#985454]">
+          {{ assetTypeLabel(typeResult.type) }}未完成：{{ typeResult.error?.message || '模型解析失败' }}
+        </div>
+      </div>
+      <div class="mt-4 grid max-h-[58vh] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-3">
+        <section class="rounded-[10px] border border-[#e5e3fb] bg-[#faf9ff] p-3" aria-labelledby="summary-characters-title">
+          <div class="flex items-center justify-between gap-2">
+            <h3 id="summary-characters-title" class="m-0 text-xs font-semibold text-[#4f46b8]">角色简介</h3>
+            <span class="text-[11px] text-[#8f88d5]">{{ characterSummaries.length }} 位</span>
+          </div>
+          <div v-if="characterSummaries.length" class="mt-3 space-y-2.5">
+            <article v-for="item in (analysisDetailsVisible ? characterSummaries : characterSummaries.slice(0, 4))" :key="item.key" class="rounded-[8px] border border-[#ecebfa] bg-white px-2.5 py-2">
+              <strong class="block truncate text-xs font-medium text-[#30394a]">{{ item.name }}</strong>
+              <p class="mt-1.5 whitespace-pre-wrap break-words text-[11px] leading-5 text-[#687388]">{{ item.description }}</p>
+            </article>
+          </div>
+          <p v-else class="mt-3 text-[11px] text-[#a1a8b5]">未识别到角色简介</p>
+        </section>
+
+        <section class="rounded-[10px] border border-[#dcecf0] bg-[#f8fcfd] p-3" aria-labelledby="summary-scenes-title">
+          <div class="flex items-center justify-between gap-2">
+            <h3 id="summary-scenes-title" class="m-0 text-xs font-semibold text-[#287788]">场景简介</h3>
+            <span class="text-[11px] text-[#6e9eaa]">{{ sceneSummaries.length }} 个</span>
+          </div>
+          <div v-if="sceneSummaries.length" class="mt-3 space-y-2.5">
+            <article v-for="item in (analysisDetailsVisible ? sceneSummaries : sceneSummaries.slice(0, 4))" :key="item.key" class="rounded-[8px] border border-[#e4f0f2] bg-white px-2.5 py-2">
+              <strong class="block truncate text-xs font-medium text-[#30394a]">{{ item.name }}</strong>
+              <p class="mt-1.5 whitespace-pre-wrap break-words text-[11px] leading-5 text-[#687388]">{{ item.description }}</p>
+            </article>
+          </div>
+          <p v-else class="mt-3 text-[11px] text-[#a1a8b5]">未识别到场景简介</p>
+        </section>
+
+        <section class="rounded-[10px] border border-[#f1e6d6] bg-[#fffbf5] p-3" aria-labelledby="summary-props-title">
+          <div class="flex items-center justify-between gap-2">
+            <h3 id="summary-props-title" class="m-0 text-xs font-semibold text-[#a46b23]">道具简介</h3>
+            <span class="text-[11px] text-[#b28a59]">{{ propSummaries.length }} 件</span>
+          </div>
+          <div v-if="propSummaries.length" class="mt-3 space-y-2.5">
+            <article v-for="item in (analysisDetailsVisible ? propSummaries : propSummaries.slice(0, 4))" :key="item.key" class="rounded-[8px] border border-[#f3eadc] bg-white px-2.5 py-2">
+              <strong class="block truncate text-xs font-medium text-[#30394a]">{{ item.name }}</strong>
+              <p class="mt-1.5 whitespace-pre-wrap break-words text-[11px] leading-5 text-[#687388]">{{ item.description }}</p>
+            </article>
+          </div>
+          <p v-else class="mt-3 text-[11px] text-[#a1a8b5]">未识别到道具简介</p>
+        </section>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <n-button :disabled="analysisAdopting" @click="analysisSummaryVisible = false">暂不采纳</n-button>
+          <n-button type="primary" color="#6654ee" :loading="analysisAdopting" :disabled="!analysisAdoptionTypes.length || analysisAdoptionStatus === 'ADOPTED'" @click="adoptAnalysisResult">采纳并写入资产库</n-button>
+        </div>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="analysisModalVisible" preset="card" title="提取剧本资产" class="w-[min(94vw,620px)]" :mask-closable="false">
+      <p class="-mt-2 text-xs text-[#8a94aa]">选择要提取的资产类型和对应模型，任务提交后将在后台运行。</p>
+      <div class="mt-4 space-y-3">
+        <div v-for="job in analysisJobs" :key="job.type" class="rounded-[12px] border border-[#dfe3eb] bg-[#fbfcfe] p-3.5">
+          <div class="flex items-start gap-3">
+            <n-checkbox v-model:checked="job.enabled" class="mt-1" />
+            <div class="min-w-0 flex-1">
+              <strong class="block text-sm text-[#20283b]">{{ job.label }}</strong>
+              <p class="mt-1 text-[11px] leading-5 text-[#7e899e]">{{ job.description }}</p>
+              <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <n-select v-model:value="job.providerId" :options="providerOptions" :disabled="!providerOptions.length" size="small" placeholder="选择模型提供商" @update:value="onAnalysisProviderChange(job, $event)" />
+                <n-select v-model:value="job.model" :options="modelOptionsFor(job)" :disabled="!job.providerId" filterable size="small" placeholder="选择模型" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="analysisTaskStatus" class="mt-4 rounded-[9px] border border-[#dcecf0] bg-[#f7fcfd] px-3 py-2 text-xs text-[#287788]" role="status">
+        <div class="flex items-center justify-between gap-3">
+          <span>{{ analysisTaskStatus === 'QUEUED' ? '任务排队中' : analysisTaskStatus === 'RUNNING' ? '模型正在解析剧本' : analysisTaskStatus === 'CANCEL_REQUESTED' ? '正在取消任务' : analysisTaskStatus === 'SUCCEEDED' ? '解析结果已暂存' : analysisTaskStatus === 'CANCELLED' ? '任务已取消' : '解析失败' }}</span>
+          <strong v-if="analysisTaskStatus === 'QUEUED' || analysisTaskStatus === 'RUNNING'" class="shrink-0 font-medium tabular-nums">{{ analysisTaskProgress }}%</strong>
+        </div>
+        <div v-if="analysisTaskStatus === 'QUEUED' || analysisTaskStatus === 'RUNNING'" class="mt-2 h-1.5 overflow-hidden rounded-full bg-[#dfeef1]">
+          <div class="h-full rounded-full bg-[#4aa0af] transition-[width] duration-300" :style="{ width: `${analysisTaskProgress}%` }"></div>
+        </div>
+        <p v-if="analysisTaskStage && analysisTaskStatus !== 'SUCCEEDED'" class="mt-1.5 mb-0 truncate text-[11px] text-[#62919b]">{{ analysisTaskStage }}</p>
+      </div>
+      <div v-if="analysisTaskError" class="mt-3 rounded-[9px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d]" role="alert">{{ analysisTaskError }}</div>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <n-button v-if="analysisTaskId && ['QUEUED', 'RUNNING', 'CANCEL_REQUESTED'].includes(analysisTaskStatus)" type="warning" secondary :disabled="analysisSubmitting || analysisAdopting || analysisTaskStatus === 'CANCEL_REQUESTED'" @click="cancelAnalysisTask">取消任务</n-button>
+          <n-button :disabled="analysisSubmitting" @click="analysisModalVisible = false">取消</n-button>
+          <n-button type="primary" color="#6654ee" :loading="analysisSubmitting" :disabled="!selectedAnalysisCount || !analysisJobsValid" @click="startAnalysisTask">开始提取</n-button>
+        </div>
+      </template>
+    </n-modal>
+
     <footer class="script-footer fixed bottom-0 left-0 right-0 z-10 flex h-14 items-center justify-between border-t border-[#e1e3e8] bg-white px-5 sm:px-6">
       <button
         type="button"
@@ -161,7 +273,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const message = useMessage()
 const http = useHttp()
@@ -180,6 +292,7 @@ interface ScriptStats {
   scene_count: number
   character_count: number
   dialogue_count: number
+  prop_count?: number
   estimated_duration_seconds: number
   structure_score: number | null
 }
@@ -198,8 +311,61 @@ interface ScriptResponse {
   analysis?: { status: string; provider_config_id: number | null; model: string | null; analyzed_at: string | null; result: ScriptAnalysis | null }
 }
 
-interface ScriptAnalysisItem { id?: string; name?: string; location?: string; description?: string }
+interface ScriptAnalysisItem {
+  id?: string
+  name?: string
+  location?: string
+  description?: string
+  identity?: string
+  appearance?: string
+  personality?: string[]
+  motivation?: string
+  relationship?: string
+  role_type?: string
+  environment_type?: string
+  time?: string
+  weather?: string
+  lighting?: string
+  visual_style?: string
+  plot_purpose?: string
+  actions?: string[]
+  category?: string
+  owner?: string
+  function?: string
+  continuity_notes?: string
+  remarks?: string
+}
 interface ScriptAnalysis { title?: string; genre?: string; overall_summary?: string; characters?: ScriptAnalysisItem[]; scenes?: ScriptAnalysisItem[]; props?: ScriptAnalysisItem[]; costumes?: ScriptAnalysisItem[] }
+interface AnalysisSummaryItem { key: string; name: string; description: string }
+interface AnalysisTaskError { message: string; error_code?: string | null; provider?: string | null; request_id?: string | null }
+interface AnalysisTypeResult { type: AnalysisJob['type']; status: string; provider_config_id: number | null; model: string | null; provider: string | null; request_id: string | null; count: number; result_hash?: string | null; error?: AnalysisTaskError | null }
+interface AnalysisTaskResponse {
+  task_id: string
+  status: string
+  progress: number
+  stage: string | null
+  result_status: string
+  asset_types: AnalysisJob['type'][]
+  type_results: AnalysisTypeResult[]
+  version_id: number
+  content_hash: string
+  adopted_types: AnalysisJob['type'][]
+  result: ScriptAnalysis | null
+  stats: { character_count: number; scene_count: number; prop_count: number }
+  error?: AnalysisTaskError | null
+}
+interface AnalysisAdoptionResponse {
+  task_id: string
+  task_status: string
+  adoption_status: string
+  version_id: number
+  selected_asset_types: AnalysisJob['type'][]
+  created_count: number
+  skipped_count: number
+  conflict_count: number
+  missing_name_count: number
+  asset_ids: number[]
+}
 
 interface ProviderConfig {
   id: number
@@ -217,6 +383,15 @@ interface ParseError {
   request_id?: string
 }
 
+interface AnalysisJob {
+  type: 'SCENE_BACKGROUND' | 'CHARACTER' | 'PROP'
+  label: string
+  description: string
+  enabled: boolean
+  providerId: number | null
+  model: string
+}
+
 const styles = ['古风', '悬疑', '甜宠', '科幻', '都市', '奇幻']
 
 const scriptText = ref('测试剧本')
@@ -227,10 +402,12 @@ const parsed = ref(false)
 const parsing = ref(false)
 const generating = ref(false)
 const isDragging = ref(false)
+const analysisSummaryVisible = ref(false)
 const providerConfigs = ref<ProviderConfig[]>([])
 const selectedProviderId = ref<number | null>(null)
 const selectedModelId = ref('')
 const modelOptions = ref<{ label: string; value: string }[]>([])
+const providerModelOptions = ref<Record<number, { label: string; value: string }[]>>({})
 const fetchingModels = ref(false)
 const scriptStats = ref<ScriptStats>({
   scene_count: 0,
@@ -241,6 +418,32 @@ const scriptStats = ref<ScriptStats>({
 })
 const analysisResult = ref<ScriptAnalysis | null>(null)
 const parseError = ref<ParseError | null>(null)
+const analysisModalVisible = ref(false)
+const analysisSubmitting = ref(false)
+const analysisTaskStatus = ref('')
+const analysisTaskError = ref('')
+const analysisTaskId = ref('')
+const analysisTaskProgress = ref(0)
+const analysisTaskStage = ref('')
+const analysisTypeResults = ref<AnalysisTypeResult[]>([])
+const analysisAdoptionTypes = ref<AnalysisJob['type'][]>([])
+const analysisAdoptedTypeNames = ref<AnalysisJob['type'][]>([])
+const analysisAdoptionStatus = ref('')
+const analysisDetailsVisible = ref(false)
+const analysisAdopting = ref(false)
+const analysisSubmissionKey = ref('')
+const analysisSubmissionFingerprint = ref('')
+const analysisAdoptionKey = ref('')
+const analysisAdoptionFingerprint = ref('')
+const currentVersionId = ref<number | null>(null)
+const analysisContentHash = ref('')
+let analysisPollToken = 0
+let analysisPollTimer: number | null = null
+const analysisJobs = ref<AnalysisJob[]>([
+  { type: 'SCENE_BACKGROUND', label: '场景提取', description: '提取地点、时间、天气、光线、氛围和视觉风格。', enabled: true, providerId: null, model: '' },
+  { type: 'CHARACTER', label: '角色提取', description: '提取身份、外貌、性格、关系和出场要求。', enabled: true, providerId: null, model: '' },
+  { type: 'PROP', label: '道具提取', description: '提取关键道具、持有人、剧情功能和连续性要求。', enabled: true, providerId: null, model: '' },
+])
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const hasProject = computed(() => Boolean(activeProject.value?.id || activeProjectId.value))
@@ -256,12 +459,37 @@ const episodeQuery = computed(() => {
 const wordCount = computed(() => scriptText.value.length)
 const providerOptions = computed(() => providerConfigs.value.map((config) => ({ label: config.provider, value: config.id })))
 const selectedProvider = computed(() => providerConfigs.value.find((config) => config.id === selectedProviderId.value))
+const selectedAnalysisCount = computed(() => analysisJobs.value.filter((job) => job.enabled).length)
+const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model))
+const analysisAdoptedTypes = computed(() => new Set(analysisAdoptedTypeNames.value))
+const adoptableTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'SUCCEEDED' && item.count > 0 && !analysisAdoptedTypes.value.has(item.type) && !['DISCARDED', 'SUPERSEDED'].includes(analysisAdoptionStatus.value)))
+const failedTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'FAILED'))
 const parsedStats = computed(() => [
   { label: '场景', value: scriptStats.value.scene_count || estimateScenes(scriptText.value) },
   { label: '角色', value: scriptStats.value.character_count || estimateCharacters(scriptText.value) },
   { label: '对白', value: scriptStats.value.dialogue_count || estimateDialogues(scriptText.value) },
   { label: '预计时长', value: formatDuration(scriptStats.value.estimated_duration_seconds || estimateDuration(scriptText.value)) },
 ])
+const characterSummaries = computed<AnalysisSummaryItem[]>(() => (analysisResult.value?.characters || []).map((item, index) => ({
+  key: item.id || `character-${index}`,
+  name: item.name || `未命名角色${index + 1}`,
+  description: toSummaryText([item.role_type, item.identity, item.appearance, item.personality, item.motivation, item.relationship, item.remarks], '暂无角色简介'),
+})))
+const sceneSummaries = computed<AnalysisSummaryItem[]>(() => (analysisResult.value?.scenes || []).map((item, index) => ({
+  key: item.id || `scene-${index}`,
+  name: item.name || item.location || `未命名场景${index + 1}`,
+  description: toSummaryText([item.location, item.environment_type, item.time, item.weather, item.lighting, item.visual_style, item.plot_purpose, item.actions, item.remarks], '暂无场景简介'),
+})))
+const propSummaries = computed<AnalysisSummaryItem[]>(() => (analysisResult.value?.props || []).map((item, index) => ({
+  key: item.id || `prop-${index}`,
+  name: item.name || `未命名道具${index + 1}`,
+  description: toSummaryText([item.category, item.description, item.owner, item.function, item.continuity_notes, item.remarks], '暂无道具简介'),
+})))
+
+function toSummaryText(parts: unknown[], fallback: string) {
+  const values = parts.flatMap((part) => Array.isArray(part) ? part : [part]).map((part) => typeof part === 'string' ? part.trim() : '').filter(Boolean)
+  return values.length ? values.join('；') : fallback
+}
 
 function estimateScenes(text: string) {
   const matches = text.match(/(?:第\s*\d+\s*场|场景|INT\.|EXT\.)/gi)
@@ -288,6 +516,7 @@ function formatDuration(seconds: number) {
 function applyResponse(data: ScriptResponse) {
   scriptText.value = data.content || ''
   scriptStats.value = data.stats || scriptStats.value
+  currentVersionId.value = data.version?.id || null
   analysisResult.value = data.analysis?.result || null
   parsed.value = data.analysis?.status === 'COMPLETED' || Boolean(data.scenes?.length || data.characters?.length || data.dialogues?.length)
 }
@@ -308,13 +537,57 @@ async function loadProviderConfigs() {
   try {
     const response = await http.get<{ list: ProviderConfig[] }>('/ai/model-providers')
     providerConfigs.value = response.list.filter((config) => config.enabled)
+    providerModelOptions.value = {}
+    await Promise.all(providerConfigs.value.map(async (config) => {
+      const defaults = config.model_id ? [{ label: config.model_id, value: config.model_id }] : []
+      providerModelOptions.value[config.id] = defaults
+      try {
+        const formData = new FormData()
+        formData.append('base_url', config.base_url)
+        formData.append('config_id', String(config.id))
+        const models = await http.post<{ list: { id: string }[] }, FormData>('/ai/model-providers/models', formData)
+        providerModelOptions.value[config.id] = models.list.map((model) => ({ label: model.id, value: model.id }))
+      } catch {
+        // The saved default model remains available when discovery is unavailable.
+      }
+    }))
     if (providerConfigs.value.length === 1) {
       selectedProviderId.value = providerConfigs.value[0].id
       selectedModelId.value = providerConfigs.value[0].model_id || ''
     }
+    analysisJobs.value.forEach((job) => {
+      if (!job.providerId && providerConfigs.value.length) job.providerId = providerConfigs.value[0].id
+      if (!job.model && job.providerId) job.model = providerConfigs.value.find((config) => config.id === job.providerId)?.model_id || ''
+    })
   } catch {
     providerConfigs.value = []
   }
+}
+
+function modelOptionsFor(job: AnalysisJob) {
+  const configured = providerConfigs.value.find((config) => config.id === job.providerId)
+  const options = (job.providerId && providerModelOptions.value[job.providerId]) || modelOptions.value
+  if (options.length) return options
+  return configured?.model_id ? [{ label: configured.model_id, value: configured.model_id }] : []
+}
+
+function onAnalysisProviderChange(job: AnalysisJob, providerId: number | null) {
+  job.providerId = providerId
+  job.model = providerConfigs.value.find((config) => config.id === providerId)?.model_id || ''
+}
+
+function openAnalysisModal() {
+  analysisTaskError.value = ''
+  analysisTaskStatus.value = ''
+  analysisTaskProgress.value = 0
+  analysisTaskStage.value = ''
+  analysisSubmissionKey.value = ''
+  analysisSubmissionFingerprint.value = ''
+  analysisJobs.value.forEach((job) => {
+    if (!job.providerId) job.providerId = selectedProviderId.value || providerConfigs.value[0]?.id || null
+    if (!job.model && job.providerId) job.model = providerConfigs.value.find((config) => config.id === job.providerId)?.model_id || ''
+  })
+  analysisModalVisible.value = true
 }
 
 async function fetchModels() {
@@ -327,6 +600,7 @@ async function fetchModels() {
   try {
     const response = await http.post<{ list: { id: string }[] }, FormData>('/ai/model-providers/models', formData)
     modelOptions.value = response.list.map((model) => ({ label: model.id, value: model.id }))
+    providerModelOptions.value[selectedProvider.value.id] = modelOptions.value
     if (!modelOptions.value.length) message.warning('该提供商未返回可用模型')
   } catch (error) {
     message.error(error instanceof Error ? error.message : '获取模型列表失败')
@@ -338,13 +612,14 @@ async function fetchModels() {
 async function saveScript() {
   const id = Number(projectId.value)
   if (!Number.isInteger(id) || id <= 0) throw new Error('当前项目未保存到服务器，请先创建项目')
-  const data = await http.put<{ content: string; stats: ScriptStats }>(`/projects/${id}/script`, scriptText.value, {
+  const data = await http.put<{ content: string; stats: ScriptStats; version: ScriptVersion }>(`/projects/${id}/script`, scriptText.value, {
     payloadMode: 'json',
     params: episodeQuery.value,
     headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
   })
   scriptStats.value = data.stats || scriptStats.value
   scriptText.value = data.content || scriptText.value
+  currentVersionId.value = data.version?.id || null
 }
 
 async function parseScript() {
@@ -352,13 +627,16 @@ async function parseScript() {
     message.warning('请先粘贴或上传剧本内容')
     return
   }
-  if (!selectedProviderId.value || !selectedModelId.value) {
-    message.warning('请选择解析提供商和模型')
+  if (!episodeQuery.value?.episode_id) {
+    message.warning('请先选择要解析的剧集')
     return
   }
   parsing.value = true
   parseError.value = null
   generatedNotice.value = ''
+  analysisSummaryVisible.value = false
+  analysisSubmissionKey.value = ''
+  analysisSubmissionFingerprint.value = ''
   try {
     await saveScript()
   } catch (error) {
@@ -367,25 +645,212 @@ async function parseScript() {
     message.error(parseError.value.message)
     return
   }
-  try {
-    const id = Number(projectId.value)
-    const response = await http.post<{ document_id: number; version_id: number; analysis_status: string; result: ScriptAnalysis | null }>(`/projects/${id}/script/parse`, {
-      provider_config_id: selectedProviderId.value,
-      model: selectedModelId.value,
-      ...(episodeQuery.value || {}),
-    })
-    analysisResult.value = response.result || null
-    await Promise.all([loadEpisodes(projectId.value), loadLibrary(projectId.value)])
-    parsed.value = response.analysis_status === 'COMPLETED'
-  } catch (error) {
-    parsed.value = false
-    parseError.value = extractParseError(error, '剧本解析失败')
-    message.error(parseError.value.message)
-    parsing.value = false
+  parsing.value = false
+  openAnalysisModal()
+  message.success('剧本已保存，请选择资产提取范围和模型')
+}
+
+async function startAnalysisTask() {
+  const jobs = analysisJobs.value.filter((job) => job.enabled)
+  if (!jobs.length || !analysisJobsValid.value || !episodeQuery.value?.episode_id || !currentVersionId.value) {
+    message.warning('请至少选择一种资产，并为每种资产选择提供商和模型')
     return
   }
-  parsing.value = false
-  message.success('剧本解析完成，结构化结果已保存')
+  analysisSubmitting.value = true
+  analysisTaskError.value = ''
+  try {
+    const id = Number(projectId.value)
+    const payload = new FormData()
+    payload.append('episode_id', String(episodeQuery.value.episode_id))
+    payload.append('version_id', String(currentVersionId.value))
+    const submittedContentHash = await contentHash(scriptText.value)
+    payload.append('content_hash', submittedContentHash)
+    const submissionFingerprint = jobs.map((job) => `${job.type}:${job.providerId}:${job.model}`).sort().join(',')
+    if (analysisSubmissionFingerprint.value !== submissionFingerprint) {
+      analysisSubmissionFingerprint.value = submissionFingerprint
+      analysisSubmissionKey.value = requestKey()
+    }
+    jobs.forEach((job) => {
+      if (job.type === 'CHARACTER') {
+        payload.append('character_provider_config_id', String(job.providerId))
+        payload.append('character_model', job.model)
+      }
+      if (job.type === 'SCENE_BACKGROUND') {
+        payload.append('scene_background_provider_config_id', String(job.providerId))
+        payload.append('scene_background_model', job.model)
+      }
+      if (job.type === 'PROP') {
+        payload.append('prop_provider_config_id', String(job.providerId))
+        payload.append('prop_model', job.model)
+      }
+    })
+    const response = await http.post<{ task_id: string; status: string }, FormData>(`/projects/${id}/script/analysis-tasks`, payload, {
+      headers: { 'Idempotency-Key': analysisSubmissionKey.value },
+    })
+    analysisSubmissionKey.value = ''
+    analysisSubmissionFingerprint.value = ''
+    analysisPollToken += 1
+    if (analysisPollTimer !== null) window.clearTimeout(analysisPollTimer)
+    analysisPollTimer = null
+    analysisTaskId.value = response.task_id
+    analysisContentHash.value = submittedContentHash
+    analysisTaskStatus.value = response.status
+    analysisTaskProgress.value = 0
+    analysisTaskStage.value = 'QUEUED'
+    saveTaskReference()
+    void pollAnalysisTask(id)
+  } catch (error) {
+    analysisTaskError.value = error instanceof Error ? error.message : '解析任务提交失败'
+  } finally {
+    analysisSubmitting.value = false
+  }
+}
+
+async function pollAnalysisTask(project: number) {
+  const token = ++analysisPollToken
+  if (analysisPollTimer !== null) {
+    window.clearTimeout(analysisPollTimer)
+    analysisPollTimer = null
+  }
+  let networkFailures = 0
+  for (let attempt = 0; attempt < 120 && token === analysisPollToken; attempt += 1) {
+    if (import.meta.client && document.visibilityState === 'hidden') {
+      await new Promise((resolve) => { analysisPollTimer = window.setTimeout(resolve, 2000) })
+      continue
+    }
+    try {
+      const response = await http.get<AnalysisTaskResponse>(`/projects/${project}/script/analysis-tasks/${analysisTaskId.value}`)
+      if (token !== analysisPollToken) return
+      networkFailures = 0
+      analysisTaskStatus.value = response.status
+      analysisContentHash.value = response.content_hash || analysisContentHash.value
+      analysisTaskProgress.value = response.progress
+      analysisTaskStage.value = response.stage || ''
+      analysisTypeResults.value = response.type_results || []
+      analysisAdoptedTypeNames.value = response.adopted_types || []
+      analysisAdoptionStatus.value = response.result_status || ''
+      if (response.status === 'SUCCEEDED') {
+        analysisResult.value = response.result || null
+        analysisDetailsVisible.value = false
+        scriptStats.value = { ...scriptStats.value, ...response.stats }
+        parsed.value = true
+        analysisAdoptionTypes.value = adoptableTypeResults.value.map((item) => item.type)
+        analysisModalVisible.value = false
+        analysisSummaryVisible.value = true
+        message.success('解析结果已生成，请确认是否采纳')
+        return
+      }
+      if (response.status === 'FAILED' || response.status === 'CANCELLED') {
+        analysisTaskError.value = response.error?.message || (response.status === 'CANCELLED' ? '解析任务已取消' : '剧本解析失败')
+        return
+      }
+    } catch (error) {
+      if (token !== analysisPollToken) return
+      networkFailures += 1
+      analysisTaskError.value = error instanceof Error ? error.message : '解析任务查询失败'
+      await new Promise((resolve) => { analysisPollTimer = window.setTimeout(resolve, Math.min(5000, 1000 * 2 ** Math.min(networkFailures - 1, 3))) })
+      continue
+    }
+    const delay = attempt < 30 ? 1000 : attempt < 90 ? 2000 : 5000
+    await new Promise((resolve) => { analysisPollTimer = window.setTimeout(resolve, delay) })
+  }
+  if (token === analysisPollToken) message.info('解析任务仍在运行，可稍后返回此页查看结果')
+}
+
+async function cancelAnalysisTask() {
+  const id = Number(projectId.value)
+  if (!Number.isInteger(id) || id <= 0 || !analysisTaskId.value) return
+  try {
+    const response = await http.post<{ status: string; can_cancel: boolean }>(`/projects/${id}/tasks/${analysisTaskId.value}/cancel`)
+    analysisTaskStatus.value = response.status
+    if (response.status === 'CANCELLED') analysisTaskError.value = '解析任务已取消'
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '取消解析任务失败')
+  }
+}
+
+async function adoptAnalysisResult() {
+  const id = Number(projectId.value)
+  if (!Number.isInteger(id) || id <= 0 || !analysisTaskId.value || !currentVersionId.value || !analysisAdoptionTypes.value.length) return
+  analysisAdopting.value = true
+  try {
+    const selectionFingerprint = [...analysisAdoptionTypes.value].sort().join(',')
+    if (analysisAdoptionFingerprint.value !== selectionFingerprint) {
+      analysisAdoptionFingerprint.value = selectionFingerprint
+      analysisAdoptionKey.value = requestKey()
+    }
+    const payload = new FormData()
+    payload.append('version_id', String(currentVersionId.value))
+    analysisAdoptionTypes.value.forEach((type) => payload.append('selected_asset_types', type))
+    const response = await http.post<AnalysisAdoptionResponse, FormData>(`/projects/${id}/script/analysis-tasks/${analysisTaskId.value}/adopt`, payload, {
+      headers: { 'Idempotency-Key': analysisAdoptionKey.value },
+    })
+    analysisAdoptionKey.value = ''
+    analysisAdoptionFingerprint.value = ''
+    analysisAdoptionStatus.value = response.adoption_status
+    analysisAdoptedTypeNames.value = [...new Set([...analysisAdoptedTypeNames.value, ...response.selected_asset_types])]
+    analysisAdoptionTypes.value = adoptableTypeResults.value.map((item) => item.type)
+    await Promise.all([loadEpisodes(projectId.value), loadLibrary(projectId.value)])
+    message.success(`已录入 ${response.created_count} 项资产${response.skipped_count ? `，跳过 ${response.skipped_count} 项` : ''}`)
+    if (response.adoption_status === 'ADOPTED') clearTaskReference()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '采纳解析结果失败')
+  } finally {
+    analysisAdopting.value = false
+  }
+}
+
+function assetTypeLabel(type: AnalysisJob['type']) {
+  return type === 'CHARACTER' ? '角色' : type === 'SCENE_BACKGROUND' ? '场景' : '道具'
+}
+
+async function contentHash(content: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content))
+  return `sha256:${Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('')}`
+}
+
+function requestKey() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function taskStorageKey() {
+  return `script-analysis:${projectId.value}:${episodeId.value}`
+}
+
+function saveTaskReference() {
+  if (!import.meta.client || !analysisTaskId.value) return
+  window.sessionStorage.setItem(taskStorageKey(), JSON.stringify({
+    task_id: analysisTaskId.value,
+    project_id: projectId.value,
+    episode_id: episodeId.value,
+    version_id: currentVersionId.value,
+    content_hash: analysisContentHash.value,
+  }))
+}
+
+function clearTaskReference() {
+  if (import.meta.client) window.sessionStorage.removeItem(taskStorageKey())
+}
+
+async function restoreAnalysisTask() {
+  if (!import.meta.client || !episodeQuery.value?.episode_id) return
+  const stored = window.sessionStorage.getItem(taskStorageKey())
+  if (!stored) return
+  let reference: { task_id?: string; project_id?: string; episode_id?: string; version_id?: number; content_hash?: string }
+  try {
+    reference = JSON.parse(stored) as typeof reference
+  } catch {
+    reference = { task_id: stored }
+  }
+  if (!reference.task_id || (reference.project_id && reference.project_id !== projectId.value) || (reference.episode_id && reference.episode_id !== episodeId.value)) return
+  analysisTaskId.value = reference.task_id
+  if (reference.version_id) currentVersionId.value = reference.version_id
+  analysisContentHash.value = reference.content_hash || ''
+  try {
+    await pollAnalysisTask(Number(projectId.value))
+  } catch {
+    analysisTaskError.value = '任务恢复失败，请从任务中心重新查看'
+  }
 }
 
 function extractParseError(error: unknown, fallback: string): ParseError {
@@ -450,6 +915,13 @@ onMounted(async () => {
     // Keep the local project cache available when the API is unavailable.
   }
   await Promise.all([loadScript(), loadProviderConfigs()])
+  await restoreAnalysisTask()
+})
+
+onBeforeUnmount(() => {
+  analysisPollToken += 1
+  if (analysisPollTimer !== null) window.clearTimeout(analysisPollTimer)
+  analysisPollTimer = null
 })
 
 watch(() => activeProject.value?.id, (next, previous) => {
@@ -457,7 +929,14 @@ watch(() => activeProject.value?.id, (next, previous) => {
 })
 
 watch(episodeId, (next, previous) => {
-  if (next && next !== previous) loadScript()
+  if (next && next !== previous) {
+    analysisPollToken += 1
+    analysisTaskId.value = ''
+    analysisTypeResults.value = []
+    analysisAdoptionTypes.value = []
+    loadScript()
+    void restoreAnalysisTask()
+  }
 })
 
 watch(selectedProviderId, (next, previous) => {

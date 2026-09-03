@@ -14,6 +14,8 @@ class ResponseBuilder {
 
     fun created(): Builder = Builder(ResponseCode.CREATED)
 
+    fun accepted(): Builder = Builder(ResponseCode.ACCEPTED)
+
     fun notFound(): Builder = Builder(ResponseCode.NOT_FOUND)
 
     fun badRequest(): Builder = Builder(ResponseCode.BAD_REQUEST)
@@ -94,6 +96,7 @@ class ResponseBuilder {
     enum class ResponseCode(val code: Int, val message: String) {
         OK(200, "OK"),
         CREATED(201, "Created"),
+        ACCEPTED(202, "Accepted"),
         NOT_FOUND(404, "Not Found"),
         UNAUTHORIZED(401, "Unauthorized"),
         FORBIDDEN(403, "Forbidden"),

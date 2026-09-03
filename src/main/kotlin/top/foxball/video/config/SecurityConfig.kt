@@ -47,8 +47,9 @@ class SecurityConfig(private val jwtAuthenticationFilter: JwtAuthenticationFilte
         .cors { }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
         .authorizeHttpRequests {
-            it.requestMatchers("/api/auth/**", "/actuator/health","/**").permitAll()
-                .anyRequest().authenticated()
+            it.requestMatchers("/api/auth/**", "/actuator/health").permitAll()
+                .requestMatchers("/api/**").authenticated()
+                .anyRequest().permitAll()
         }
         .exceptionHandling {
             it.authenticationEntryPoint { _, response, _ ->

@@ -117,6 +117,86 @@ class EpisodeAsset(
 
 enum class EpisodeAssetType { CHARACTER, SCENE_BACKGROUND, PROP, COSTUME, VOICE, MUSIC, SOUND_EFFECT }
 
+/** 单集角色详情；承载角色资产在形象设计、三视图与图像生成阶段所需的扩展信息。 */
+@Entity
+@Table(name = "character_profiles")
+class CharacterProfile(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null,
+
+    @Column(name = "project_id", nullable = false)
+    var projectId: Long = 0,
+
+    @Column(name = "episode_id", nullable = false)
+    var episodeId: Long = 0,
+
+    @Column(name = "episode_asset_id", nullable = false, unique = true)
+    var episodeAssetId: Long = 0,
+
+    @Column(name = "identity_title", length = 200)
+    var identityTitle: String? = null,
+
+    @Column(name = "role_tag", length = 50)
+    var roleTag: String? = null,
+
+    @Column(length = 50)
+    var gender: String? = null,
+
+    @Column(name = "age_stage", length = 50)
+    var ageStage: String? = null,
+
+    @Column(name = "age_note", length = 50)
+    var ageNote: String? = null,
+
+    @Column(name = "is_real_person", nullable = false)
+    var isRealPerson: Boolean = false,
+
+    @Column(name = "face_description", columnDefinition = "text")
+    var faceDescription: String? = null,
+
+    @Column(name = "costume_description", columnDefinition = "text")
+    var costumeDescription: String? = null,
+
+    @Column(name = "three_view_front_file_id", length = 64)
+    var threeViewFrontFileId: String? = null,
+
+    @Column(name = "three_view_side_file_id", length = 64)
+    var threeViewSideFileId: String? = null,
+
+    @Column(name = "three_view_back_file_id", length = 64)
+    var threeViewBackFileId: String? = null,
+
+    @Column(name = "three_view_merged_file_id", length = 64)
+    var threeViewMergedFileId: String? = null,
+
+    @Column(name = "expression_file_ids", columnDefinition = "text")
+    var expressionFileIds: String = "[]",
+
+    @Column(length = 100)
+    var hairstyle: String? = null,
+
+    @Column(length = 100)
+    var costumeRef: String? = null,
+
+    @Column(length = 100)
+    var accessoryRef: String? = null,
+
+    @Column(name = "voice_asset_id")
+    var voiceAssetId: Long? = null,
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null,
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null,
+
+    @Version
+    var entityVersion: Long = 0,
+)
+
 /** 资产生成或人工编辑的版本。 */
 @Entity
 @Table(name = "asset_versions")

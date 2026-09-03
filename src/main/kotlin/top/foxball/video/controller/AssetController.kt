@@ -11,25 +11,150 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import top.foxball.video.entity.jdbc.AssetStatus
 import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.EpisodeAssetType
-import top.foxball.video.ai.AiAnalysisException
-import top.foxball.video.ai.AiClientException
 import top.foxball.video.service.AssetService
+import top.foxball.video.service.FileService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
 import java.time.LocalDateTime
+import java.util.UUID
 
 @Validated
 @RestController
 /** 项目资产及完整性检查接口。 */
 class AssetController(
     private val assetService: AssetService,
+    private val fileService: FileService,
     private val responseBuilder: ResponseBuilder,
 ) {
+    private data class CharacterImageData(@param:JsonProperty("file_id") val fileId: String?, val url: String?)
+
+    data class CharacterProfileRequest(
+        @param:JsonProperty("identity_title") val identityTitle: String? = null,
+        @param:JsonProperty("role_tag") val roleTag: String? = null,
+        val gender: String? = null,
+        @param:JsonProperty("age_stage") val ageStage: String? = null,
+        @param:JsonProperty("age_note") val ageNote: String? = null,
+        @param:JsonProperty("is_real_person") val isRealPerson: Boolean = false,
+        @param:JsonProperty("face_description") val faceDescription: String? = null,
+        @param:JsonProperty("costume_description") val costumeDescription: String? = null,
+        @param:JsonProperty("three_view_front_file_id") val threeViewFrontFileId: String? = null,
+        @param:JsonProperty("three_view_side_file_id") val threeViewSideFileId: String? = null,
+        @param:JsonProperty("three_view_back_file_id") val threeViewBackFileId: String? = null,
+        @param:JsonProperty("three_view_merged_file_id") val threeViewMergedFileId: String? = null,
+        @param:JsonProperty("expression_file_ids") val expressionFileIds: List<String> = emptyList(),
+        val hairstyle: String? = null,
+        @param:JsonProperty("costume_ref") val costumeRef: String? = null,
+        @param:JsonProperty("accessory_ref") val accessoryRef: String? = null,
+        @param:JsonProperty("voice_asset_id") val voiceAssetId: Long? = null,
+    )
+
+    private data class CharacterProfileData(
+        @param:JsonProperty("asset_id") val assetId: Long,
+        val name: String,
+        @param:JsonProperty("identity_title") val identityTitle: String?,
+        @param:JsonProperty("role_tag") val roleTag: String?,
+        val gender: String?,
+        @param:JsonProperty("age_stage") val ageStage: String?,
+        @param:JsonProperty("age_note") val ageNote: String?,
+        @param:JsonProperty("is_real_person") val isRealPerson: Boolean,
+        @param:JsonProperty("face_description") val faceDescription: String?,
+        @param:JsonProperty("costume_description") val costumeDescription: String?,
+        @param:JsonProperty("three_view_front") val threeViewFront: CharacterImageData?,
+        @param:JsonProperty("three_view_side") val threeViewSide: CharacterImageData?,
+        @param:JsonProperty("three_view_back") val threeViewBack: CharacterImageData?,
+        @param:JsonProperty("three_view_merged") val threeViewMerged: CharacterImageData?,
+        @param:JsonProperty("expressions") val expressions: List<CharacterImageData>,
+        val hairstyle: String?,
+        @param:JsonProperty("costume_ref") val costumeRef: String?,
+        @param:JsonProperty("accessory_ref") val accessoryRef: String?,
+        @param:JsonProperty("voice_asset_id") val voiceAssetId: Long?,
+        @param:JsonProperty("voice_asset_name") val voiceAssetName: String?,
+        @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+    )
+
+    private fun resolveCharacterImage(userId: Long?, fileId: String?): CharacterImageData? {
+        val id = fileId?.trim()?.ifBlank { null } ?: return null
+        val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: return CharacterImageData(id, null)
+        val url = userId?.let { owner -> runCatching { fileService.createDownloadLinks(owner, listOf(uuid)).first().signedDownloadUrl }.getOrNull() }
+        return CharacterImageData(id, url)
+    }
+
+    private fun buildCharacterProfileData(userId: Long?, view: AssetService.CharacterProfileView): CharacterProfileData {
+        val profile = view.profile
+        return CharacterProfileData(
+            assetId = requireNotNull(view.asset.id),
+            name = view.asset.name,
+            identityTitle = profile.identityTitle,
+            roleTag = profile.roleTag,
+            gender = profile.gender,
+            ageStage = profile.ageStage,
+            ageNote = profile.ageNote,
+            isRealPerson = profile.isRealPerson,
+            faceDescription = profile.faceDescription,
+            costumeDescription = profile.costumeDescription,
+            threeViewFront = resolveCharacterImage(userId, profile.threeViewFrontFileId),
+            threeViewSide = resolveCharacterImage(userId, profile.threeViewSideFileId),
+            threeViewBack = resolveCharacterImage(userId, profile.threeViewBackFileId),
+            threeViewMerged = resolveCharacterImage(userId, profile.threeViewMergedFileId),
+            expressions = view.expressionFileIdList.mapNotNull { fileId -> resolveCharacterImage(userId, fileId) },
+            hairstyle = profile.hairstyle,
+            costumeRef = profile.costumeRef,
+            accessoryRef = profile.accessoryRef,
+            voiceAssetId = profile.voiceAssetId,
+            voiceAssetName = view.voiceAssetName,
+            updatedAt = profile.updatedAt,
+        )
+    }
+
+    @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/character-profile")
+    fun getCharacterProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+    ): ResponseEntity<Response> {
+        val view = assetService.loadCharacterProfile(projectId, episodeId, assetId) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildCharacterProfileData(userId, view)).build()
+    }
+
+    @PutMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/character-profile")
+    fun updateCharacterProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+        @RequestBody request: CharacterProfileRequest,
+    ): ResponseEntity<Response> {
+        data class Response(val data: CharacterProfileData)
+        val command = AssetService.CharacterProfileCommand(
+            identityTitle = request.identityTitle,
+            roleTag = request.roleTag,
+            gender = request.gender,
+            ageStage = request.ageStage,
+            ageNote = request.ageNote,
+            isRealPerson = request.isRealPerson,
+            faceDescription = request.faceDescription,
+            costumeDescription = request.costumeDescription,
+            threeViewFrontFileId = request.threeViewFrontFileId,
+            threeViewSideFileId = request.threeViewSideFileId,
+            threeViewBackFileId = request.threeViewBackFileId,
+            threeViewMergedFileId = request.threeViewMergedFileId,
+            expressionFileIds = request.expressionFileIds,
+            hairstyle = request.hairstyle,
+            costumeRef = request.costumeRef,
+            accessoryRef = request.accessoryRef,
+            voiceAssetId = request.voiceAssetId,
+        )
+        val view = assetService.saveCharacterProfile(projectId, episodeId, assetId, command) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildCharacterProfileData(userId, view)).build()
+    }
+
     @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")
     fun listEpisodeAssets(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long): ResponseEntity<Response> {
         data class AssetData(val id: Long, val name: String, val type: String, val description: String?, @param:JsonProperty("reference_url") val referenceUrl: String?, val notes: String?, val status: String, @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?)
@@ -73,23 +198,7 @@ class AssetController(
         @RequestParam("provider_config_id") providerConfigId: Long,
         @RequestParam("model") @Size(max = 200) model: String,
     ): ResponseEntity<Response> {
-        data class AssetData(val id: Long, val name: String, val type: String, val description: String?, val status: String)
-        data class ErrorData(@param:JsonProperty("error_code") val errorCode: Int?, @param:JsonProperty("response_content") val responseContent: String?, val provider: String, @param:JsonProperty("request_id") val requestId: String)
-        data class Response(val type: String, val provider: String, val model: String, @param:JsonProperty("request_id") val requestId: String, val list: List<AssetData>, val error: ErrorData? = null)
-        if (providerConfigId <= 0 || model.isBlank()) return responseBuilder.badRequest().message("请提供有效的解析模型和提供商配置").build()
-        val result = try {
-            assetService.extractEpisodeAssets(projectId, episodeId, type, providerConfigId, model)
-        } catch (exception: AiAnalysisException) {
-            val error = ErrorData(exception.errorCode ?: 503, exception.responseContent, exception.provider, exception.requestId)
-            return responseBuilder.serviceUnavailable().message(exception.message).data(mapOf("error" to error)).build()
-        } catch (exception: IllegalArgumentException) {
-            return responseBuilder.badRequest().message(exception.message).build()
-        } catch (exception: AiClientException) {
-            return responseBuilder.serviceUnavailable().message(exception.message).build()
-        } ?: return responseBuilder.notFound().build()
-        val list = result.assets.map { AssetData(requireNotNull(it.id), it.name, it.type.name, it.description, it.status.name) }
-        val rs = Response(type.name, result.provider, result.model, result.requestId, list)
-        return responseBuilder.ok().data(rs).build()
+        return responseBuilder.badRequest().message("剧集资产提取已切换为异步剧本解析任务，请先提交任务并在结果确认后采纳").build()
     }
     @GetMapping("/api/projects/{project_id}/assets")
     fun listAssets(@PathVariable("project_id") projectId: Long): ResponseEntity<Response> {

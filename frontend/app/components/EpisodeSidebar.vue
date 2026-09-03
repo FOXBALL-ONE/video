@@ -60,8 +60,9 @@
           <h2 class="m-0 mb-2 text-xs font-semibold text-[#4f596d]">项目资产总结</h2>
           <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
             <div class="flex justify-between text-[#7f899b]"><span>人物</span><strong class="text-[#30394a]">{{ count('character') }}</strong></div>
-            <div class="flex justify-between text-[#7f899b]"><span>场景</span><strong class="text-[#30394a]">{{ count('scene') }}</strong></div>
+            <div class="flex justify-between text-[#7f899b]"><span>场景背景</span><strong class="text-[#30394a]">{{ count('scene_background') }}</strong></div>
             <div class="flex justify-between text-[#7f899b]"><span>道具</span><strong class="text-[#30394a]">{{ count('prop') }}</strong></div>
+            <div class="flex justify-between text-[#7f899b]"><span>服饰</span><strong class="text-[#30394a]">{{ count('costume') }}</strong></div>
             <div class="flex justify-between text-[#7f899b]"><span>声音</span><strong class="text-[#30394a]">{{ count('voice') + count('music') + count('sound_effect') }}</strong></div>
           </div>
           <div class="mt-2 flex items-center justify-between border-t border-[#e8eaf0] pt-2 text-[10px] text-[#9299a7]"><span>全部资产</span><strong class="text-[#5c50dc]">{{ count('total') }}</strong></div>

@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 import jakarta.persistence.Version
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
@@ -339,3 +340,83 @@ enum class DialogueType {
 
 /** 剧本拆解任务状态。 */
 enum class ScriptAnalysisStatus { NOT_PARSED, PROCESSING, COMPLETED, FAILED }
+
+/** 异步剧本资产解析的不可变输入快照与待采纳结果。 */
+@Entity
+@Table(
+    name = "script_analysis_results",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_script_analysis_result_idempotency",
+            columnNames = ["project_id", "episode_id", "idempotency_key"],
+        ),
+    ],
+)
+class ScriptAnalysisResult(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null,
+
+    @Column(name = "task_id", nullable = false, unique = true)
+    var taskId: Long = 0,
+
+    @Column(name = "project_id", nullable = false)
+    var projectId: Long = 0,
+
+    @Column(name = "episode_id", nullable = false)
+    var episodeId: Long = 0,
+
+    @Column(name = "script_version_id", nullable = false)
+    var scriptVersionId: Long = 0,
+
+    @Column(name = "content_hash", nullable = false, length = 80)
+    var contentHash: String = "",
+
+    @Column(name = "source_content", nullable = false, columnDefinition = "text")
+    var sourceContent: String = "",
+
+    @Column(name = "selections_json", nullable = false, columnDefinition = "text")
+    var selectionsJson: String = "[]",
+
+    @Column(name = "type_results_json", nullable = false, columnDefinition = "text")
+    var typeResultsJson: String = "{}",
+
+    @Column(name = "result_json", columnDefinition = "text")
+    var resultJson: String? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_status", nullable = false, length = 30)
+    var resultStatus: ScriptAnalysisResultStatus = ScriptAnalysisResultStatus.PROCESSING,
+
+    @Column(name = "idempotency_key", length = 200)
+    var idempotencyKey: String? = null,
+
+    @Column(name = "adopted_types", nullable = false, length = 500)
+    var adoptedTypes: String = "",
+
+    @Column(name = "adopted_asset_ids", nullable = false, length = 10000)
+    var adoptedAssetIds: String = "",
+
+    @Column(name = "adoption_records_json", nullable = false, columnDefinition = "text")
+    var adoptionRecordsJson: String = "[]",
+
+    @Column(name = "adopted_at")
+    var adoptedAt: LocalDateTime? = null,
+
+    @Column(name = "discarded_at")
+    var discardedAt: LocalDateTime? = null,
+
+    @Version
+    var entityVersion: Long = 0,
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null,
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null,
+)
+
+/** 用户对解析暂存结果的处理状态，独立于 ProductionTask 的执行状态。 */
+enum class ScriptAnalysisResultStatus { PROCESSING, STAGED, PARTIALLY_ADOPTED, ADOPTED, DISCARDED, SUPERSEDED }

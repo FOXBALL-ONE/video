@@ -8,12 +8,12 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   devServer:{
-    host:"0.0.0.0",
+    host:"localhost",
     port: 8474
   },
   runtimeConfig: {
     public: {
-      apiBase:'http://127.0.0.1:8080/api'
+      apiBase:'http://127.0.0.1:4410/api'
     }
   },
 

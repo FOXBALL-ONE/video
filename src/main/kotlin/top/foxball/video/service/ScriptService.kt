@@ -59,6 +59,20 @@ class ScriptService(
         return snapshot(document, version)
     }
 
+    /** 只读取已存在的剧本文档，不为查询或任务校验创建空文档/空版本。 */
+    @Transactional(readOnly = true)
+    fun loadExisting(projectId: Long, episodeId: Long? = null): ScriptSnapshot? {
+        if (!projectRepository.existsById(projectId)) return null
+        if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
+        val document = if (episodeId == null) {
+            documentRepository.findByProjectIdAndEpisodeIdIsNull(projectId)
+        } else {
+            documentRepository.findByProjectIdAndEpisodeId(projectId, episodeId)
+        } ?: return null
+        val version = currentVersion(document) ?: return null
+        return snapshot(document, version)
+    }
+
     @Transactional
     fun save(projectId: Long, content: String, title: String?, episodeId: Long? = null): ScriptSnapshot? {
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
@@ -245,7 +259,8 @@ class ScriptService(
     private fun updateParsedDataFromAnalysis(version: ScriptVersion, analysis: JsonNode) {
         val scenes = analysis.path("scenes").takeIf { it.isArray }?.size() ?: 0
         val characters = analysis.path("characters").takeIf { it.isArray }?.size() ?: 0
-        val dialogues = analysis.path("dialogues").takeIf { it.isArray }?.size() ?: 0
+        // 新资产模板不输出 dialogues；没有该字段时保留保存正文时计算出的对白数。
+        val dialogues = analysis.path("dialogues").takeIf { it.isArray }?.size() ?: version.dialogueCount
         version.sceneCount = scenes
         version.characterCount = characters
         version.dialogueCount = dialogues
@@ -279,8 +294,16 @@ class ScriptService(
         val characterNodes = analysis.path("characters").takeIf { it.isArray }?.toList().orEmpty()
         val characters = characterNodes.mapNotNull { node ->
             val name = node.path("name").textValue()?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val description = listOfNotNull(node.path("identity").textValue(), node.path("appearance").textValue(), node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() }).filter { it.isNotBlank() }.joinToString("；").ifBlank { null }
-            name to characterRepository.save(ScriptCharacter(scriptVersionId = versionId, name = name, description = description, motivation = node.path("dialogue_intent").takeIf { it.isArray }?.joinToString("、") { it.textValue() }, relationship = node.path("relationships").toString().takeIf { it != "[]" }))
+            val description = listOfNotNull(
+                node.path("identity").textValue(),
+                node.path("appearance").textValue(),
+                node.path("personality").textValue() ?: node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() },
+            ).filter { it.isNotBlank() }.joinToString("；").ifBlank { null }
+            val motivation = node.path("dialogue_intent").textValue()
+                ?: node.path("dialogue_intent").takeIf { it.isArray }?.joinToString("、") { it.textValue() }
+            val relationship = node.path("relationships").textValue()
+                ?: node.path("relationships").toString().takeIf { it != "[]" && it != "null" }
+            name to characterRepository.save(ScriptCharacter(scriptVersionId = versionId, name = name, description = description, motivation = motivation, relationship = relationship))
         }.toMap()
         val sceneBySourceId = sceneNodes.mapIndexedNotNull { index, node -> node.path("id").textValue()?.let { it to scenes[index] } }.toMap()
         analysis.path("dialogues").takeIf { it.isArray }?.toList().orEmpty().forEachIndexed { index, node ->
@@ -306,7 +329,7 @@ class ScriptService(
                 episodeAssetRepository.save(asset)
             }
         }
-        sync(analysis.path("characters"), EpisodeAssetType.CHARACTER, { node -> listOfNotNull(node.path("identity").textValue(), node.path("appearance").textValue(), node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() }).joinToString("；").ifBlank { null } }, { it.toString() })
+        sync(analysis.path("characters"), EpisodeAssetType.CHARACTER, { node -> listOfNotNull(node.path("identity").textValue(), node.path("appearance").textValue(), node.path("personality").textValue() ?: node.path("personality").takeIf { it.isArray }?.joinToString("、") { it.textValue() }).joinToString("；").ifBlank { null } }, { it.toString() })
         sync(analysis.path("scenes"), EpisodeAssetType.SCENE_BACKGROUND, { node -> listOfNotNull(node.path("location").textValue(), node.path("time").textValue(), node.path("lighting").textValue(), node.path("visual_style").textValue()).joinToString("；").ifBlank { null } }, { it.toString() })
         sync(analysis.path("props"), EpisodeAssetType.PROP, { it.path("description").textValue() }, { it.toString() })
         sync(analysis.path("costumes"), EpisodeAssetType.COSTUME, { it.path("description").textValue() }, { it.toString() })
@@ -402,130 +425,42 @@ class ScriptService(
     }
 
     companion object {
-        private const val ANALYSIS_TEMPLATE = """你是一名专业的影视剧本拆解师和 AI 短剧制作策划。
+        private const val ANALYSIS_TEMPLATE = """你是一名专业的影视剧本资产提取师,负责从 AI 短剧剧本正文中提取结构化资产信息。
 
-请阅读下面的剧本文本，系统提取其中的人物、场景、道具、服装、动作、情绪、剧情节点、对白、音效和视觉要求，服务于后续的分镜设计、角色设定、场景生成和视频制作。
+## 任务
+阅读【剧本文本】,提取三类资产:角色(characters)、场景(scenes)、道具(props),输出一个 JSON 对象。
 
-【剧本文本】
-{{剧本文本}}
+## 提取规则
+1. 忠实原文:只提取正文中出现、或能从上下文明确推断的实体;禁止虚构、扩写或引入剧本之外的设定。
+2. 合并去重:同一实体的不同写法(如"林总"与"林正雄"、台词署名与动作描写中的称呼)合并为一条;name 使用正文中最正式、最完整的名称。
+3. 类型判定:
+   - characters:有名有姓、或以明确指代参与剧情的人物(如"外卖员")均提取;仅顺带提及、无剧情作用的背景人群不入列。
+   - scenes:剧情实际发生的地点(内景/外景、实景/虚拟空间);仅在对白中被追述、无呈现需求的地点不入列。
+   - props:被角色使用、持有或推动剧情的物件;纯氛围装饰且无连续性要求的不入列。
+4. 关联引用:为每条记录生成稳定 id(角色 C1/C2…,场景 S1/S2…,道具 P1/P2…);relationships、owner、plot_purpose 中涉及其他实体时,用对应 id 指代,禁止只写名字。
+5. 字段填写:字段值为简体中文短语或短句;正文无依据的字段填 null,不要猜测;description 仅在信息零散、不便归入具体字段时作兜底概述。每个对象的字段名只能出现一次,禁止重复键。
+6. 数量与顺序:每类最多 50 条,按首次出场顺序排列;某类没有则输出空数组 []。
 
-【提取要求】
-1. 只提取剧本中明确出现或可以合理推断的内容，不要凭空补充。
-2. 对同一对象进行合并，避免重复。
-3. 为每个实体生成唯一 ID，例如：character_001、scene_001、prop_001。
-4. 如果信息不明确，填写 null，并在 remarks 中说明“不明确”。
-5. 保留人物在不同剧情阶段的状态变化，例如身份、年龄、服装、受伤、情绪变化。
-6. 区分主要人物、次要人物、群众人物；区分室内、室外、现实、回忆、梦境等场景；区分关键道具、普通道具和具有剧情功能的道具。
-7. 保留实体之间的关联，例如人物出现在哪个场景、使用了什么道具、与谁发生关系。
-8. 输出必须是合法 JSON，不要输出 Markdown、解释文字或额外内容。
+## 字段说明
+- characters:name 角色名;identity 身份职业;appearance 外貌(性别/年龄/造型);personality 性格;relationships 与其他角色的关系;dialogue_intent 台词意图或出场要求;remarks 其他备注;description 信息零散时的兜底概述。
+- scenes:name 场景名;location 具体地点;environment_type 内景/外景/实景/虚拟;time 时间段;weather 天气;lighting 光线氛围;visual_style 视觉风格;plot_purpose 该场景承担的剧情功能;actions 场景中的典型动作;remarks 其他备注;description 信息零散时的兜底概述。
+- props:name 道具名;category 类别(手持/穿戴/陈设/交通工具等);description 外观;owner 持有角色;function 剧情功能;continuity_notes 连续性要求(磨损、数量、位置变化等);remarks 其他备注。
 
-【输出格式】
+## 输出格式
+只输出一个合法 JSON 对象,不要 Markdown 代码块、注释或任何解释文字。结构如下(值仅为示例,须替换为实际提取结果):
 {
-  "title": "剧本标题",
-  "genre": "题材类型",
-  "overall_summary": "不超过100字的剧情概述",
   "characters": [
-    {
-      "id": "character_001",
-      "name": "人物名称",
-      "aliases": ["别名或称呼"],
-      "role_type": "主角/配角/群众",
-      "gender": "男/女/未知",
-      "age": "年龄或年龄段",
-      "identity": "身份、职业或社会关系",
-      "personality": ["性格关键词"],
-      "appearance": "外貌特征",
-      "costume": [{"description": "服装描述", "related_scenes": ["scene_001"], "continuity_notes": "服装连续性要求"}],
-      "emotional_arc": [{"stage": "剧情阶段", "emotion": "情绪", "trigger": "引发情绪的事件"}],
-      "relationships": [{"target_character_id": "character_002", "relationship": "关系", "description": "关系说明"}],
-      "actions": ["关键动作"],
-      "dialogue_intent": ["对白意图或语言风格"],
-      "related_scenes": ["scene_001"],
-      "remarks": "其他信息"
-    }
+    {"id": "C1", "name": null, "identity": null, "appearance": null, "personality": null, "relationships": null, "dialogue_intent": null, "remarks": null, "description": null}
   ],
   "scenes": [
-    {
-      "id": "scene_001",
-      "sequence": 1,
-      "name": "场景名称",
-      "location": "具体地点",
-      "environment_type": "室内/室外/现实/回忆/梦境",
-      "time": "时间、季节或时间段",
-      "weather": "天气",
-      "lighting": "光线和氛围",
-      "visual_style": "画面风格、色调或镜头氛围",
-      "characters": ["character_001"],
-      "props": ["prop_001"],
-      "actions": ["场景中发生的动作"],
-      "plot_purpose": "该场景对剧情的作用",
-      "sound_design": ["环境音、音效或音乐"],
-      "transition": "与前后场景的衔接方式",
-      "remarks": "其他信息"
-    }
+    {"id": "S1", "name": null, "location": null, "environment_type": null, "time": null, "weather": null, "lighting": null, "visual_style": null, "plot_purpose": null, "actions": null, "remarks": null, "description": null}
   ],
   "props": [
-    {
-      "id": "prop_001",
-      "name": "道具名称",
-      "category": "关键道具/普通道具/交通工具/电子设备/武器/文件等",
-      "description": "外观和材质",
-      "owner": "所属人物或组织",
-      "function": "剧情功能",
-      "first_appearance": "scene_001",
-      "related_scenes": ["scene_001"],
-      "continuity_notes": "道具在不同场景中的状态变化",
-      "remarks": "其他信息"
-    }
-  ],
-  "costumes": [
-    {
-      "id": "costume_001",
-      "character_id": "character_001",
-      "description": "服装、鞋帽和配饰",
-      "style": "服装风格",
-      "color_palette": ["颜色"],
-      "related_scenes": ["scene_001"],
-      "continuity_notes": "服装变化或连续性要求"
-    }
-  ],
-  "plot_beats": [
-    {
-      "sequence": 1,
-      "scene_id": "scene_001",
-      "event": "剧情事件",
-      "participants": ["character_001"],
-      "conflict": "冲突或矛盾",
-      "result": "事件结果",
-      "importance": "核心/重要/一般"
-    }
-  ],
-  "dialogues": [
-    {
-      "scene_id": "scene_001",
-      "speaker_id": "character_001",
-      "text": "对白原文",
-      "target": "对白对象",
-      "emotion": "说话时的情绪",
-      "purpose": "推动剧情/交代信息/制造冲突/表达情感"
-    }
-  ],
-  "visual_requirements": [
-    {
-      "scene_id": "scene_001",
-      "requirement_type": "人物特写/环境全景/动作/特效/特殊构图",
-      "description": "AI 生成画面时必须体现的内容",
-      "priority": "高/中/低"
-    }
-  ],
-  "continuity_risks": [
-    {
-      "type": "人物/服装/道具/场景/时间线",
-      "description": "可能产生前后不一致的地方",
-      "related_ids": ["character_001", "scene_001"],
-      "solution": "建议的连续性处理方式"
-    }
+    {"id": "P1", "name": null, "category": null, "description": null, "owner": null, "function": null, "continuity_notes": null, "remarks": null}
   ]
-}"""
+}
+
+【剧本文本】
+{{剧本文本}}"""
     }
 }

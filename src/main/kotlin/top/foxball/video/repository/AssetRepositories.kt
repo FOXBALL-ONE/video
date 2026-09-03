@@ -1,6 +1,8 @@
 package top.foxball.video.repository
 
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
+import jakarta.persistence.LockModeType
 import top.foxball.video.entity.jdbc.Asset
 import top.foxball.video.entity.jdbc.AssetIssue
 import top.foxball.video.entity.jdbc.AssetLicense
@@ -8,6 +10,7 @@ import top.foxball.video.entity.jdbc.AssetTag
 import top.foxball.video.entity.jdbc.AssetTagRelation
 import top.foxball.video.entity.jdbc.AssetVersion
 import top.foxball.video.entity.jdbc.AssetType
+import top.foxball.video.entity.jdbc.CharacterProfile
 import top.foxball.video.entity.jdbc.EpisodeAsset
 import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.entity.jdbc.VoiceProfile
@@ -26,7 +29,11 @@ interface AssetRepository : JpaRepository<Asset, Long> {
 
 /** 单集资产的数据访问接口。 */
 interface EpisodeAssetRepository : JpaRepository<EpisodeAsset, Long> {
+    fun findAllByProjectIdOrderByUpdatedAtDesc(projectId: Long): List<EpisodeAsset>
     fun findAllByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): List<EpisodeAsset>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    fun findAllWithLockByProjectIdAndEpisodeIdOrderByUpdatedAtDesc(projectId: Long, episodeId: Long): List<EpisodeAsset>
     fun findByIdAndProjectIdAndEpisodeId(id: Long, projectId: Long, episodeId: Long): EpisodeAsset?
     fun findByProjectIdAndEpisodeIdAndNameAndType(projectId: Long, episodeId: Long, name: String, type: EpisodeAssetType): EpisodeAsset?
 }
@@ -53,6 +60,15 @@ interface VoiceProfileRepository : JpaRepository<VoiceProfile, Long> {
 
     /** 查询角色绑定的声线。 */
     fun findByProjectIdAndCharacterId(projectId: Long, characterId: Long): VoiceProfile?
+}
+
+/** 单集角色详情的数据访问接口。 */
+interface CharacterProfileRepository : JpaRepository<CharacterProfile, Long> {
+    /** 按单集资产主键查询角色详情。 */
+    fun findByEpisodeAssetId(episodeAssetId: Long): CharacterProfile?
+
+    /** 按剧集查询全部角色详情。 */
+    fun findAllByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): List<CharacterProfile>
 }
 
 /** 资产缺口问题的数据访问接口。 */

@@ -81,6 +81,93 @@
         </n-form>
         <template #footer><div class="flex justify-end gap-2"><n-button @click="editorVisible = false">取消</n-button><n-button type="primary" :loading="saving" @click="submitAsset">保存</n-button></div></template>
       </n-modal>
+      <n-modal v-model:show="characterVisible" preset="card" class="w-[min(96vw,760px)]" :mask-closable="false">
+        <template #header>
+          <div class="flex min-w-0 items-baseline gap-2 text-[16px] font-medium"><span class="truncate">角色详情: {{ characterName }}</span><template v-if="characterForm.identity_title"><span class="text-[#c3c9d6]">|</span><span class="shrink-0 text-[13px] font-normal text-[#8a94aa]">{{ characterForm.identity_title }}</span></template></div>
+        </template>
+        <template #header-extra>
+          <div class="flex items-center gap-2">
+            <n-button size="small" class="!rounded-[8px]" @click="notifyGenerationPending">去生图</n-button>
+            <n-button size="small" color="#f0820d" type="primary" class="!rounded-[8px]" @click="notifyGenerationPending">训练</n-button>
+          </div>
+        </template>
+        <div v-if="characterLoading" class="py-16 text-center text-sm text-[#929bad]">正在加载角色详情...</div>
+        <div v-else class="space-y-5">
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">基本信息</h3>
+            <div class="mt-2.5 flex flex-wrap items-center gap-2">
+              <span class="text-xs text-[#8994a8]">卡片：</span>
+              <n-input v-model:value="characterForm.role_tag" size="small" placeholder="角色定位" class="tag-input tag-primary !w-[76px]" />
+              <n-input v-model:value="characterForm.gender" size="small" placeholder="性别" class="tag-input !w-[60px]" />
+              <n-input v-model:value="characterForm.age_stage" size="small" placeholder="年龄段" class="tag-input !w-[84px]" />
+              <n-input v-model:value="characterForm.age_note" size="small" placeholder="年龄备注" class="tag-input !w-[84px]" />
+            </div>
+            <div class="mt-3 flex justify-end"><n-checkbox v-model:checked="characterForm.is_real_person">该角色为真人</n-checkbox></div>
+          </section>
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">人脸 <span class="text-[11px] font-normal text-[#b6bdcc]">(Seedance 2.0)</span></h3>
+            <n-input v-model:value="characterForm.face_description" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" :bordered="false" placeholder="填写角色面部特征描述，供图像生成参考" class="plain-area mt-2" />
+          </section>
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">服装</h3>
+            <n-input v-model:value="characterForm.costume_description" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" :bordered="false" placeholder="填写角色服装与造型描述，供图像生成参考" class="plain-area mt-2" />
+          </section>
+          <section>
+            <div class="flex items-center justify-between"><h3 class="m-0 text-[13px] font-medium text-[#20283b]">三视图</h3><n-button size="small" color="#f0820d" secondary class="!rounded-[8px]" @click="notifyGenerationPending">生成三视图</n-button></div>
+            <div class="mt-3 flex flex-wrap gap-5">
+              <div v-for="view in threeViewSlots" :key="view.key" class="flex flex-col items-center gap-1.5">
+                <div class="image-slot" :class="{ 'is-busy': uploading && uploadSlot === view.key }" @click="triggerImageUpload(view.key)">
+                  <img v-if="characterImages[view.key]?.url" :src="characterImages[view.key]?.url || ''" class="h-full w-full object-cover" alt="">
+                  <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4" /><path d="M5.5 19.2c1.1-3.2 3.6-4.8 6.5-4.8s5.4 1.6 6.5 4.8" /></svg>
+                    <span class="px-1 text-center text-[10px] leading-3">点击上传或选择</span>
+                  </div>
+                  <button v-if="characterImages[view.key]" class="slot-remove" type="button" @click.stop="clearCharacterImage(view.key)">×</button>
+                  <div v-if="uploading && uploadSlot === view.key" class="slot-busy-mask">上传中...</div>
+                </div>
+                <span class="text-[11px] text-[#8a94aa]">{{ view.label }}</span>
+              </div>
+            </div>
+          </section>
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">合并三视图</h3>
+            <div class="image-slot image-slot--wide mt-3" :class="{ 'is-busy': uploading && uploadSlot === 'merged' }" @click="triggerImageUpload('merged')">
+              <img v-if="characterImages.merged?.url" :src="characterImages.merged.url" class="h-full w-full object-contain" alt="">
+              <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8.2" r="3.4" /><path d="M5.5 19.2c1.1-3.2 3.6-4.8 6.5-4.8s5.4 1.6 6.5 4.8" /></svg>
+                <span class="px-1 text-center text-[10px] leading-3">点击上传或选择</span>
+              </div>
+              <button v-if="characterImages.merged" class="slot-remove" type="button" @click.stop="clearCharacterImage('merged')">×</button>
+              <div v-if="uploading && uploadSlot === 'merged'" class="slot-busy-mask">上传中...</div>
+            </div>
+          </section>
+          <section>
+            <div class="flex items-center justify-between"><h3 class="m-0 text-[13px] font-medium text-[#20283b]">表情图</h3><n-button size="small" color="#f0820d" secondary class="!rounded-[8px]" @click="notifyGenerationPending">生成表情图</n-button></div>
+            <div v-if="!characterImages.expressions.length" class="mt-3 py-8 text-center text-[13px] text-[#b6bdcc]">暂无数据</div>
+            <div v-else class="mt-3 flex flex-wrap gap-3"><img v-for="(item, index) in characterImages.expressions" :key="item.file_id || index" :src="item.url || ''" class="image-slot !h-[96px] !w-[96px] cursor-default" alt=""></div>
+          </section>
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">元素搭配</h3>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div v-for="field in elementFields" :key="field.key" class="rounded-[10px] border border-[#e8eaf0] bg-white px-3 py-2">
+                <span class="text-xs text-[#5c6778]">{{ field.label }}</span>
+                <n-input v-model:value="characterForm[field.key]" size="small" :bordered="false" placeholder="—" class="mt-0.5 !px-0" />
+              </div>
+            </div>
+          </section>
+          <section>
+            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">配音绑定</h3>
+            <div class="mt-3 flex items-center justify-between rounded-[10px] border border-[#e8eaf0] bg-white px-3.5 py-2">
+              <span class="text-[13px]" :class="characterForm.voice_asset_id ? 'text-[#20283b]' : 'text-[#b6bdcc]'">{{ voiceBindingLabel }}</span>
+              <n-popselect v-model:value="characterForm.voice_asset_id" :options="voiceOptions" trigger="click">
+                <n-button size="tiny" quaternary class="!text-[#5a4ef0]">选择角色</n-button>
+              </n-popselect>
+            </div>
+          </section>
+          <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="onImageChosen">
+        </div>
+        <template #footer><div class="flex justify-end gap-2"><n-button @click="characterVisible = false">取消</n-button><n-button color="#f0820d" type="primary" :loading="characterSaving" @click="saveCharacterProfile">保存</n-button></div></template>
+      </n-modal>
     </div>
   </main>
 </template>
@@ -93,7 +180,15 @@ interface ProviderConfig { id: number; provider: string; model_id: string; base_
 interface ModelOption { label: string; value: string }
 interface ExtractionError { message: string; error_code?: number | null; response_content?: string | null; provider?: string; request_id?: string }
 interface ExtractionJob { type: string; label: string; agentLabel: string; description: string; enabled: boolean; modelKey: string }
-const message = useMessage(); const http = useHttp(); const route = useRoute(); const { activeProject, loadProjects } = useProjectWorkspace(); const { activeEpisode } = useEpisodeWorkspace()
+interface CharacterImageRef { file_id: string | null; url: string | null }
+interface CharacterProfileData {
+  asset_id: number; name: string; identity_title: string | null; role_tag: string | null; gender: string | null; age_stage: string | null; age_note: string | null; is_real_person: boolean
+  face_description: string | null; costume_description: string | null
+  three_view_front: CharacterImageRef | null; three_view_side: CharacterImageRef | null; three_view_back: CharacterImageRef | null; three_view_merged: CharacterImageRef | null; expressions: CharacterImageRef[]
+  hairstyle: string | null; costume_ref: string | null; accessory_ref: string | null; voice_asset_id: number | null; voice_asset_name: string | null
+}
+type CharacterImageSlot = 'front' | 'side' | 'back' | 'merged'
+const message = useMessage(); const http = useHttp(); const route = useRoute(); const { activeProject, loadProjects } = useProjectWorkspace(); const { activeEpisode, loadEpisodes, loadLibrary } = useEpisodeWorkspace()
 const assets = ref<AssetItem[]>([]); const loading = ref(false); const saving = ref(false); const completeness = ref(0); const search = ref(''); const selectedFilter = ref('ALL'); const editorVisible = ref(false); const editing = ref<AssetItem | null>(null)
 const extractionVisible = ref(false); const extracting = ref(false); const extractionError = ref<ExtractionError | null>(null); const providers = ref<ProviderConfig[]>([]); const modelOptions = ref<ModelOption[]>([])
 const extractionJobs = reactive<ExtractionJob[]>([
@@ -103,17 +198,26 @@ const extractionJobs = reactive<ExtractionJob[]>([
   { type: 'COSTUME', label: '服装提取智能体', agentLabel: '服装/造型智能体', description: '提取人物服装、配饰、色彩和连续性要求。', enabled: false, modelKey: '' },
 ])
 const draft = reactive({ name: '', type: 'PROP', description: '', reference_url: '', notes: '', status: 'DRAFT' })
+const characterVisible = ref(false); const characterLoading = ref(false); const characterSaving = ref(false); const characterAssetId = ref(0)
+const characterForm = reactive({ identity_title: '', role_tag: '', gender: '', age_stage: '', age_note: '', is_real_person: false, face_description: '', costume_description: '', hairstyle: '', costume_ref: '', accessory_ref: '', voice_asset_id: 0 })
+const characterImages = reactive<{ front: CharacterImageRef | null; side: CharacterImageRef | null; back: CharacterImageRef | null; merged: CharacterImageRef | null; expressions: CharacterImageRef[] }>({ front: null, side: null, back: null, merged: null, expressions: [] })
+const uploadSlot = ref<CharacterImageSlot | ''>(''); const uploading = ref(false); const fileInputRef = ref<HTMLInputElement | null>(null)
+const threeViewSlots: { key: CharacterImageSlot; label: string }[] = [{ key: 'front', label: '正面' }, { key: 'side', label: '侧面' }, { key: 'back', label: '背面' }]
+const elementFields = [{ key: 'hairstyle', label: '发型' }, { key: 'costume_ref', label: '服饰' }, { key: 'accessory_ref', label: '配饰' }] as const
+const voiceOptions = computed(() => [{ label: '未绑定', value: 0 }, ...assets.value.filter((item) => item.type === 'VOICE').map((item) => ({ label: item.name, value: item.id }))])
+const characterName = computed(() => assets.value.find((item) => item.id === characterAssetId.value)?.name || '')
+const voiceBindingLabel = computed(() => characterForm.voice_asset_id ? (voiceOptions.value.find((option) => option.value === characterForm.voice_asset_id)?.label || '未绑定角色') : '未绑定角色')
 const filters = [{ key: 'ALL', label: '全部' }, { key: 'CHARACTER', label: '角色' }, { key: 'SCENE_BACKGROUND', label: '场景背景' }, { key: 'SCENE', label: '场景' }, { key: 'PROP', label: '道具' }, { key: 'COSTUME', label: '服饰' }, { key: 'VOICE', label: '声音' }]
 const typeLabel: Record<string, string> = { CHARACTER: '角色', SCENE_BACKGROUND: '场景背景', SCENE: '场景', PROP: '道具', COSTUME: '服饰', VOICE: '声音', MUSIC: '音乐', SOUND_EFFECT: '音效' }
 const statusLabel: Record<string, string> = { DRAFT: '草稿', PENDING_CONFIRMATION: '待确认', LOCKED: '已锁定', NEEDS_COPYRIGHT: '缺少版权', TO_GENERATE: '待生成', READY: '已就绪', ARCHIVED: '已归档' }
 const colorByType: Record<string, string> = { CHARACTER: 'linear-gradient(135deg,#9a8bea,#6556d9)', SCENE_BACKGROUND: 'linear-gradient(135deg,#eda977,#d87947)', PROP: 'linear-gradient(135deg,#c9a66f,#a8783d)', COSTUME: 'linear-gradient(135deg,#de8da8,#b74c72)', VOICE: 'linear-gradient(135deg,#66bfa7,#278d76)', MUSIC: 'linear-gradient(135deg,#ae8bd4,#7852ad)', SOUND_EFFECT: 'linear-gradient(135deg,#79aee4,#447ab7)' }
 const filteredAssets = computed(() => assets.value.filter((item) => (selectedFilter.value === 'ALL' || item.type === selectedFilter.value) && (!search.value || `${item.name}${item.description || ''}`.toLowerCase().includes(search.value.toLowerCase()))))
 const assistantMessage = ref('我是资产统筹助手。可以帮助检查本集资产缺口和连续性。'); const assistantSuggestions = ['检查本集缺口', '完善角色一致性', '整理服饰清单']
-const projectId = computed(() => Number(route.params.projectId || activeProject.value?.id)); const episodeId = computed(() => Number(route.params.episodeId || '')); const hasEpisode = computed(() => Number.isInteger(episodeId.value) && episodeId.value > 0); const episodePath = computed(() => hasEpisode.value ? `/projects/${projectId.value}/episodes/${episodeId.value}/assets` : `/projects/${projectId.value}/assets`)
+const projectId = computed(() => Number(route.params.projectId || activeProject.value?.id)); const routeEpisodeId = computed(() => Number(route.params.episodeId || '')); const episodeId = computed(() => { if (Number.isInteger(routeEpisodeId.value) && routeEpisodeId.value > 0) return routeEpisodeId.value; if (activeEpisode.value?.projectId !== String(projectId.value)) return Number.NaN; return Number(activeEpisode.value.id) }); const hasEpisode = computed(() => Number.isInteger(episodeId.value) && episodeId.value > 0); const episodePath = computed(() => hasEpisode.value ? `/projects/${projectId.value}/episodes/${episodeId.value}/assets` : `/projects/${projectId.value}/assets`)
 const typeOptions = computed(() => (hasEpisode.value ? filters.filter((item) => ['CHARACTER', 'SCENE_BACKGROUND', 'PROP', 'COSTUME', 'VOICE'].includes(item.key)) : filters.filter((item) => ['CHARACTER', 'SCENE', 'PROP', 'VOICE'].includes(item.key))).map((item) => ({ label: item.label, value: item.key })).concat([{ label: '音乐', value: 'MUSIC' }, { label: '音效', value: 'SOUND_EFFECT' }]))
 const statusOptions = Object.entries(statusLabel).map(([value, label]) => ({ value, label }))
 const selectedExtractionCount = computed(() => extractionJobs.filter((job) => job.enabled).length)
-async function loadAssets() { if (!Number.isInteger(projectId.value) || projectId.value <= 0) return; loading.value = true; try { const data = await http.get<AssetResponse>(episodePath.value); assets.value = data.list || []; completeness.value = data.completeness || 0 } catch (error) { message.error(error instanceof Error ? error.message : '资产加载失败') } finally { loading.value = false } }
+async function loadAssets() { if (!Number.isInteger(projectId.value) || projectId.value <= 0) return; loading.value = true; try { const data = await http.get<AssetResponse>(episodePath.value); assets.value = data.list || []; completeness.value = data.completeness || 0; try { await loadLibrary(projectId.value) } catch { /* Keep the workflow list usable when the sidebar refresh is unavailable. */ } } catch (error) { message.error(error instanceof Error ? error.message : '资产加载失败') } finally { loading.value = false } }
 async function loadProviders() {
   try {
     const response = await http.get<{ list: ProviderConfig[] }>('/ai/model-providers')
@@ -133,7 +237,7 @@ async function loadProviders() {
 }
 function openExtraction() { extractionError.value = null; extractionJobs.forEach((job) => { if (!job.modelKey) job.modelKey = modelOptions.value[0]?.value || '' }); extractionVisible.value = true }
 function openCreate() { editing.value = null; Object.assign(draft, { name: '', type: 'PROP', description: '', reference_url: '', notes: '', status: 'DRAFT' }); editorVisible.value = true }
-function openEdit(asset: AssetItem) { editing.value = asset; Object.assign(draft, { name: asset.name, type: asset.type, description: asset.description || '', reference_url: asset.reference_url || '', notes: asset.notes || '', status: asset.status }); editorVisible.value = true }
+function openEdit(asset: AssetItem) { if (hasEpisode.value && asset.type === 'CHARACTER') { openCharacterDetail(asset); return } editing.value = asset; Object.assign(draft, { name: asset.name, type: asset.type, description: asset.description || '', reference_url: asset.reference_url || '', notes: asset.notes || '', status: asset.status }); editorVisible.value = true }
 async function submitAsset() { if (!draft.name.trim()) { message.warning('请填写资产名称'); return }; saving.value = true; try { const payload = { name: draft.name.trim(), type: draft.type, description: draft.description, reference_url: draft.reference_url || '', notes: draft.notes || '', status: draft.status }; if (editing.value) await http.put(`${episodePath.value}/${editing.value.id}`, payload); else await http.post(episodePath.value, payload); editorVisible.value = false; await loadAssets(); message.success('资产已保存') } catch (error) { message.error(error instanceof Error ? error.message : '资产保存失败') } finally { saving.value = false } }
 async function removeAsset(asset: AssetItem) { try { await http.delete(`${episodePath.value}/${asset.id}`); await loadAssets(); message.success('资产已删除') } catch (error) { message.error(error instanceof Error ? error.message : '资产删除失败') } }
 async function startExtraction() {
@@ -164,7 +268,57 @@ function extractExtractionError(error: unknown, fallback: string): ExtractionErr
   return structured ? { ...structured, message: value.data?.message || value.message || fallback } : { message: value.data?.message || value.message || fallback }
 }
 async function saveDraft() { saving.value = true; try { await loadAssets(); message.success('资产草稿已保存') } finally { saving.value = false } }
+async function openCharacterDetail(asset: AssetItem) {
+  characterAssetId.value = asset.id; characterVisible.value = true; characterLoading.value = true
+  try {
+    const data = await http.get<CharacterProfileData>(`${episodePath.value}/${asset.id}/character-profile`)
+    applyCharacterProfile(data)
+  } catch (error) {
+    characterVisible.value = false
+    message.error(error instanceof Error ? error.message : '角色详情加载失败')
+  } finally { characterLoading.value = false }
+}
+function applyCharacterProfile(data: CharacterProfileData) {
+  Object.assign(characterForm, { identity_title: data.identity_title || '', role_tag: data.role_tag || '', gender: data.gender || '', age_stage: data.age_stage || '', age_note: data.age_note || '', is_real_person: !!data.is_real_person, face_description: data.face_description || '', costume_description: data.costume_description || '', hairstyle: data.hairstyle || '', costume_ref: data.costume_ref || '', accessory_ref: data.accessory_ref || '', voice_asset_id: data.voice_asset_id || 0 })
+  characterImages.front = data.three_view_front; characterImages.side = data.three_view_side; characterImages.back = data.three_view_back; characterImages.merged = data.three_view_merged; characterImages.expressions = data.expressions || []
+}
+async function saveCharacterProfile() {
+  if (!characterAssetId.value) return
+  characterSaving.value = true
+  try {
+    const payload = { identity_title: characterForm.identity_title, role_tag: characterForm.role_tag, gender: characterForm.gender, age_stage: characterForm.age_stage, age_note: characterForm.age_note, is_real_person: characterForm.is_real_person, face_description: characterForm.face_description, costume_description: characterForm.costume_description, three_view_front_file_id: characterImages.front?.file_id || '', three_view_side_file_id: characterImages.side?.file_id || '', three_view_back_file_id: characterImages.back?.file_id || '', three_view_merged_file_id: characterImages.merged?.file_id || '', expression_file_ids: characterImages.expressions.map((item) => item.file_id || '').filter(Boolean), hairstyle: characterForm.hairstyle, costume_ref: characterForm.costume_ref, accessory_ref: characterForm.accessory_ref, voice_asset_id: characterForm.voice_asset_id || null }
+    const data = await http.put<CharacterProfileData, Record<string, unknown>>(`${episodePath.value}/${characterAssetId.value}/character-profile`, payload, { payloadMode: 'json' })
+    applyCharacterProfile(data)
+    message.success('角色详情已保存')
+  } catch (error) { message.error(error instanceof Error ? error.message : '角色详情保存失败') } finally { characterSaving.value = false }
+}
+function triggerImageUpload(slot: CharacterImageSlot) { uploadSlot.value = slot; const input = fileInputRef.value; if (input) { input.value = ''; input.click() } }
+async function onImageChosen(event: Event) {
+  const input = event.target as HTMLInputElement; const file = input.files?.[0]; const slot = uploadSlot.value
+  if (!file || !slot) return
+  uploading.value = true
+  try {
+    const formData = new FormData(); formData.append('files', file)
+    const response = await http.post<{ list: { id: string; signed_download_url: string }[] }, FormData>('/files', formData)
+    const uploaded = response.list?.[0]
+    if (uploaded) characterImages[slot] = { file_id: uploaded.id, url: uploaded.signed_download_url }
+  } catch (error) { message.error(error instanceof Error ? error.message : '图片上传失败') } finally { uploading.value = false; uploadSlot.value = '' }
+}
+function clearCharacterImage(slot: CharacterImageSlot) { characterImages[slot] = null }
+function notifyGenerationPending() { message.info('AI 图像生成能力即将上线') }
 function updateAssistant(value: string) { assistantMessage.value = `收到“${value}”，我会整理当前剧集的执行建议。` }
-onMounted(async () => { try { await loadProjects() } catch {} await Promise.all([loadAssets(), loadProviders()]) }); watch(() => [route.params.episodeId, activeProject.value?.id], loadAssets)
+onMounted(async () => { try { await loadProjects() } catch {} try { await loadEpisodes(String(projectId.value)) } catch {} await Promise.all([loadAssets(), loadProviders()]) }); watch(() => [route.params.episodeId, activeProject.value?.id], async () => { if (activeProject.value?.id) { try { await loadEpisodes(String(activeProject.value.id)) } catch {} } await loadAssets() })
 </script>
-<style scoped>@media (max-width: 640px) { .asset-panel :deep(.n-card__content) { padding-left: 14px !important; padding-right: 14px !important; } }</style>
+<style scoped>
+@media (max-width: 640px) { .asset-panel :deep(.n-card__content) { padding-left: 14px !important; padding-right: 14px !important; } }
+.tag-input { border-radius: 999px !important; }
+.tag-input :deep(.n-input__input-el), .tag-input :deep(.n-input__placeholder) { text-align: center; }
+.tag-primary :deep(.n-input__input-el), .tag-primary :deep(.n-input__placeholder) { color: #3b6cff; }
+.plain-area { background: #f7f8fa !important; border-radius: 10px !important; }
+.image-slot { position: relative; width: 88px; height: 108px; flex-shrink: 0; overflow: hidden; border-radius: 10px; border: 1px dashed #d9dee8; background: #fafbfd; cursor: pointer; }
+.image-slot:hover { border-color: #f0a35e; }
+.image-slot--wide { width: 196px; }
+.image-slot.is-busy { pointer-events: none; }
+.slot-remove { position: absolute; top: 4px; right: 6px; width: 18px; height: 18px; line-height: 16px; border-radius: 999px; background: rgba(31, 40, 59, 0.55); color: #fff; font-size: 13px; text-align: center; border: none; cursor: pointer; }
+.slot-busy-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.72); font-size: 11px; color: #e87517; }
+</style>
