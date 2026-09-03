@@ -55,7 +55,7 @@
                     class="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#f0eeff] text-[19px] text-[#5b4ff0]">{{
                     step.icon
                   }}</span>
-                <span class="text-[11px] font-semibold text-[#a0a8b8]">0{{ index + 1 }} / 04</span>
+                <span class="text-[11px] font-semibold text-[#a0a8b8]">{{ String(index + 1).padStart(2, '0') }} / {{ String(steps.length).padStart(2, '0') }}</span>
               </div>
               <strong class="mt-4 text-sm font-semibold text-[#303b51] group-hover:text-[#594df0]">{{
                   step.title
@@ -149,7 +149,7 @@ import {computed, onMounted} from 'vue'
 
 const message = useMessage()
 const {activeProject} = useProjectWorkspace()
-const {episodes, activeEpisodeId, loadEpisodes} = useEpisodeWorkspace()
+const {episodes, activeEpisode, activeEpisodeId, loadEpisodes} = useEpisodeWorkspace()
 const route = useRoute()
 const projectBase = computed(() => `/projects/${String(route.params.projectId || activeProject.value.id)}`)
 const projectKey = computed(() => String(route.params.projectId || activeProject.value.id || ''))
@@ -159,44 +159,27 @@ const episodeRouteId = computed(() => {
 })
 const workflowBase = computed(() => episodeRouteId.value ? `${projectBase.value}/episodes/${episodeRouteId.value}/workflow` : `${projectBase.value}/workflow`)
 
-const steps = computed(() => [
-  {
-    id: 'script',
-    route: `${workflowBase.value}/script`,
-    title: '剧本输入',
-    caption: '故事结构、场次、人物与对白',
-    status: '已完成',
-    tone: 'success',
-    icon: '✦'
-  },
-  {
-    id: 'assets',
-    route: `${workflowBase.value}/assets`,
-    title: '资产清单',
-    caption: '角色、场景、道具与声音',
-    status: '进行中',
-    tone: 'warning',
-    icon: '◇'
-  },
-  {
-    id: 'shots',
-    route: `${workflowBase.value}/shots`,
-    title: '分镜管理',
-    caption: '景别、运镜、动作与连续性',
-    status: '待优化',
-    tone: 'warning',
-    icon: '▦'
-  },
-  {
-    id: 'video',
-    route: `${workflowBase.value}/video`,
-    title: '视频制作',
-    caption: '画面、配音、音效与合成',
-    status: '待开始',
-    tone: 'default',
-    icon: '▶'
-  }
-])
+const stageOrder = ['SCRIPT', 'ASSETS', 'SHOTS', 'VIDEO']
+const stageLevel = computed(() => {
+  const level = stageOrder.indexOf(activeEpisode.value?.currentStage || 'SCRIPT')
+  return level < 0 ? 0 : level
+})
+
+const steps = computed(() => {
+  const definitions = [
+    { id: 'script', stage: 0, route: `${workflowBase.value}/script`, title: '剧本导入', caption: '导入剧本或小说，识别场次、角色与对白', icon: '✦' },
+    { id: 'tasks', stage: 0, route: `${workflowBase.value}/tasks`, title: '每集任务卡', caption: '每集主目标、剧情边界与前后集衔接', icon: '▣' },
+    { id: 'assets', stage: 1, route: `${workflowBase.value}/assets`, title: '资产管理', caption: '角色、场景背景、道具与服饰', icon: '◇' },
+    { id: 'shots', stage: 2, route: `${workflowBase.value}/shots`, title: '分镜规划', caption: '拆解镜头，记录画面、调度与声音', icon: '▦' },
+    { id: 'storyboard', stage: 2, route: `${workflowBase.value}/shots`, title: '分镜图生成', caption: '生成并确认每个镜头的画面', icon: '▨' },
+    { id: 'video', stage: 3, route: `${workflowBase.value}/video`, title: '画面视频', caption: '画面、配音、音效与合成', icon: '▶' },
+    { id: 'export', stage: 3, route: `${workflowBase.value}/video`, title: '合成导出', caption: '成片质检与导出交付', icon: '↧' }
+  ]
+  return definitions.map((step) => {
+    const status = step.stage < stageLevel.value ? '已完成' : step.stage === stageLevel.value ? '进行中' : '待开始'
+    return { ...step, status, tone: status === '已完成' ? 'success' : status === '进行中' ? 'warning' : 'default' }
+  })
+})
 const overviewStats = computed(() => [
   {label: '制作剧集', value: String(episodes.value.length), detail: '集'},
   {label: '当前版本', value: activeProject.value.version, detail: '编辑稿'},
@@ -214,7 +197,8 @@ function saveDraft() {
 }
 
 function openNextStep() {
-  navigateTo(`${workflowBase.value}/assets`)
+  const next = steps.value.find((step) => step.status !== '已完成') || steps.value[steps.value.length - 1]
+  navigateTo(next.route)
 }
 
 function openScript() {
