@@ -64,6 +64,7 @@
 | `task_type` | 展示名称 | 执行器 | 典型输出 |
 | --- | --- | --- | --- |
 | `SCRIPT_ANALYSIS` | 剧本解析 | `ScriptAnalysisExecutor` | 结构化剧本数据 |
+| `CHARACTER_ENRICHMENT` | 角色内容丰富 | `CharacterEnrichmentTaskService` | 角色卡草稿，需用户采纳 |
 | `ASSET_EXTRACTION` | 资产提取/生成 | `AssetExecutor` | 资产记录、图片文件 |
 | `IMAGE_GENERATION` | 图片生成 | `ImageGenerationExecutor` | 图片文件 |
 | `IMAGE_EDIT` | 图片编辑 | `ImageEditExecutor` | 图片文件 |
@@ -484,4 +485,3 @@ task.{project_id}.{task_id}
 6. 首期队列选择 Redis Stream 还是已有基础设施提供的消息队列？
    选择Redis Stream
     
-

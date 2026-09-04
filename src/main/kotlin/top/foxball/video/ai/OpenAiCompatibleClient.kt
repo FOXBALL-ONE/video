@@ -152,6 +152,27 @@ class OpenAiCompatibleClient(
         ).apply {
             command.temperature?.let { put("temperature", it) }
             command.maxCompletionTokens?.let { put("max_output_tokens", it) }
+            command.responseFormat?.let { format ->
+                when (format) {
+                    "json_object" -> put("text", mapOf("format" to mapOf("type" to "json_object")))
+                    "json_schema" -> {
+                        val schema = command.responseSchema ?: throw AiConfigurationException("json_schema 缺少输出 schema")
+                        put(
+                            "text",
+                            mapOf(
+                                "format" to mapOf(
+                                    "type" to "json_schema",
+                                    "name" to "structured_output",
+                                    "strict" to true,
+                                    "schema" to schema,
+                                ),
+                            ),
+                        )
+                    }
+                    "text" -> Unit
+                    else -> throw AiConfigurationException("不支持的响应格式")
+                }
+            }
         }
         val requestId = invocationId(command.requestId)
         val startedAt = System.nanoTime()
@@ -636,6 +657,23 @@ class OpenAiCompatibleClient(
         ).apply {
             command.temperature?.let { put("temperature", it) }
             command.maxCompletionTokens?.let { put("max_completion_tokens", it) }
+            command.responseFormat?.let { format ->
+                when (format) {
+                    "json_object" -> put("response_format", mapOf("type" to "json_object"))
+                    "json_schema" -> {
+                        val schema = command.responseSchema ?: throw AiConfigurationException("json_schema 缺少输出 schema")
+                        put(
+                            "response_format",
+                            mapOf(
+                                "type" to "json_schema",
+                                "json_schema" to mapOf("name" to "structured_output", "strict" to true, "schema" to schema),
+                            ),
+                        )
+                    }
+                    "text" -> Unit
+                    else -> throw AiConfigurationException("不支持的响应格式")
+                }
+            }
             if (command.tools.isNotEmpty()) put("tools", command.tools.map(::toolPayload))
         }
     }

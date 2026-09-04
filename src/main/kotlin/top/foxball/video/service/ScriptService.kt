@@ -2,11 +2,9 @@ package top.foxball.video.service
 
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
-import top.foxball.video.ai.AiChatCompletionCommand
-import top.foxball.video.ai.AiChatMessage
-import top.foxball.video.ai.AiChatRole
 import top.foxball.video.ai.AiAnalysisException
 import top.foxball.video.ai.AiClientException
 import top.foxball.video.ai.AiRateLimitException
@@ -34,6 +32,12 @@ class ScriptService(
     private val aiInvocationService: AiInvocationService,
     private val objectMapper: ObjectMapper,
     private val providerConfigRepository: AiModelProviderConfigRepository,
+    private val promptCatalog: PromptCatalogService,
+    private val promptRenderer: PromptRenderer,
+    private val promptSchemaValidator: PromptSchemaValidator,
+    private val promptRunAuditService: PromptRunAuditService,
+    private val promptInvocationBuilder: PromptInvocationBuilder,
+    private val transactionTemplate: TransactionTemplate,
 ) {
     data class ScriptSnapshot(
         val document: ScriptDocument,
@@ -99,6 +103,8 @@ class ScriptService(
         version.aiAnalysisStatus = ScriptAnalysisStatus.NOT_PARSED
         version.aiAnalysisProviderConfigId = null
         version.aiAnalysisModel = null
+        version.aiAnalysisPromptVersionId = null
+        version.aiAnalysisPromptHash = null
         version.aiAnalysisAt = null
         updateParsedData(version)
         val savedVersion = versionRepository.save(version)
@@ -123,43 +129,81 @@ class ScriptService(
         return snapshot(document, savedVersion)
     }
 
-    /** 使用固定拆解模板调用大模型，并将原始 JSON 与可执行资产同步保存。 */
-    @Transactional
-    fun analyze(projectId: Long, episodeId: Long?, providerConfigId: Long, model: String): ScriptSnapshot? {
+    /** 使用提示词目录中的已发布版本调用大模型，并将原始 JSON 与可执行资产同步保存。 */
+    fun analyze(projectId: Long, episodeId: Long?, providerConfigId: Long, model: String, userId: Long? = null): ScriptSnapshot? {
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val document = (if (episodeId == null) documentRepository.findByProjectIdAndEpisodeIdIsNull(projectId) else documentRepository.findByProjectIdAndEpisodeId(projectId, episodeId)) ?: return null
         val version = currentVersion(document) ?: return null
         if (version.content.isBlank()) throw IllegalArgumentException("剧本内容不能为空")
+        val prompt = promptCatalog.resolve("script_analysis", projectId, userId, "zh-CN")
         version.aiAnalysisStatus = ScriptAnalysisStatus.PROCESSING
         version.aiAnalysisProviderConfigId = providerConfigId
         version.aiAnalysisModel = model.trim()
+        version.aiAnalysisPromptVersionId = prompt.version.id
+        version.aiAnalysisPromptHash = prompt.version.contentHash
         versionRepository.save(version)
         val requestId = UUID.randomUUID().toString()
         val providerName = providerConfigRepository.findById(providerConfigId).orElse(null)?.provider?.trim().orEmpty().ifBlank { "unknown" }
+        var rendered: PromptRenderer.RenderedPrompt? = null
+        val startedAt = System.nanoTime()
         try {
+            val renderedPrompt = promptRenderer.render(
+                prompt,
+                mapOf(
+                    "script_content" to version.content,
+                    "asset_type" to "ALL",
+                    "episode_context_json" to objectMapper.writeValueAsString(mapOf("project_id" to projectId, "episode_id" to episodeId)),
+                    "output_language" to "zh-CN",
+                    "detail_level" to "DETAILED",
+                ),
+            )
+            rendered = renderedPrompt
             val result = aiInvocationService.createChatCompletion(
-                AiChatCompletionCommand(
-                    providerConfigId = providerConfigId,
-                    model = model.trim(),
-                    messages = listOf(AiChatMessage(AiChatRole.SYSTEM, ANALYSIS_TEMPLATE.replace("{{剧本文本}}", version.content))),
-                    temperature = 0.1,
-                    maxCompletionTokens = 32_000,
-                    requestId = requestId,
-                )
+                promptInvocationBuilder.build(prompt, renderedPrompt, providerConfigId, model, requestId)
             ).block() ?: throw IllegalStateException("模型服务未返回结果")
             val raw = result.primaryChoice?.message?.content?.trim().orEmpty()
             val analysis = parseAnalysisJson(raw)
-            version.aiAnalysisJson = objectMapper.writeValueAsString(analysis)
-            version.aiAnalysisStatus = ScriptAnalysisStatus.COMPLETED
-            version.aiAnalysisAt = LocalDateTime.now()
-            updateParsedDataFromAnalysis(version, analysis)
-            val savedVersion = versionRepository.save(version)
-            replaceStructuredDataFromAnalysis(savedVersion, analysis)
-            syncEpisodeAssets(projectId, episodeId, analysis)
+            promptSchemaValidator.validateOutput(prompt.version.outputSchemaJson, analysis)
+            transactionTemplate.executeWithoutResult {
+                val currentVersion = versionRepository.findById(requireNotNull(version.id)).orElseThrow { IllegalStateException("剧本版本不存在") }
+                currentVersion.aiAnalysisJson = objectMapper.writeValueAsString(analysis)
+                currentVersion.aiAnalysisStatus = ScriptAnalysisStatus.COMPLETED
+                currentVersion.aiAnalysisAt = LocalDateTime.now()
+                updateParsedDataFromAnalysis(currentVersion, analysis)
+                val savedVersion = versionRepository.save(currentVersion)
+                replaceStructuredDataFromAnalysis(savedVersion, analysis)
+                syncEpisodeAssets(projectId, episodeId, analysis)
+            }
+            runCatching {
+                promptRunAuditService.record(
+                    promptKey = prompt.definition.key,
+                    promptVersionId = requireNotNull(prompt.version.id),
+                    taskId = null,
+                    invocationId = requestId,
+                    providerConfigId = providerConfigId,
+                    model = model,
+                    status = "SUCCEEDED",
+                    attempt = 1,
+                    latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                    inputTokens = result.usage?.inputTokens ?: rendered?.inputTokens,
+                    outputTokens = result.usage?.outputTokens,
+                    templateHash = rendered?.templateHash,
+                    variablesHash = rendered?.variablesHash,
+                    renderedInputHash = rendered?.renderedInputHash,
+                    validationErrorCode = null,
+                )
+            }
         } catch (exception: AiClientException) {
-            version.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
-            versionRepository.save(version)
+            transactionTemplate.executeWithoutResult {
+                versionRepository.findById(requireNotNull(version.id)).orElse(null)?.let { currentVersion ->
+                    currentVersion.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
+                    versionRepository.save(currentVersion)
+                }
+            }
+            runCatching {
+                promptRunAuditService.record("script_analysis", requireNotNull(prompt.version.id), null, requestId, providerConfigId, model, "FAILED", 1, (System.nanoTime() - startedAt) / 1_000_000, rendered?.inputTokens, null, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, "AI_PROVIDER_ERROR")
+            }
             val errorCode = when (exception) {
                 is AiUpstreamException -> exception.statusCode
                 is AiUpstreamAuthenticationException -> exception.statusCode
@@ -174,8 +218,15 @@ class ScriptService(
             }
             throw AiAnalysisException(exception.message ?: "模型服务调用失败", errorCode, responseContent, providerName, requestId, exception)
         } catch (exception: Exception) {
-            version.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
-            versionRepository.save(version)
+            transactionTemplate.executeWithoutResult {
+                versionRepository.findById(requireNotNull(version.id)).orElse(null)?.let { currentVersion ->
+                    currentVersion.aiAnalysisStatus = ScriptAnalysisStatus.FAILED
+                    versionRepository.save(currentVersion)
+                }
+            }
+            runCatching {
+                promptRunAuditService.record("script_analysis", requireNotNull(prompt.version.id), null, requestId, providerConfigId, model, "FAILED", 1, (System.nanoTime() - startedAt) / 1_000_000, rendered?.inputTokens, null, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, "SCRIPT_ANALYSIS_FAILED")
+            }
             throw exception
         }
         return snapshot(document, version)
@@ -424,43 +475,4 @@ class ScriptService(
         )
     }
 
-    companion object {
-        private const val ANALYSIS_TEMPLATE = """你是一名专业的影视剧本资产提取师,负责从 AI 短剧剧本正文中提取结构化资产信息。
-
-## 任务
-阅读【剧本文本】,提取三类资产:角色(characters)、场景(scenes)、道具(props),输出一个 JSON 对象。
-
-## 提取规则
-1. 忠实原文:只提取正文中出现、或能从上下文明确推断的实体;禁止虚构、扩写或引入剧本之外的设定。
-2. 合并去重:同一实体的不同写法(如"林总"与"林正雄"、台词署名与动作描写中的称呼)合并为一条;name 使用正文中最正式、最完整的名称。
-3. 类型判定:
-   - characters:有名有姓、或以明确指代参与剧情的人物(如"外卖员")均提取;仅顺带提及、无剧情作用的背景人群不入列。
-   - scenes:剧情实际发生的地点(内景/外景、实景/虚拟空间);仅在对白中被追述、无呈现需求的地点不入列。
-   - props:被角色使用、持有或推动剧情的物件;纯氛围装饰且无连续性要求的不入列。
-4. 关联引用:为每条记录生成稳定 id(角色 C1/C2…,场景 S1/S2…,道具 P1/P2…);relationships、owner、plot_purpose 中涉及其他实体时,用对应 id 指代,禁止只写名字。
-5. 字段填写:字段值为简体中文短语或短句;正文无依据的字段填 null,不要猜测;description 仅在信息零散、不便归入具体字段时作兜底概述。每个对象的字段名只能出现一次,禁止重复键。
-6. 数量与顺序:每类最多 50 条,按首次出场顺序排列;某类没有则输出空数组 []。
-
-## 字段说明
-- characters:name 角色名;identity 身份职业;appearance 外貌(性别/年龄/造型);personality 性格;relationships 与其他角色的关系;dialogue_intent 台词意图或出场要求;remarks 其他备注;description 信息零散时的兜底概述。
-- scenes:name 场景名;location 具体地点;environment_type 内景/外景/实景/虚拟;time 时间段;weather 天气;lighting 光线氛围;visual_style 视觉风格;plot_purpose 该场景承担的剧情功能;actions 场景中的典型动作;remarks 其他备注;description 信息零散时的兜底概述。
-- props:name 道具名;category 类别(手持/穿戴/陈设/交通工具等);description 外观;owner 持有角色;function 剧情功能;continuity_notes 连续性要求(磨损、数量、位置变化等);remarks 其他备注。
-
-## 输出格式
-只输出一个合法 JSON 对象,不要 Markdown 代码块、注释或任何解释文字。结构如下(值仅为示例,须替换为实际提取结果):
-{
-  "characters": [
-    {"id": "C1", "name": null, "identity": null, "appearance": null, "personality": null, "relationships": null, "dialogue_intent": null, "remarks": null, "description": null}
-  ],
-  "scenes": [
-    {"id": "S1", "name": null, "location": null, "environment_type": null, "time": null, "weather": null, "lighting": null, "visual_style": null, "plot_purpose": null, "actions": null, "remarks": null, "description": null}
-  ],
-  "props": [
-    {"id": "P1", "name": null, "category": null, "description": null, "owner": null, "function": null, "continuity_notes": null, "remarks": null}
-  ]
-}
-
-【剧本文本】
-{{剧本文本}}"""
-    }
 }

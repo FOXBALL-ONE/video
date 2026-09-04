@@ -11,6 +11,7 @@ import top.foxball.video.entity.jdbc.AssetTagRelation
 import top.foxball.video.entity.jdbc.AssetVersion
 import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.CharacterProfile
+import top.foxball.video.entity.jdbc.CharacterEnrichmentResult
 import top.foxball.video.entity.jdbc.EpisodeAsset
 import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.entity.jdbc.PropProfile
@@ -71,6 +72,21 @@ interface CharacterProfileRepository : JpaRepository<CharacterProfile, Long> {
 
     /** 按剧集查询全部角色详情。 */
     fun findAllByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): List<CharacterProfile>
+}
+
+/** 角色扩写任务结果的数据访问接口。 */
+interface CharacterEnrichmentResultRepository : JpaRepository<CharacterEnrichmentResult, Long> {
+    fun findByTaskId(taskId: Long): CharacterEnrichmentResult?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    fun findWithLockByTaskId(taskId: Long): CharacterEnrichmentResult?
+
+    fun findFirstByProjectIdAndEpisodeIdAndEpisodeAssetIdAndIdempotencyKey(
+        projectId: Long,
+        episodeId: Long,
+        episodeAssetId: Long,
+        idempotencyKey: String,
+    ): CharacterEnrichmentResult?
 }
 
 /** 单集场景详情的数据访问接口。 */

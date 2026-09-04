@@ -268,6 +268,7 @@ class TaskCenterService(
 
     private fun defaultTitle(type: ProductionTaskType): String = when (type) {
         ProductionTaskType.SCRIPT_ANALYSIS -> "剧本解析"
+        ProductionTaskType.CHARACTER_ENRICHMENT -> "角色内容丰富"
         ProductionTaskType.ASSET_EXTRACTION -> "资产提取"
         ProductionTaskType.IMAGE_GENERATION -> "画面生成"
         ProductionTaskType.IMAGE_EDIT -> "图片编辑"

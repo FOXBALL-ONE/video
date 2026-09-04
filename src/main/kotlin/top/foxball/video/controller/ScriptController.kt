@@ -47,7 +47,7 @@ class ScriptController(
         data class CharacterData(val id: Long, val name: String, val description: String?, val motivation: String?, val relationship: String?)
         data class DialogueData(val id: Long, @param:JsonProperty("script_scene_id") val scriptSceneId: Long, @param:JsonProperty("character_id") val characterId: Long?, @param:JsonProperty("sequence_no") val sequenceNo: Int, val content: String, @param:JsonProperty("dialogue_type") val dialogueType: String, @param:JsonProperty("duration_seconds") val durationSeconds: Int)
         data class QualityData(val id: Long, @param:JsonProperty("rule_code") val ruleCode: String, val title: String, val note: String?, val passed: Boolean, val score: BigDecimal?)
-        data class AnalysisData(@param:JsonProperty("status") val status: String, @param:JsonProperty("provider_config_id") val providerConfigId: Long?, val model: String?, @param:JsonProperty("analyzed_at") val analyzedAt: LocalDateTime?, val result: JsonNode?)
+        data class AnalysisData(@param:JsonProperty("status") val status: String, @param:JsonProperty("provider_config_id") val providerConfigId: Long?, val model: String?, @param:JsonProperty("prompt_version_id") val promptVersionId: Long?, @param:JsonProperty("prompt_hash") val promptHash: String?, @param:JsonProperty("analyzed_at") val analyzedAt: LocalDateTime?, val result: JsonNode?)
         data class Response(@param:JsonProperty("document_id") val documentId: Long, val title: String, val version: VersionData, val versions: List<VersionData>, val content: String, val scenes: List<SceneData>, val characters: List<CharacterData>, val dialogues: List<DialogueData>, @param:JsonProperty("quality_checks") val qualityChecks: List<QualityData>, val stats: Map<String, Any?>, val analysis: AnalysisData)
 
         val snapshot = scriptService.load(projectId, episodeId) ?: return responseBuilder.notFound().build()
@@ -61,7 +61,7 @@ class ScriptController(
             snapshot.dialogues.map { DialogueData(requireNotNull(it.id), it.scriptSceneId, it.characterId, it.sequenceNo, it.content, it.dialogueType.name, it.durationSeconds) },
             snapshot.qualityChecks.map { QualityData(requireNotNull(it.id), it.ruleCode, it.title, it.note, it.passed, it.score) },
             mapOf("scene_count" to snapshot.version.sceneCount, "character_count" to snapshot.version.characterCount, "dialogue_count" to snapshot.version.dialogueCount, "estimated_duration_seconds" to snapshot.version.estimatedDurationSeconds, "structure_score" to snapshot.version.structureScore),
-            AnalysisData(snapshot.version.aiAnalysisStatus.name, snapshot.version.aiAnalysisProviderConfigId, snapshot.version.aiAnalysisModel, snapshot.version.aiAnalysisAt, snapshot.version.aiAnalysisJson?.let { runCatching { objectMapper.readTree(it) }.getOrNull() }),
+            AnalysisData(snapshot.version.aiAnalysisStatus.name, snapshot.version.aiAnalysisProviderConfigId, snapshot.version.aiAnalysisModel, snapshot.version.aiAnalysisPromptVersionId, snapshot.version.aiAnalysisPromptHash, snapshot.version.aiAnalysisAt, snapshot.version.aiAnalysisJson?.let { runCatching { objectMapper.readTree(it) }.getOrNull() }),
         )
         return responseBuilder.ok().data(rs).build()
     }
@@ -69,6 +69,7 @@ class ScriptController(
     @PostMapping("/api/projects/{project_id}/script/parse")
     fun analyzeScript(
         @PathVariable("project_id") projectId: Long,
+        @AuthenticationPrincipal userId: Long?,
         @RequestParam("provider_config_id") providerConfigId: Long,
         @RequestParam("model") @Size(max = 200) model: String,
         @RequestParam("episode_id", required = false) episodeId: Long?,
@@ -78,7 +79,7 @@ class ScriptController(
         if (model.isBlank() || providerConfigId <= 0) return responseBuilder.badRequest().message("请提供有效的解析模型和提供商配置").build()
         if (episodeId != null) return responseBuilder.badRequest().message("剧集剧本请使用异步资产解析任务").build()
         val snapshot = try {
-            scriptService.analyze(projectId, episodeId, providerConfigId, model)
+            scriptService.analyze(projectId, episodeId, providerConfigId, model, userId)
         } catch (exception: AiAnalysisException) {
             val error = ErrorData(exception.errorCode ?: 503, null, exception.provider, exception.requestId)
             return responseBuilder.serviceUnavailable().message(exception.message).data(mapOf("error" to error)).build()
@@ -118,6 +119,9 @@ class ScriptController(
             val status: String,
             @param:JsonProperty("asset_types") val assetTypes: List<String>,
             @param:JsonProperty("version_id") val versionId: Long,
+            @param:JsonProperty("prompt_key") val promptKey: String?,
+            @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
+            @param:JsonProperty("template_hash") val templateHash: String?,
             @param:JsonProperty("correlation_id") val correlationId: String?,
         )
         val selections = mutableListOf<ScriptAnalysisTaskService.ModelSelection>()
@@ -167,7 +171,7 @@ class ScriptController(
             return responseBuilder.badRequest().message(exception.message).build()
         } ?: return responseBuilder.notFound().build()
         val task = submitted.task
-        val rs = Response(requireNotNull(task.id).toString(), task.status.name, selections.map { it.assetType.name }, versionId, task.correlationId)
+        val rs = Response(requireNotNull(task.id).toString(), task.status.name, selections.map { it.assetType.name }, versionId, task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(), task.correlationId)
         return responseBuilder.accepted().data(rs).build()
     }
 
@@ -204,6 +208,9 @@ class ScriptController(
             @param:JsonProperty("type_results") val typeResults: List<TypeResultData>,
             @param:JsonProperty("version_id") val versionId: Long,
             @param:JsonProperty("content_hash") val contentHash: String,
+            @param:JsonProperty("prompt_key") val promptKey: String?,
+            @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
+            @param:JsonProperty("template_hash") val templateHash: String?,
             @param:JsonProperty("adopted_types") val adoptedTypes: List<String>,
             val result: JsonNode?,
             val stats: Map<String, Int>,
@@ -258,7 +265,9 @@ class ScriptController(
             ?: failedType?.error
         val rs = Response(
             requireNotNull(task.id).toString(), task.status.name, task.progress, task.stage, detail.resultStatus.name,
-            assetTypes, typeResults, detail.result.scriptVersionId, detail.result.contentHash, detail.result.adoptedTypes.split(',').filter { it.isNotBlank() },
+            assetTypes, typeResults, detail.result.scriptVersionId, detail.result.contentHash,
+            task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(),
+            detail.result.adoptedTypes.split(',').filter { it.isNotBlank() },
             result, stats, error, detail.result.adoptedAt, task.createdAt, task.completedAt,
         )
         return responseBuilder.ok().data(rs).build()

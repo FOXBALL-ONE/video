@@ -155,6 +155,14 @@ class ScriptVersion(
     /** 执行解析时使用的模型 ID。 */
     var aiAnalysisModel: String? = null,
 
+    @Column(name = "ai_analysis_prompt_version_id")
+    /** 执行解析时使用的提示词版本主键。 */
+    var aiAnalysisPromptVersionId: Long? = null,
+
+    @Column(name = "ai_analysis_prompt_hash", length = 80)
+    /** 执行解析时使用的提示词内容哈希。 */
+    var aiAnalysisPromptHash: String? = null,
+
     @Column(name = "ai_analysis_at")
     /** 最近一次解析完成时间。 */
     var aiAnalysisAt: LocalDateTime? = null,

@@ -140,6 +140,25 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    fun `sends chat json schema response format`() {
+        requests.clear()
+        client.createChatCompletion(
+            connection,
+            AiChatCompletionCommand(
+                providerConfigId = 1,
+                model = "demo-model",
+                messages = listOf(AiChatMessage(AiChatRole.USER, "hello")),
+                responseFormat = "json_schema",
+                responseSchema = JsonMapper.builder().build().readTree("""{"type":"object","properties":{"ok":{"type":"boolean"}}}"""),
+            ),
+        ).block()
+
+        val body = requests.single().body
+        assertTrue(body.contains("\"type\":\"json_schema\""))
+        assertTrue(body.contains("\"schema\":{\"type\":\"object\""))
+    }
+
+    @Test
     fun `rejects malformed image options before sending`() {
         assertFailsWith<AiConfigurationException> {
             client.generateImage(

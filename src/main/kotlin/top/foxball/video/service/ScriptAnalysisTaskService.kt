@@ -41,6 +41,8 @@ class ScriptAnalysisTaskService(
     private val taskCenterService: TaskCenterService,
     private val analysisService: ScriptAssetAnalysisService,
     private val objectMapper: ObjectMapper,
+    private val promptCatalog: PromptCatalogService,
+    private val promptRenderer: PromptRenderer,
 ) {
     data class ModelSelection(val assetType: EpisodeAssetType, val providerConfigId: Long, val model: String)
 
@@ -160,6 +162,18 @@ class ScriptAnalysisTaskService(
         if (snapshot.version.content.isBlank()) throw IllegalArgumentException("剧本内容不能为空")
         val actualHash = contentHashOf(snapshot.version.content)
         if (!hashMatches(contentHash, actualHash)) throw ContentConflictException()
+        val prompt = promptCatalog.resolve("script_analysis", projectId, userId, "zh-CN")
+        val variableHashes = normalizedSelections.associate { selection ->
+            selection.assetType.name to promptRenderer.variablesHash(
+                mapOf(
+                    "script_content" to snapshot.version.content,
+                    "asset_type" to selection.assetType.name,
+                    "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to selection.assetType.name)),
+                    "output_language" to "zh-CN",
+                    "detail_level" to "STANDARD",
+                ),
+            )
+        }
         val normalizedKey = idempotencyKey?.trim()?.takeIf { it.isNotEmpty() }
         if (normalizedKey != null) {
             val existing = resultRepository.findFirstByProjectIdAndEpisodeIdAndIdempotencyKey(projectId, episodeId, normalizedKey)
@@ -187,10 +201,15 @@ class ScriptAnalysisTaskService(
                 providerConfigId = first.providerConfigId,
                 modelName = first.model,
                 inputPayload = mapOf(
+                    "prompt_key" to "script_analysis",
+                    "prompt_version_id" to requireNotNull(prompt.version.id),
+                    "template_hash" to prompt.version.contentHash,
+                    "variables_hashes" to variableHashes,
+                    "output_schema_version" to "script_analysis.v1",
                     "version_id" to versionId,
                     "content_hash" to actualHash,
                     "content_length" to snapshot.version.content.length,
-                    "content_summary" to "已保存剧本正文快照（正文不写入任务输入）",
+                    "content_summary" to "已保存剧本来源引用（正文不写入任务输入）",
                     "asset_types" to normalizedSelections.map { it.assetType.name },
                     "selections" to normalizedSelections.map { mapOf("asset_type" to it.assetType.name, "provider_config_id" to it.providerConfigId, "model" to it.model) },
                     "summary" to "解析剧本并暂存所选资产",
@@ -374,7 +393,19 @@ class ScriptAnalysisTaskService(
                 if (currentResult?.resultStatus == ScriptAnalysisResultStatus.SUPERSEDED || currentResult?.let(::isResultSuperseded) == true) {
                     throw SupersededResultException()
                 }
-                val analysis = analysisService.analyze(selection.assetType, selection.providerConfigId, selection.model, result.sourceContent)
+                val promptVersionId = (started.inputPayload["prompt_version_id"] as? Number)?.toLong()
+                val promptHash = started.inputPayload["template_hash"]?.toString()
+                val analysis = analysisService.analyze(
+                    selection.assetType,
+                    selection.providerConfigId,
+                    selection.model,
+                    result.sourceContent,
+                    promptVersionId,
+                    promptHash,
+                    result.episodeId,
+                    started.id,
+                    started.attempt,
+                )
                 typeResults[selection.assetType.name] = StoredTypeResult(
                     status = if (analysis.succeeded) "SUCCEEDED" else "FAILED",
                     providerConfigId = analysis.providerConfigId,

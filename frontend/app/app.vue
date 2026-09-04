@@ -15,6 +15,7 @@
             <NuxtLink to="/tasks" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">我的任务</NuxtLink>
             <NuxtLink to="/projects" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">项目管理</NuxtLink>
             <NuxtLink to="/api" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">API 管理</NuxtLink>
+            <NuxtLink to="/prompts" class="rounded-lg px-2.5 py-2 transition-colors hover:bg-[#f0eeff] hover:text-[#5d52ec]">提示词目录</NuxtLink>
             <n-dropdown trigger="click" :options="accountOptions" @select="handleAccountAction">
               <button type="button" class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[#f0eeff]">
                 <span class="flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#6654ee] text-[11px] font-semibold text-white">{{ user?.username?.slice(0, 1).toUpperCase() || 'U' }}</span>

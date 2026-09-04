@@ -200,6 +200,10 @@ data class AiChatCompletionCommand(
     val messages: List<AiChatMessage>,
     val temperature: Double? = null,
     val maxCompletionTokens: Int? = null,
+    /** 受控结构化输出格式，例如 json_object 或 json_schema；不得传入任意供应商 JSON。 */
+    val responseFormat: String? = null,
+    /** responseFormat 为 json_schema 时使用的服务端校验 schema。 */
+    val responseSchema: JsonNode? = null,
     val tools: List<AiChatToolDefinition> = emptyList(),
     val requestId: String? = null,
 )

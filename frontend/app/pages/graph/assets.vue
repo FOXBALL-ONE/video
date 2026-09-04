@@ -203,6 +203,7 @@
         <template #header-extra>
           <div class="flex items-center gap-2">
             <n-button class="!rounded-[8px]" size="small" @click="openImageGeneration(['front'])">去生图</n-button>
+            <n-button class="!rounded-[8px]" color="#5c52ee" size="small" type="primary" @click="openCharacterEnrichment">内容丰富</n-button>
             <n-button class="!rounded-[8px]" color="#f0820d" size="small" type="primary"
                       @click="notifyGenerationPending">训练
             </n-button>
@@ -352,6 +353,26 @@
             <n-button @click="closeCharacterDetail">取消</n-button>
             <n-button :disabled="!characterDirty || characterLoading" :loading="characterSaving" color="#f0820d" type="primary" @click="saveCharacterProfile">保存
             </n-button>
+          </div>
+        </template>
+      </n-modal>
+      <n-modal v-model:show="enrichmentVisible" :mask-closable="false" class="w-[min(92vw,620px)]" preset="card" title="角色内容丰富">
+        <p class="-mt-2 text-xs leading-5 text-[#8994a8]">生成角色卡草稿，结果需要确认后才会写入当前角色资料。</p>
+        <n-form class="mt-4" label-placement="top">
+          <n-form-item label="生成模型" required>
+            <n-select v-model:value="enrichmentModelKey" :options="modelOptions" placeholder="请选择对话模型" />
+          </n-form-item>
+        </n-form>
+        <div v-if="enrichmentTask" class="rounded-[9px] border border-[#e7e9f1] bg-[#fafbfe] p-3 text-xs text-[#687388]">
+          <div class="flex items-center justify-between"><span>任务状态</span><strong>{{ enrichmentTask.status }}</strong></div>
+          <div v-if="enrichmentTask.result_status" class="mt-2 flex items-center justify-between"><span>结果状态</span><strong>{{ enrichmentTask.result_status }}</strong></div>
+          <pre v-if="enrichmentTask.result" class="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-4">{{ JSON.stringify(enrichmentTask.result, null, 2) }}</pre>
+        </div>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <n-button :disabled="enrichmentLoading" @click="enrichmentVisible = false">关闭</n-button>
+            <n-button v-if="enrichmentTask?.result_status === 'STAGED'" :loading="enrichmentLoading" type="primary" @click="adoptCharacterEnrichment">采纳角色卡</n-button>
+            <n-button v-else :disabled="!enrichmentModelKey" :loading="enrichmentLoading" color="#5c52ee" type="primary" @click="startCharacterEnrichment">开始生成</n-button>
           </div>
         </template>
       </n-modal>
@@ -795,6 +816,10 @@ const characterVisible = ref(false);
 const characterLoading = ref(false);
 const characterSaving = ref(false);
 const characterAssetId = ref(0)
+const enrichmentVisible = ref(false)
+const enrichmentLoading = ref(false)
+const enrichmentModelKey = ref('')
+const enrichmentTask = ref<{id: number; status: string; result_status?: string; result?: unknown} | null>(null)
 const characterSavedFingerprint = ref('')
 const characterForm = reactive({
   name: '',
@@ -1236,6 +1261,76 @@ async function saveCharacterProfile(): Promise<boolean> {
     return false
   } finally {
     characterSaving.value = false
+  }
+}
+
+async function openCharacterEnrichment() {
+  if (!hasEpisode.value || !characterAssetId.value) {
+    message.warning('请先选择具体剧集和角色')
+    return
+  }
+  if (!modelOptions.value.length) {
+    message.warning('请先配置启用的对话模型')
+    return
+  }
+  if (characterDirty.value && !await saveCharacterProfile()) return
+  enrichmentModelKey.value = enrichmentModelKey.value || modelOptions.value[0].value
+  enrichmentTask.value = null
+  enrichmentVisible.value = true
+}
+
+async function startCharacterEnrichment() {
+  const [providerConfigId, model] = enrichmentModelKey.value.split('::')
+  if (!providerConfigId || !model || !hasEpisode.value || !characterAssetId.value) {
+    message.warning('请选择有效的对话模型')
+    return
+  }
+  enrichmentLoading.value = true
+  const idempotencyKey = `character-enrichment-${projectId.value}-${episodeId.value}-${characterAssetId.value}-${Date.now()}`
+  try {
+    const response = await http.post<{task_id: string; status: string}>(
+      `/projects/${projectId.value}/episodes/${episodeId.value}/assets/${characterAssetId.value}/character-enrichment-tasks`,
+      {provider_config_id: Number(providerConfigId), model},
+      {headers: {'Idempotency-Key': idempotencyKey}},
+    )
+    const taskId = Number(response.task_id)
+    if (!Number.isInteger(taskId) || taskId <= 0) throw new Error('角色扩写任务创建失败')
+    await pollCharacterEnrichment(taskId)
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '角色扩写任务创建失败')
+  } finally {
+    enrichmentLoading.value = false
+  }
+}
+
+async function pollCharacterEnrichment(taskId: number) {
+  const path = `/projects/${projectId.value}/episodes/${episodeId.value}/character-enrichment-tasks/${taskId}`
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const current = await http.get<{task_status: string; result_status: string; result?: unknown}>(path)
+    enrichmentTask.value = {id: taskId, status: current.task_status, result_status: current.result_status, result: current.result}
+    if (['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(current.task_status)) {
+      if (current.task_status === 'SUCCEEDED' && current.result_status === 'STAGED') message.success('角色卡草稿已生成')
+      return
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 1000))
+  }
+  throw new Error('角色扩写任务等待超时，请到任务中心查看')
+}
+
+async function adoptCharacterEnrichment() {
+  const task = enrichmentTask.value
+  if (!task || task.result_status !== 'STAGED') return
+  enrichmentLoading.value = true
+  try {
+    await http.post(`/projects/${projectId.value}/episodes/${episodeId.value}/character-enrichment-tasks/${task.id}/adopt`, undefined, {headers: {'Idempotency-Key': `adopt-character-${task.id}`}})
+    message.success('角色卡已采纳')
+    enrichmentVisible.value = false
+    await loadAssets()
+    if (characterAssetId.value) await openCharacterDetail(assets.value.find((item) => item.id === characterAssetId.value) || {id: characterAssetId.value, name: characterName.value, type: 'CHARACTER', description: null, reference_url: null, notes: null, status: 'DRAFT', updated_at: null})
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '角色卡采纳失败')
+  } finally {
+    enrichmentLoading.value = false
   }
 }
 
