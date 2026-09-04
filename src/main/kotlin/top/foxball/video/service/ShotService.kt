@@ -4,10 +4,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import top.foxball.video.entity.jdbc.Shot
 import top.foxball.video.entity.jdbc.ShotContinuityIssue
+import top.foxball.video.entity.jdbc.ShotGroup
 import top.foxball.video.entity.jdbc.ShotStatus
 import top.foxball.video.repository.EpisodeRepository
 import top.foxball.video.repository.ProjectRepository
 import top.foxball.video.repository.ShotContinuityIssueRepository
+import top.foxball.video.repository.ShotGroupRepository
 import top.foxball.video.repository.ShotRepository
 import java.time.LocalDateTime
 
@@ -18,8 +20,9 @@ class ShotService(
     private val episodeRepository: EpisodeRepository,
     private val shotRepository: ShotRepository,
     private val issueRepository: ShotContinuityIssueRepository,
+    private val groupRepository: ShotGroupRepository,
 ) {
-    data class Snapshot(val shots: List<Shot>, val issues: List<ShotContinuityIssue>)
+    data class Snapshot(val shots: List<Shot>, val issues: List<ShotContinuityIssue>, val groups: List<ShotGroup>)
 
     @Transactional(readOnly = true)
     fun load(projectId: Long, episodeId: Long? = null): Snapshot? {
@@ -28,7 +31,8 @@ class ShotService(
         val shots = if (episodeId == null) shotRepository.findAllByProjectIdOrderBySequenceNoAsc(projectId) else shotRepository.findAllByProjectIdAndEpisodeIdOrderBySequenceNoAsc(projectId, episodeId)
         val issues = issueRepository.findAllByProjectIdAndResolvedFalseOrderBySeverityDesc(projectId)
         val shotIds = shots.mapNotNull { it.id }.toSet()
-        return Snapshot(shots, if (episodeId == null) issues else issues.filter { it.fromShotId in shotIds || it.toShotId in shotIds })
+        val groups = if (episodeId == null) groupRepository.findAllByProjectIdOrderBySortOrderAsc(projectId) else groupRepository.findAllByProjectIdAndEpisodeIdOrderBySortOrderAsc(projectId, episodeId)
+        return Snapshot(shots, if (episodeId == null) issues else issues.filter { it.fromShotId in shotIds || it.toShotId in shotIds }, groups)
     }
 
     @Transactional
@@ -55,11 +59,22 @@ class ShotService(
         atmosphere: String? = null,
         narrativePurpose: String? = null,
         cameraAngle: String? = null,
+        shotGroupId: Long? = null,
+        dialogueType: String? = null,
+        soundEffects: String? = null,
+        afterSequence: Int? = null,
     ): Shot? {
         if (!projectRepository.existsById(projectId)) return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val shots = if (episodeId == null) shotRepository.findAllByProjectIdAndEpisodeIdIsNullOrderBySequenceNoAsc(projectId) else shotRepository.findAllByProjectIdAndEpisodeIdOrderBySequenceNoAsc(projectId, episodeId)
-        val nextSequence = (shots.maxOfOrNull { it.sequenceNo } ?: 0) + 1
+        val nextSequence = if (afterSequence != null && afterSequence >= 0) {
+            val shifted = shots.filter { it.sequenceNo > afterSequence }
+            shifted.forEach { it.sequenceNo += 1 }
+            shotRepository.saveAll(shifted)
+            afterSequence + 1
+        } else {
+            (shots.maxOfOrNull { it.sequenceNo } ?: 0) + 1
+        }
         val saved = shotRepository.save(
             Shot(
                 projectId = projectId,
@@ -77,6 +92,8 @@ class ShotService(
                 visualDescription = visualDescription,
                 action = action,
                 dialogue = dialogue,
+                dialogueType = dialogueType,
+                soundEffects = soundEffects,
                 characterNames = characterNames,
                 propNames = propNames,
                 prompt = prompt,
@@ -85,6 +102,7 @@ class ShotService(
                 narrativePurpose = narrativePurpose,
                 durationSeconds = durationSeconds,
                 status = status,
+                shotGroupId = resolveGroupId(projectId, episodeId, shotGroupId),
             ),
         )
         touchEpisode(episodeId)
@@ -116,6 +134,9 @@ class ShotService(
         atmosphere: String? = null,
         narrativePurpose: String? = null,
         cameraAngle: String? = null,
+        shotGroupId: Long? = null,
+        dialogueType: String? = null,
+        soundEffects: String? = null,
     ): Shot? {
         val shot = shotRepository.findById(shotId).orElse(null) ?: return null
         if (shot.projectId != projectId) return null
@@ -132,6 +153,8 @@ class ShotService(
         shot.visualDescription = visualDescription
         shot.action = action
         shot.dialogue = dialogue
+        shot.dialogueType = dialogueType?.trim()?.ifBlank { null }?.take(20)
+        shot.soundEffects = soundEffects?.trim()?.ifBlank { null }
         shot.characterNames = characterNames
         shot.propNames = propNames
         shot.prompt = prompt
@@ -140,6 +163,7 @@ class ShotService(
         shot.narrativePurpose = narrativePurpose
         shot.durationSeconds = durationSeconds
         shot.status = status
+        shot.shotGroupId = resolveGroupId(shot.projectId, shot.episodeId, shotGroupId)
         val saved = shotRepository.save(shot)
         touchEpisode(shot.episodeId ?: episodeId)
         return saved
@@ -177,6 +201,56 @@ class ShotService(
         issues.forEach { it.resolved = true; it.resolvedAt = LocalDateTime.now() }
         issueRepository.saveAll(issues)
         return issues.size
+    }
+
+    /** 新建分镜脚本分组；名称缺省时按顺序自动命名。 */
+    @Transactional
+    fun createGroup(projectId: Long, name: String?, sceneLabel: String?, episodeId: Long? = null): ShotGroup? {
+        if (!projectRepository.existsById(projectId)) return null
+        if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
+        val existing = if (episodeId == null) groupRepository.findAllByProjectIdAndEpisodeIdIsNullOrderBySortOrderAsc(projectId) else groupRepository.findAllByProjectIdAndEpisodeIdOrderBySortOrderAsc(projectId, episodeId)
+        val sortOrder = (existing.maxOfOrNull { it.sortOrder } ?: 0) + 1
+        val resolvedName = name?.trim()?.ifBlank { null } ?: "分镜脚本 S${sortOrder}"
+        return groupRepository.save(
+            ShotGroup(
+                projectId = projectId,
+                episodeId = episodeId,
+                name = resolvedName.take(100),
+                sceneLabel = sceneLabel?.trim()?.ifBlank { null }?.take(300),
+                sortOrder = sortOrder,
+            ),
+        )
+    }
+
+    /** 更新分镜脚本分组的名称与场景标注。 */
+    @Transactional
+    fun updateGroup(projectId: Long, groupId: Long, name: String, sceneLabel: String?, episodeId: Long? = null): ShotGroup? {
+        val group = groupRepository.findByIdAndProjectId(groupId, projectId) ?: return null
+        if (episodeId != null && group.episodeId != episodeId) return null
+        group.name = name.trim().ifBlank { group.name }.take(100)
+        group.sceneLabel = sceneLabel?.trim()?.ifBlank { null }?.take(300)
+        return groupRepository.save(group)
+    }
+
+    /** 删除分镜脚本分组；组内镜头保留并回到未分组状态。 */
+    @Transactional
+    fun deleteGroup(projectId: Long, groupId: Long, episodeId: Long? = null): Boolean {
+        val group = groupRepository.findByIdAndProjectId(groupId, projectId) ?: return false
+        if (episodeId != null && group.episodeId != episodeId) return false
+        val members = shotRepository.findAllByShotGroupId(groupId)
+        members.forEach { it.shotGroupId = null }
+        shotRepository.saveAll(members)
+        groupRepository.delete(group)
+        return true
+    }
+
+    /** 校验分组归属：必须属于当前项目，且剧集与镜头一致。 */
+    private fun resolveGroupId(projectId: Long, episodeId: Long?, groupId: Long?): Long? {
+        if (groupId == null) return null
+        val group = groupRepository.findById(groupId).orElse(null) ?: return null
+        if (group.projectId != projectId) return null
+        if (group.episodeId != episodeId) return null
+        return group.id
     }
 
     private fun touchEpisode(episodeId: Long?) {

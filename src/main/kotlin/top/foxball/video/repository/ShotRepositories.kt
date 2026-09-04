@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import top.foxball.video.entity.jdbc.Shot
 import top.foxball.video.entity.jdbc.ShotAsset
 import top.foxball.video.entity.jdbc.ShotContinuityIssue
+import top.foxball.video.entity.jdbc.ShotGroup
 
 /** 分镜镜头的数据访问接口。 */
 interface ShotRepository : JpaRepository<Shot, Long> {
@@ -20,6 +21,22 @@ interface ShotRepository : JpaRepository<Shot, Long> {
     fun findByProjectIdAndSequenceNo(projectId: Long, sequenceNo: Int): Shot?
 
     fun findAllByProjectIdAndEpisodeIdOrderBySequenceNoAsc(projectId: Long, episodeId: Long): List<Shot>
+
+    /** 查询分镜脚本分组下的全部镜头。 */
+    fun findAllByShotGroupId(shotGroupId: Long): List<Shot>
+}
+
+/** 分镜脚本分组的数据访问接口。 */
+interface ShotGroupRepository : JpaRepository<ShotGroup, Long> {
+    /** 查询项目的全部分镜脚本分组，按展示顺序排列。 */
+    fun findAllByProjectIdOrderBySortOrderAsc(projectId: Long): List<ShotGroup>
+
+    /** 查询未绑定剧集的项目级分镜脚本分组。 */
+    fun findAllByProjectIdAndEpisodeIdIsNullOrderBySortOrderAsc(projectId: Long): List<ShotGroup>
+
+    fun findAllByProjectIdAndEpisodeIdOrderBySortOrderAsc(projectId: Long, episodeId: Long): List<ShotGroup>
+
+    fun findByIdAndProjectId(id: Long, projectId: Long): ShotGroup?
 }
 
 /** 分镜与资产关联的数据访问接口。 */

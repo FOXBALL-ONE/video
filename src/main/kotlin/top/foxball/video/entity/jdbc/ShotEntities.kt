@@ -38,6 +38,10 @@ class Shot(
     /** 对应剧本场次主键。 */
     var scriptSceneId: Long? = null,
 
+    @Column(name = "shot_group_id")
+    /** 所属分镜脚本分组主键；为空表示尚未分组。 */
+    var shotGroupId: Long? = null,
+
     @Column(name = "sequence_no", nullable = false)
     /** 镜头在项目中的顺序号。 */
     var sequenceNo: Int = 1,
@@ -90,6 +94,14 @@ class Shot(
     /** 镜头对应对白或旁白。 */
     var dialogue: String? = null,
 
+    @Column(name = "dialogue_type", length = 20)
+    /** 台词类型，例如无台词、对白或旁白。 */
+    var dialogueType: String? = null,
+
+    @Column(name = "sound_effects", columnDefinition = "text")
+    /** 镜头涉及的音效说明。 */
+    var soundEffects: String? = null,
+
     @Column(name = "character_names", columnDefinition = "text")
     /** 镜头涉及的角色名称，以逗号分隔保存。 */
     var characterNames: String? = null,
@@ -135,6 +147,54 @@ class Shot(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     /** 镜头最近更新时间。 */
+    var updatedAt: LocalDateTime? = null,
+
+    @Version
+    /** JPA 乐观锁版本号。 */
+    var entityVersion: Long = 0,
+)
+
+/** 分镜脚本分组；把同一场景下连续镜头编为一组，用于分镜规划与批量生成。 */
+@Entity
+@Table(name = "shot_groups")
+class ShotGroup(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    /** 数据库主键。 */
+    var id: Long? = null,
+
+    @Column(name = "project_id", nullable = false)
+    /** 所属项目主键。 */
+    var projectId: Long = 0,
+
+    @Column(name = "episode_id")
+    /** 所属剧集主键；为空时兼容项目级分镜。 */
+    var episodeId: Long? = null,
+
+    @Column(nullable = false, length = 100)
+    /** 分组名称，例如"分镜脚本 S1"。 */
+    var name: String = "",
+
+    @Column(name = "scene_label", length = 300)
+    /** 分组对应的场景标注，例如"克普鲁星区星际战场｜时空跃迁后的战场状态"。 */
+    var sceneLabel: String? = null,
+
+    @Column(name = "script_scene_id")
+    /** 对应剧本场次主键。 */
+    var scriptSceneId: Long? = null,
+
+    @Column(name = "sort_order", nullable = false)
+    /** 分组展示顺序。 */
+    var sortOrder: Int = 1,
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    /** 分组创建时间。 */
+    var createdAt: LocalDateTime? = null,
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    /** 分组最近更新时间。 */
     var updatedAt: LocalDateTime? = null,
 
     @Version
