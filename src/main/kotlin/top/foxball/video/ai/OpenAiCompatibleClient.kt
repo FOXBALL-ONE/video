@@ -210,7 +210,7 @@ class OpenAiCompatibleClient(
         command: AiImageGenerationCommand,
     ): Mono<AiImageGenerationResult> {
         validateCommandConnection(connection, command.providerConfigId)
-        require(command.prompt.isNotBlank()) { "图像提示词不能为空" }
+        validateImageCommand(command.model, command.prompt, command.count, command.size, command.quality)
         val payload = linkedMapOf<String, Any>(
             "model" to command.model,
             "prompt" to command.prompt,
@@ -219,7 +219,7 @@ class OpenAiCompatibleClient(
                 put("response_format", command.responseFormat.wireValue)
             }
             command.count?.let { put("n", it) }
-            command.size?.let { put("size", it) }
+            command.size?.let { put("size", normalizeImageSize(it)) }
             command.quality?.let { put("quality", it) }
             command.style?.let { put("style", it) }
         }
@@ -230,7 +230,7 @@ class OpenAiCompatibleClient(
             AiOperation.IMAGE,
             requestId,
             command.model,
-            "mode=generation image_count=${command.count ?: 1} response_format=${command.responseFormat.wireValue}",
+            "mode=generation image_count=${command.count ?: 1} size=${safeLog(command.size ?: "default")} response_format=${command.responseFormat.wireValue}",
         )
         return invocationGuard.protect(connection, AiOperation.IMAGE) {
             exchangeJson(connection, "images/generations", AiOperation.IMAGE, payload, requestId)
@@ -247,10 +247,12 @@ class OpenAiCompatibleClient(
         command: AiImageEditCommand,
     ): Mono<AiImageGenerationResult> {
         validateCommandConnection(connection, command.providerConfigId)
-        require(command.prompt.isNotBlank()) { "图像提示词不能为空" }
+        validateImageCommand(command.model, command.prompt, command.count, command.size, null)
         require(command.images.isNotEmpty()) { "至少需要一张待编辑图片" }
         command.images.forEach(::validateImage)
         command.mask?.let(::validateImage)
+        val totalImageBytes = command.images.sumOf { it.bytes.size.toLong() } + (command.mask?.bytes?.size?.toLong() ?: 0L)
+        if (totalImageBytes > MAX_TOTAL_EDIT_IMAGE_BYTES) throw AiConfigurationException("图像编辑输入总大小不能超过 50 MB")
 
         val multipart = MultipartBodyBuilder()
         multipart.part("model", command.model)
@@ -265,7 +267,7 @@ class OpenAiCompatibleClient(
             multipart.part("mask", imageResource(mask)).contentType(MediaType.parseMediaType(mask.contentType))
         }
         command.count?.let { multipart.part("n", it.toString()) }
-        command.size?.let { multipart.part("size", it) }
+        command.size?.let { multipart.part("size", normalizeImageSize(it)) }
 
         val requestId = invocationId(command.requestId)
         val startedAt = System.nanoTime()
@@ -274,7 +276,7 @@ class OpenAiCompatibleClient(
             AiOperation.IMAGE,
             requestId,
             command.model,
-            "mode=edit image_count=${command.images.size} image_bytes=${command.images.sumOf { it.bytes.size.toLong() }} mask=${command.mask != null} response_format=${command.responseFormat.wireValue}",
+            "mode=edit image_count=${command.images.size} image_bytes=$totalImageBytes mask=${command.mask != null} size=${safeLog(command.size ?: "default")} response_format=${command.responseFormat.wireValue}",
         )
         return invocationGuard.protect(connection, AiOperation.IMAGE) {
             val uri = uriPolicy.endpoint(connection.baseUri, "images/edits")
@@ -752,6 +754,30 @@ class OpenAiCompatibleClient(
         override fun getFilename(): String = image.filename
     }
 
+    private fun validateImageCommand(model: String, prompt: String, count: Int?, size: String?, quality: String?) {
+        require(model.isNotBlank()) { "图像模型 ID 不能为空" }
+        require(prompt.isNotBlank()) { "图像提示词不能为空" }
+        if (count != null && count !in 1..10) throw AiConfigurationException("图像数量必须在 1 到 10 之间")
+        size?.let(::normalizeImageSize)
+        quality?.let { value ->
+            if (value.length > MAX_IMAGE_OPTION_CHARS || value.any(Char::isISOControl)) {
+                throw AiConfigurationException("图像质量参数不正确")
+            }
+        }
+    }
+
+    private fun normalizeImageSize(value: String): String {
+        val normalized = value.trim()
+        if (normalized.isBlank() || normalized.length > MAX_IMAGE_OPTION_CHARS || normalized.any(Char::isISOControl)) {
+            throw AiConfigurationException("图像尺寸参数不正确")
+        }
+        if (normalized.equals("2k", ignoreCase = true)) return "2K"
+        if (normalized.equals("1k", ignoreCase = true)) return "1K"
+        if (normalized.equals("auto", ignoreCase = true)) return "auto"
+        if (!normalized.matches(IMAGE_DIMENSION_PATTERN)) throw AiConfigurationException("图像尺寸参数不正确")
+        return normalized
+    }
+
     private fun validateImage(image: AiImageInput) {
         if (image.filename.isBlank() || image.contentType.isBlank() || image.bytes.isEmpty()) throw AiConfigurationException("图像编辑输入不完整")
         if (!image.contentType.startsWith("image/")) throw AiConfigurationException("图像编辑仅支持图片文件")
@@ -796,10 +822,13 @@ class OpenAiCompatibleClient(
     private companion object {
         val SSE_TYPE = object : ParameterizedTypeReference<ServerSentEvent<String>>() {}
         const val MAX_IMAGE_BYTES = 20 * 1024 * 1024
+        const val MAX_TOTAL_EDIT_IMAGE_BYTES = 50L * 1024 * 1024
+        const val MAX_IMAGE_OPTION_CHARS = 30
         const val MAX_CHAT_CONTENT_CHARS = 2_000_000
         const val MAX_ERROR_RESPONSE_CHARS = 8_000
         const val MAX_REQUEST_ID_CHARS = 128
         const val MAX_LOG_FIELD_CHARS = 256
         val VIDEO_VARIANTS = setOf("video", "thumbnail", "spritesheet")
+        val IMAGE_DIMENSION_PATTERN = Regex("^[1-9][0-9]{2,4}x[1-9][0-9]{2,4}$")
     }
 }

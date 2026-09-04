@@ -17,6 +17,7 @@ import top.foxball.video.service.DownloadableFile
 import top.foxball.video.service.FileDetails
 import top.foxball.video.service.FileLinkSigner
 import top.foxball.video.service.FileService
+import top.foxball.video.service.StoredFileContent
 import top.foxball.video.service.SUPPORT_TICKET_DOWNLOAD_SCOPE
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -154,6 +155,14 @@ class FileServiceImpl(
             contentType = stored.contentType,
             sizeBytes = stored.sizeBytes,
         )
+    }
+
+    override fun readOwned(ownerId: Long, fileId: UUID): StoredFileContent {
+        val stored = fileRepository.findByIdAndOwnerId(fileId, ownerId) ?: throw fileNotFound()
+        if (stored.storage != LOCAL_STORAGE) throw fileNotFound()
+        val path = resolveStoredPath(stored.relativePath)
+        if (!Files.isRegularFile(path)) throw fileNotFound()
+        return StoredFileContent(stored.originalFilename, stored.contentType, Files.readAllBytes(path))
     }
 
     override fun delete(ownerId: Long, fileId: UUID) {

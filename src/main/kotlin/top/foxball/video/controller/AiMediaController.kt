@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import reactor.core.publisher.Mono
 import top.foxball.video.service.AiMediaGenerationService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -37,7 +38,7 @@ class AiMediaController(
         @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
         @RequestParam("size", required = false) @Size(max = 30) size: String?,
         @RequestParam("quality", required = false) @Size(max = 30) quality: String?,
-    ): ResponseEntity<Response> {
+    ): Mono<ResponseEntity<Response>> {
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -47,11 +48,12 @@ class AiMediaController(
             @param:JsonProperty("download_expires_at") val downloadExpiresAt: LocalDateTime,
         )
         data class ResponseData(val list: List<FileData>)
-        val files = service.generateImage(userId, providerConfigId, model, prompt, count, size, quality)
-        val rs = ResponseData(files.map { details ->
-            FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
-        })
-        return responseBuilder.created().data(rs).build()
+        return service.generateImage(userId, providerConfigId, model, prompt, count, size, quality).map { files ->
+            val rs = ResponseData(files.map { details ->
+                FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
+            })
+            responseBuilder.created().data(rs).build()
+        }
     }
 
     @PostMapping("/api/ai/images/edits", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
@@ -64,7 +66,7 @@ class AiMediaController(
         @RequestPart("mask", required = false) mask: MultipartFile?,
         @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
         @RequestParam("size", required = false) @Size(max = 30) size: String?,
-    ): ResponseEntity<Response> {
+    ): Mono<ResponseEntity<Response>> {
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -74,11 +76,72 @@ class AiMediaController(
             @param:JsonProperty("download_expires_at") val downloadExpiresAt: LocalDateTime,
         )
         data class ResponseData(val list: List<FileData>)
-        val files = service.editImage(userId, providerConfigId, model, prompt, images, mask, count, size)
-        val rs = ResponseData(files.map { details ->
-            FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
-        })
-        return responseBuilder.created().data(rs).build()
+        return service.editImage(userId, providerConfigId, model, prompt, images, mask, count, size).map { files ->
+            val rs = ResponseData(files.map { details ->
+                FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
+            })
+            responseBuilder.created().data(rs).build()
+        }
+    }
+
+    @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/images/generations")
+    fun generateAssetImage(
+        @AuthenticationPrincipal userId: Long,
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @RequestParam("provider_config_id") providerConfigId: Long,
+        @RequestParam("model") @NotBlank @Size(max = 200) model: String,
+        @RequestParam("target") @NotBlank @Size(max = 30) target: String,
+        @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
+        @RequestParam("size", defaultValue = "2K") @Size(max = 30) size: String,
+    ): Mono<ResponseEntity<Response>> {
+        data class FileData(
+            val id: java.util.UUID,
+            @param:JsonProperty("file_name") val fileName: String,
+            @param:JsonProperty("content_type") val contentType: String?,
+            @param:JsonProperty("size_bytes") val sizeBytes: Long,
+            @param:JsonProperty("signed_download_url") val signedDownloadUrl: String,
+            @param:JsonProperty("download_expires_at") val downloadExpiresAt: LocalDateTime,
+        )
+        data class ResponseData(val list: List<FileData>)
+        return service.generateAssetImage(userId, projectId, episodeId, assetId, providerConfigId, model, target, count, size)
+            .map { files ->
+                val rs = ResponseData(files.map { details ->
+                    FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
+                })
+                responseBuilder.created().data(rs).build()
+            }
+    }
+
+    @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/images/edits")
+    fun editAssetImage(
+        @AuthenticationPrincipal userId: Long,
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @RequestParam("provider_config_id") providerConfigId: Long,
+        @RequestParam("model") @NotBlank @Size(max = 200) model: String,
+        @RequestParam("target") @NotBlank @Size(max = 30) target: String,
+        @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
+        @RequestParam("size", defaultValue = "2K") @Size(max = 30) size: String,
+    ): Mono<ResponseEntity<Response>> {
+        data class FileData(
+            val id: java.util.UUID,
+            @param:JsonProperty("file_name") val fileName: String,
+            @param:JsonProperty("content_type") val contentType: String?,
+            @param:JsonProperty("size_bytes") val sizeBytes: Long,
+            @param:JsonProperty("signed_download_url") val signedDownloadUrl: String,
+            @param:JsonProperty("download_expires_at") val downloadExpiresAt: LocalDateTime,
+        )
+        data class ResponseData(val list: List<FileData>)
+        return service.editAssetImage(userId, projectId, episodeId, assetId, providerConfigId, model, target, count, size)
+            .map { files ->
+                val rs = ResponseData(files.map { details ->
+                    FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
+                })
+                responseBuilder.created().data(rs).build()
+            }
     }
 
     @PostMapping("/api/ai/videos", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
@@ -90,20 +153,20 @@ class AiMediaController(
         @RequestParam("size", defaultValue = "1280x720") @Size(max = 30) size: String,
         @RequestParam("seconds", defaultValue = "8") @Min(1) @Max(20) seconds: Int,
         @RequestPart("input_reference", required = false) inputReference: MultipartFile?,
-    ): ResponseEntity<Response> {
+    ): Mono<ResponseEntity<Response>> {
         data class ResponseData(
             @param:JsonProperty("video_id") val videoId: String,
             val status: String,
         )
-        val videoId = service.generateVideo(userId, providerConfigId, model, prompt, size, seconds, inputReference)
-        return responseBuilder.accepted().data(ResponseData(videoId, "QUEUED")).build()
+        return service.generateVideo(userId, providerConfigId, model, prompt, size, seconds, inputReference)
+            .map { videoId -> responseBuilder.accepted().data(ResponseData(videoId, "QUEUED")).build() }
     }
 
     @GetMapping("/api/ai/videos/{video_id}")
     fun getVideo(
         @PathVariable("video_id") videoId: String,
         @RequestParam("provider_config_id") providerConfigId: Long,
-    ): ResponseEntity<Response> {
+    ): Mono<ResponseEntity<Response>> {
         data class ResponseData(
             @param:JsonProperty("video_id") val videoId: String,
             val model: String?,
@@ -114,9 +177,10 @@ class AiMediaController(
             @param:JsonProperty("error_code") val errorCode: String?,
             @param:JsonProperty("error_message") val errorMessage: String?,
         )
-        val result = service.pollVideo(providerConfigId, videoId)
-        val rs = ResponseData(result.id, result.model, result.status.name, result.progress, result.createdAtEpochSeconds, result.completedAtEpochSeconds, result.errorCode, result.errorMessage)
-        return responseBuilder.ok().data(rs).build()
+        return service.pollVideo(providerConfigId, videoId).map { result ->
+            val rs = ResponseData(result.id, result.model, result.status.name, result.progress, result.createdAtEpochSeconds, result.completedAtEpochSeconds, result.errorCode, result.errorMessage)
+            responseBuilder.ok().data(rs).build()
+        }
     }
 
     @PostMapping("/api/ai/videos/{video_id}/content")
@@ -124,7 +188,7 @@ class AiMediaController(
         @AuthenticationPrincipal userId: Long,
         @PathVariable("video_id") videoId: String,
         @RequestParam("provider_config_id") providerConfigId: Long,
-    ): ResponseEntity<Response> {
+    ): Mono<ResponseEntity<Response>> {
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -133,8 +197,9 @@ class AiMediaController(
             @param:JsonProperty("signed_download_url") val signedDownloadUrl: String,
             @param:JsonProperty("download_expires_at") val downloadExpiresAt: LocalDateTime,
         )
-        val file = service.downloadVideo(userId, providerConfigId, videoId)
-        val rs = FileData(file.file.id, file.file.originalFilename, file.file.contentType, file.file.sizeBytes, file.signedDownloadUrl, file.downloadExpiresAt)
-        return responseBuilder.created().data(rs).build()
+        return service.downloadVideo(userId, providerConfigId, videoId).map { file ->
+            val rs = FileData(file.file.id, file.file.originalFilename, file.file.contentType, file.file.sizeBytes, file.signedDownloadUrl, file.downloadExpiresAt)
+            responseBuilder.created().data(rs).build()
+        }
     }
 }

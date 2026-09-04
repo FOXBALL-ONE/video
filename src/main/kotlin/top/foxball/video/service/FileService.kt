@@ -27,6 +27,13 @@ data class DownloadableFile(
     val sizeBytes: Long,
 )
 
+/** 已完成归属校验、可供服务端内部处理的文件字节。 */
+data class StoredFileContent(
+    val originalFilename: String,
+    val contentType: String?,
+    val bytes: ByteArray,
+)
+
 /**
  * 文件领域服务。
  *
@@ -62,6 +69,9 @@ interface FileService {
         authenticatedUserId: Long? = null,
         authenticatedAdmin: Boolean = false,
     ): DownloadableFile
+
+    /** 读取当前用户拥有的文件内容，供服务端媒体处理使用。 */
+    fun readOwned(ownerId: Long, fileId: UUID): StoredFileContent
 
     /** 删除一份属于当前用户的文件；存在但归属其他用户时拒绝访问。 */
     fun delete(ownerId: Long, fileId: UUID)

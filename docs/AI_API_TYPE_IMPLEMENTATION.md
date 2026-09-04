@@ -46,6 +46,13 @@ API 配置现在支持三种互斥的能力类型：
 
 `POST /api/ai/images/edits` 使用 multipart 的 `images` 和可选 `mask`，用于图生图和局部重绘，结果按与文生图相同的规则保存。
 
+资产页面使用数据库驱动的媒体入口，不把编辑中的提示词或参考图从浏览器传给模型：
+
+- `POST /api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/images/generations`
+- `POST /api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/images/edits`
+
+这两个入口只接收 `provider_config_id`、`model`、`target`、`count` 和可选 `size`；服务端在调用时读取角色、场景或道具档案，图生图的参考图片从已保存文件读取。资产入口默认使用 `2K`，生成结果必须先写入服务端文件服务，前端只接收签名下载地址。调用前会检查项目编辑权限。
+
 ### 3.3 视频
 
 `POST /api/ai/videos` 使用 multipart 请求，可选 `input_reference` 图片，返回上游 `video_id` 和排队状态。视频生成是异步的，客户端通过 `GET /api/ai/videos/{video_id}?provider_config_id=...` 查询状态；完成后调用 `POST /api/ai/videos/{video_id}/content` 将内容下载到服务端并保存为用户文件。

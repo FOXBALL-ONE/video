@@ -12,6 +12,7 @@ import java.net.URI
 import java.time.Duration
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -115,6 +116,43 @@ class OpenAiCompatibleClientTest {
         val exception = kotlin.runCatching { policy.validateDestination(protectedConnection.baseUri, protectedConnection.profile) }.exceptionOrNull()
         assertNotNull(exception)
         assertTrue(exception is AiConfigurationException)
+    }
+
+    @Test
+    fun `normalizes image size aliases and sends generation options`() {
+        requests.clear()
+        client.generateImage(
+            connection,
+            AiImageGenerationCommand(
+                providerConfigId = 1,
+                model = "image-model",
+                prompt = "a blue square",
+                count = 2,
+                size = "2k",
+                quality = "high",
+            ),
+        ).block()
+
+        val body = requests.single().body
+        assertTrue(body.contains("\"n\":2"))
+        assertTrue(body.contains("\"size\":\"2K\""))
+        assertTrue(body.contains("\"quality\":\"high\""))
+    }
+
+    @Test
+    fun `rejects malformed image options before sending`() {
+        assertFailsWith<AiConfigurationException> {
+            client.generateImage(
+                connection,
+                AiImageGenerationCommand(
+                    providerConfigId = 1,
+                    model = "image-model",
+                    prompt = "test",
+                    size = "2K/unsafe",
+                ),
+            )
+        }
+        assertTrue(requests.isEmpty())
     }
 
     private fun handle(exchange: HttpExchange) {

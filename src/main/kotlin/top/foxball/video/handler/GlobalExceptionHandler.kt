@@ -26,6 +26,15 @@ import org.springframework.web.servlet.NoHandlerFoundException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
+import top.foxball.video.ai.AiCircuitOpenException
+import top.foxball.video.ai.AiClientException
+import top.foxball.video.ai.AiConfigurationException
+import top.foxball.video.ai.AiProxyException
+import top.foxball.video.ai.AiProtocolException
+import top.foxball.video.ai.AiRateLimitException
+import top.foxball.video.ai.AiTransportException
+import top.foxball.video.ai.AiUpstreamAuthenticationException
+import top.foxball.video.ai.AiUpstreamException
 
 /** 全局异常处理：将各类异常转换为统一 [Response] 响应。 */
 @Order(2)
@@ -197,6 +206,26 @@ class GlobalExceptionHandler {
             .message("Uploaded file exceeds the configured size limit.")
             .build()
     }
+
+    @ExceptionHandler(AiConfigurationException::class)
+    fun onAiConfigurationException(ex: AiConfigurationException): ResponseEntity<Response> =
+        builder.badRequest().message(ex.message).build()
+
+    @ExceptionHandler(AiRateLimitException::class)
+    fun onAiRateLimitException(ex: AiRateLimitException): ResponseEntity<Response> =
+        builder.tooManyRequests().retryAfter(ex.retryAfterSeconds ?: 1).message(ex.message).build()
+
+    @ExceptionHandler(AiUpstreamAuthenticationException::class, AiUpstreamException::class, AiProtocolException::class)
+    fun onAiUpstreamException(ex: AiClientException): ResponseEntity<Response> =
+        builder.status(HttpStatus.BAD_GATEWAY).message(ex.message).build()
+
+    @ExceptionHandler(AiProxyException::class, AiTransportException::class, AiCircuitOpenException::class)
+    fun onAiTransportException(ex: AiClientException): ResponseEntity<Response> =
+        builder.serviceUnavailable().retryAfter(1).message(ex.message).build()
+
+    @ExceptionHandler(AiClientException::class)
+    fun onAiClientException(ex: AiClientException): ResponseEntity<Response> =
+        builder.serviceUnavailable().message(ex.message).build()
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun onIllegalArgumentException(ex: IllegalArgumentException?): ResponseEntity<Response> {
