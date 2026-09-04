@@ -90,6 +90,9 @@ class OpenAiCompatibleClient(
         command: AiChatCompletionCommand,
     ): Mono<AiChatCompletionResult> {
         validateCommandConnection(connection, command.providerConfigId)
+        if (connection.provider.equals("openai", ignoreCase = true)) {
+            return createResponsesCompletion(connection, command)
+        }
         val payload = chatPayload(command, stream = false)
         val requestId = invocationId(command.requestId)
         val startedAt = System.nanoTime()
@@ -114,6 +117,41 @@ class OpenAiCompatibleClient(
             )
         }.doOnError { exception ->
             logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception)
+        }
+    }
+
+    /** OpenAI 官方文本模型使用 Responses API；兼容供应商保留 Chat Completions 路径。 */
+    private fun createResponsesCompletion(
+        connection: AiProviderConnection,
+        command: AiChatCompletionCommand,
+    ): Mono<AiChatCompletionResult> {
+        require(command.model.isNotBlank()) { "模型 ID 不能为空" }
+        require(command.messages.isNotEmpty()) { "对话消息不能为空" }
+        if (command.messages.any { it.role == AiChatRole.TOOL || it.toolCalls.isNotEmpty() }) {
+            throw AiConfigurationException("Responses API 暂不支持通过此入口提交工具调用")
+        }
+        val payload = linkedMapOf<String, Any>(
+            "model" to command.model,
+            "input" to command.messages.map { message ->
+                mapOf(
+                    "role" to message.role.name.lowercase(),
+                    "content" to listOf(mapOf("type" to "input_text", "text" to message.content.orEmpty())),
+                )
+            },
+        ).apply {
+            command.temperature?.let { put("temperature", it) }
+            command.maxCompletionTokens?.let { put("max_output_tokens", it) }
+        }
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(connection, AiOperation.CHAT, requestId, command.model, "protocol=responses message_count=${command.messages.size}")
+        return invocationGuard.protect(connection, AiOperation.CHAT) {
+            exchangeJson(connection, "responses", AiOperation.CHAT, payload, requestId)
+                .map(::parseResponsesCompletion)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.CHAT, requestId, startedAt, "protocol=responses output_chars=${result?.primaryChoice?.message?.content?.length ?: 0}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception, "protocol=responses")
         }
     }
 
@@ -176,8 +214,10 @@ class OpenAiCompatibleClient(
         val payload = linkedMapOf<String, Any>(
             "model" to command.model,
             "prompt" to command.prompt,
-            "response_format" to command.responseFormat.wireValue,
         ).apply {
+            if (!connection.provider.equals("openai", ignoreCase = true)) {
+                put("response_format", command.responseFormat.wireValue)
+            }
             command.count?.let { put("n", it) }
             command.size?.let { put("size", it) }
             command.quality?.let { put("quality", it) }
@@ -215,7 +255,9 @@ class OpenAiCompatibleClient(
         val multipart = MultipartBodyBuilder()
         multipart.part("model", command.model)
         multipart.part("prompt", command.prompt)
-        multipart.part("response_format", command.responseFormat.wireValue)
+        if (!connection.provider.equals("openai", ignoreCase = true)) {
+            multipart.part("response_format", command.responseFormat.wireValue)
+        }
         command.images.forEach { image ->
             multipart.part("image[]", imageResource(image)).contentType(MediaType.parseMediaType(image.contentType))
         }
@@ -255,6 +297,130 @@ class OpenAiCompatibleClient(
         }
     }
 
+    override fun createVideo(
+        connection: AiProviderConnection,
+        command: AiVideoGenerationCommand,
+    ): Mono<AiVideoGenerationResult> {
+        validateCommandConnection(connection, command.providerConfigId)
+        require(command.model.isNotBlank()) { "视频模型 ID 不能为空" }
+        require(command.prompt.isNotBlank()) { "视频提示词不能为空" }
+        require(command.seconds in 1..20) { "视频时长必须在 1 到 20 秒之间" }
+        require(command.size.matches(Regex("^[1-9][0-9]{2,4}x[1-9][0-9]{2,4}$"))) { "视频尺寸格式不正确" }
+        command.inputReference?.let(::validateImage)
+
+        val requestId = invocationId(command.requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(
+            connection,
+            AiOperation.VIDEO,
+            requestId,
+            command.model,
+            "mode=create size=${safeLog(command.size)} seconds=${command.seconds} input_reference=${command.inputReference != null}",
+        )
+
+        val request = transportFactory.client(connection.profile)
+            .post()
+            .uri(uriPolicy.endpoint(connection.baseUri, "videos"))
+            .headers { headers -> applyHeaders(headers, connection, requestId) }
+        val exchange = if (command.inputReference == null) {
+            request
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(videoPayload(command))
+                .exchangeToMono { response ->
+                    logUpstreamResponse(connection, AiOperation.VIDEO, requestId, "videos", response)
+                    jsonResponse(response)
+                }
+        } else {
+            val multipart = MultipartBodyBuilder()
+            multipart.part("model", command.model)
+            multipart.part("prompt", command.prompt)
+            multipart.part("size", command.size)
+            multipart.part("seconds", command.seconds.toString())
+            multipart.part("input_reference", imageResource(requireNotNull(command.inputReference)))
+                .contentType(MediaType.parseMediaType(requireNotNull(command.inputReference).contentType))
+            request
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData(multipart.build()))
+                .exchangeToMono { response ->
+                    logUpstreamResponse(connection, AiOperation.VIDEO, requestId, "videos", response)
+                    jsonResponse(response)
+                }
+        }
+        return invocationGuard.protect(connection, AiOperation.VIDEO) {
+            exchange.map(::parseVideo)
+                .onErrorMap(::mapTransportException)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.VIDEO, requestId, startedAt, "mode=create video_id=${safeLog(result?.id ?: "-")} status=${result?.status}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.VIDEO, requestId, startedAt, exception, "mode=create")
+        }
+    }
+
+    override fun getVideo(
+        connection: AiProviderConnection,
+        videoId: String,
+        requestId: String?,
+    ): Mono<AiVideoGenerationResult> {
+        val normalizedId = normalizeVideoId(videoId)
+        val requestIdValue = invocationId(requestId)
+        val startedAt = System.nanoTime()
+        logInvocationStarted(connection, AiOperation.VIDEO, requestIdValue, null, "mode=status video_id=${safeLog(normalizedId)}")
+        return invocationGuard.protect(connection, AiOperation.VIDEO) {
+            exchangeJson(connection, "videos/$normalizedId", AiOperation.VIDEO, requestId = requestIdValue)
+                .map(::parseVideo)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.VIDEO, requestIdValue, startedAt, "mode=status video_id=${safeLog(normalizedId)} status=${result?.status}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.VIDEO, requestIdValue, startedAt, exception, "mode=status")
+        }
+    }
+
+    override fun downloadVideo(
+        connection: AiProviderConnection,
+        videoId: String,
+        variant: String?,
+        requestId: String?,
+    ): Mono<AiVideoContent> {
+        val normalizedId = normalizeVideoId(videoId)
+        val normalizedVariant = variant?.trim()?.takeIf(String::isNotBlank)?.also {
+            if (it !in VIDEO_VARIANTS) throw AiConfigurationException("不支持的视频内容类型")
+        }
+        val requestIdValue = invocationId(requestId)
+        val startedAt = System.nanoTime()
+        val endpoint = uriPolicy.endpoint(connection.baseUri, "videos/$normalizedId/content")
+        val uri = if (normalizedVariant == null) endpoint else java.net.URI(
+            endpoint.scheme,
+            endpoint.authority,
+            endpoint.path,
+            "variant=${java.net.URLEncoder.encode(normalizedVariant, Charsets.UTF_8)}",
+            null,
+        )
+        logInvocationStarted(connection, AiOperation.VIDEO, requestIdValue, null, "mode=content video_id=${safeLog(normalizedId)} variant=${safeLog(normalizedVariant ?: "video")}")
+        return invocationGuard.protect(connection, AiOperation.VIDEO) {
+            transportFactory.client(connection.profile)
+                .get()
+                .uri(uri)
+                .headers { headers -> applyHeaders(headers, connection, requestIdValue) }
+                .accept(MediaType.APPLICATION_OCTET_STREAM, MediaType.APPLICATION_JSON)
+                .exchangeToMono { response ->
+                    logUpstreamResponse(connection, AiOperation.VIDEO, requestIdValue, "videos/$normalizedId/content", response)
+                    if (!response.statusCode().is2xxSuccessful) {
+                        jsonResponse(response).then(Mono.error(AiProtocolException("视频内容下载失败")))
+                    } else {
+                        response.bodyToMono(ByteArray::class.java).map { bytes ->
+                            val contentType = response.headers().contentType().orElse(MediaType.APPLICATION_OCTET_STREAM).toString()
+                            AiVideoContent(bytes, contentType, "$normalizedId.mp4")
+                        }
+                    }
+                }
+                .onErrorMap(::mapTransportException)
+        }.doOnSuccess { result ->
+            logInvocationSucceeded(connection, AiOperation.VIDEO, requestIdValue, startedAt, "mode=content bytes=${result?.bytes?.size ?: 0}")
+        }.doOnError { exception ->
+            logInvocationFailed(connection, AiOperation.VIDEO, requestIdValue, startedAt, exception, "mode=content")
+        }
+    }
+
     private fun exchangeJson(
         connection: AiProviderConnection,
         resource: String,
@@ -275,6 +441,13 @@ class OpenAiCompatibleClient(
             }
             .onErrorMap(::mapTransportException)
     }
+
+    private fun videoPayload(command: AiVideoGenerationCommand): Map<String, Any> = linkedMapOf(
+        "model" to command.model,
+        "prompt" to command.prompt,
+        "size" to command.size,
+        "seconds" to command.seconds.toString(),
+    )
 
     private fun invocationId(requestId: String?): String =
         requestId?.trim()?.takeIf(String::isNotBlank)?.take(MAX_REQUEST_ID_CHARS)?.map { character ->
@@ -472,6 +645,28 @@ class OpenAiCompatibleClient(
         )
     }
 
+    private fun parseResponsesCompletion(response: JsonNode): AiChatCompletionResult {
+        val content = response.fieldString("output_text") ?: response.path("output")
+            .firstOrNull { item -> item.fieldString("type") == "message" }
+            ?.path("content")
+            ?.mapNotNull { item -> item.fieldString("text") ?: item.fieldString("output_text") }
+            ?.joinToString("")
+            ?.takeIf(String::isNotBlank)
+            ?: throw AiProtocolException("Responses API 未返回文本内容")
+        return AiChatCompletionResult(
+            id = response.fieldString("id"),
+            model = response.fieldString("model"),
+            choices = listOf(
+                AiChatChoice(
+                    index = 0,
+                    message = AiChatMessage(AiChatRole.ASSISTANT, content),
+                    finishReason = response.fieldString("status"),
+                ),
+            ),
+            usage = response.path("usage").takeIf { !it.isMissingNode && !it.isNull }?.let(::parseUsage),
+        )
+    }
+
     private fun parseChatChoice(choice: JsonNode): AiChatChoice? {
         val message = choice.path("message")
         val role = message.fieldString("role")?.uppercase()?.let { value -> AiChatRole.entries.firstOrNull { it.name == value } } ?: return null
@@ -529,6 +724,30 @@ class OpenAiCompatibleClient(
         )
     }
 
+    private fun parseVideo(response: JsonNode): AiVideoGenerationResult {
+        val id = response.fieldString("id") ?: throw AiProtocolException("视频服务响应不包含视频 ID")
+        val statusValue = response.fieldString("status")?.uppercase() ?: "UNKNOWN"
+        val status = when (statusValue) {
+            "QUEUED", "PENDING" -> AiVideoStatus.QUEUED
+            "IN_PROGRESS", "PROCESSING", "RUNNING" -> AiVideoStatus.IN_PROGRESS
+            "COMPLETED", "SUCCEEDED", "SUCCESS" -> AiVideoStatus.COMPLETED
+            "FAILED", "ERROR" -> AiVideoStatus.FAILED
+            "CANCELLED", "CANCELED" -> AiVideoStatus.CANCELLED
+            else -> AiVideoStatus.UNKNOWN
+        }
+        val error = response.path("error")
+        return AiVideoGenerationResult(
+            id = id,
+            model = response.fieldString("model"),
+            status = status,
+            progress = response.fieldInt("progress")?.coerceIn(0, 100),
+            createdAtEpochSeconds = response.fieldLong("created_at"),
+            completedAtEpochSeconds = response.fieldLong("completed_at"),
+            errorCode = error.fieldString("code") ?: response.fieldString("error_code"),
+            errorMessage = error.fieldString("message") ?: response.fieldString("error_message"),
+        )
+    }
+
     private fun imageResource(image: AiImageInput): ByteArrayResource = object : ByteArrayResource(image.bytes) {
         override fun getFilename(): String = image.filename
     }
@@ -537,6 +756,14 @@ class OpenAiCompatibleClient(
         if (image.filename.isBlank() || image.contentType.isBlank() || image.bytes.isEmpty()) throw AiConfigurationException("图像编辑输入不完整")
         if (!image.contentType.startsWith("image/")) throw AiConfigurationException("图像编辑仅支持图片文件")
         if (image.bytes.size > MAX_IMAGE_BYTES) throw AiConfigurationException("单张图像不能超过 20 MB")
+    }
+
+    private fun normalizeVideoId(videoId: String): String {
+        val value = videoId.trim()
+        if (value.isBlank() || value.length > 200 || value.any { it.isISOControl() } || value.contains('/')) {
+            throw AiConfigurationException("视频 ID 不正确")
+        }
+        return value
     }
 
     private fun validateCommandConnection(connection: AiProviderConnection, providerConfigId: Long) {
@@ -573,5 +800,6 @@ class OpenAiCompatibleClient(
         const val MAX_ERROR_RESPONSE_CHARS = 8_000
         const val MAX_REQUEST_ID_CHARS = 128
         const val MAX_LOG_FIELD_CHARS = 256
+        val VIDEO_VARIANTS = setOf("video", "thumbnail", "spritesheet")
     }
 }

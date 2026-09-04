@@ -26,4 +26,22 @@ interface AiModelClient {
         connection: AiProviderConnection,
         command: AiImageEditCommand,
     ): Mono<AiImageGenerationResult>
+
+    fun createVideo(
+        connection: AiProviderConnection,
+        command: AiVideoGenerationCommand,
+    ): Mono<AiVideoGenerationResult>
+
+    fun getVideo(
+        connection: AiProviderConnection,
+        videoId: String,
+        requestId: String? = null,
+    ): Mono<AiVideoGenerationResult>
+
+    fun downloadVideo(
+        connection: AiProviderConnection,
+        videoId: String,
+        variant: String? = null,
+        requestId: String? = null,
+    ): Mono<AiVideoContent>
 }

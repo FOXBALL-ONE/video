@@ -75,6 +75,40 @@ class FileServiceImpl(
         }
     }
 
+    override fun storeGenerated(ownerId: Long, filename: String, contentType: String, bytes: ByteArray): FileDetails {
+        if (bytes.isEmpty()) throw ParamErrorException("Generated file must not be empty.")
+        if (bytes.size.toLong() > properties.maxFileSizeBytes) {
+            throw ParamErrorException("Generated file must not exceed ${properties.maxFileSizeBytes} bytes.")
+        }
+        val originalFilename = safeFilename(filename)
+        val identifier = UUID.randomUUID()
+        val datePath = LocalDate.now(ZoneOffset.UTC).toString().replace('-', '/')
+        val storedFilename = "$identifier${extensionOf(originalFilename)}"
+        val relativePath = "$datePath/$storedFilename"
+        val target = resolveStoredPath(relativePath)
+        Files.createDirectories(target.parent)
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes).let(HexFormat.of()::formatHex)
+        try {
+            Files.write(target, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+            val stored = fileRepository.saveAndFlush(
+                StoredFile(
+                    id = identifier,
+                    ownerId = ownerId,
+                    originalFilename = originalFilename,
+                    storedFilename = storedFilename,
+                    relativePath = relativePath,
+                    contentType = contentType.take(255),
+                    sizeBytes = bytes.size.toLong(),
+                    sha256 = sha256,
+                ),
+            )
+            return fileDetails(stored, "user:${stored.ownerId}")
+        } catch (exception: Exception) {
+            deletePathQuietly(target)
+            throw exception
+        }
+    }
+
     override fun list(ownerId: Long, pageable: Pageable): Page<FileDetails> =
         fileRepository.findAllByOwnerIdOrderByCreatedAtDesc(ownerId, pageable).map { storedFile ->
             fileDetails(storedFile, "user:${storedFile.ownerId}")
@@ -348,7 +382,11 @@ class FileServiceImpl(
     }
 
     private fun safeOriginalFilename(file: MultipartFile): String {
-        val filename = file.originalFilename
+        return safeFilename(file.originalFilename)
+    }
+
+    private fun safeFilename(value: String?): String {
+        val filename = value
             ?.substringAfterLast('/')
             ?.substringAfterLast('\\')
             ?.trim()

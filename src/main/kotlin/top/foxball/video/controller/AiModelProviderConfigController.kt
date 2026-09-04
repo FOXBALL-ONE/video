@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import top.foxball.video.ai.AiClientException
+import top.foxball.video.ai.AiApiType
 import top.foxball.video.ai.AiConfigurationException
 import top.foxball.video.ai.AiDnsMode
 import top.foxball.video.ai.AiProviderConnectionSettings
@@ -16,6 +17,7 @@ import top.foxball.video.ai.AiProxyMode
 import top.foxball.video.ai.AiRateLimitException
 import top.foxball.video.ai.AiUpstreamAuthenticationException
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
+import top.foxball.video.entity.jdbc.apiType
 import top.foxball.video.service.AiModelProviderConfigService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
@@ -32,6 +34,7 @@ class AiModelProviderConfigController(
     /** 保存提供商配置；服务密钥和代理密码只写入数据库，不包含在响应中。 */
     fun save(
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
+        @RequestParam("api_type", defaultValue = "CHAT") apiType: AiApiType,
         @RequestParam("model_id") @NotBlank @Size(max = 200) modelId: String,
         @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
         @RequestParam("api_key") @NotBlank @Size(max = 1024) secretKey: String,
@@ -52,6 +55,7 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
+            @param:JsonProperty("api_type") val apiType: String,
             @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
@@ -83,7 +87,7 @@ class AiModelProviderConfigController(
         val config = service.save(
             AiModelProviderConfig(
                 provider = provider,
-                model = mapOf("id" to modelId),
+                model = mapOf("id" to modelId, "api_type" to apiType.name),
                 baseUrl = baseUrl,
                 secretKey = secretKey,
                 connectionConfig = AiProviderConnectionSettings(
@@ -105,7 +109,7 @@ class AiModelProviderConfigController(
         )
         val connection = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
         val rs = ResponseData(
-            requireNotNull(config.id), config.provider, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
+            requireNotNull(config.id), config.provider, config.apiType.name, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl, config.enabled, connection.useDefaultTransport, connection.proxyMode.name, connection.proxyHost,
             connection.proxyPort, connection.proxyUsername, !connection.proxyPassword.isNullOrBlank(), connection.nonProxyHosts,
             connection.dnsMode.name, connection.proxyRemoteDnsAllowedHosts, connection.allowPrivateNetwork,
@@ -120,6 +124,7 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
+            @param:JsonProperty("api_type") val apiType: String,
             @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
@@ -142,7 +147,7 @@ class AiModelProviderConfigController(
         val config = service.findById(id) ?: return responseBuilder.notFound().build()
         val connection = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
         val rs = ResponseData(
-            requireNotNull(config.id), config.provider, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
+            requireNotNull(config.id), config.provider, config.apiType.name, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl, config.enabled, connection.useDefaultTransport, connection.proxyMode.name, connection.proxyHost,
             connection.proxyPort, connection.proxyUsername, !connection.proxyPassword.isNullOrBlank(), connection.nonProxyHosts,
             connection.dnsMode.name, connection.proxyRemoteDnsAllowedHosts, connection.allowPrivateNetwork,
@@ -157,6 +162,7 @@ class AiModelProviderConfigController(
         data class ConfigData(
             val id: Long,
             val provider: String,
+            @param:JsonProperty("api_type") val apiType: String,
             @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
@@ -181,7 +187,7 @@ class AiModelProviderConfigController(
         val list = configs.map { config ->
             val connection = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
             ConfigData(
-                requireNotNull(config.id), config.provider, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
+                requireNotNull(config.id), config.provider, config.apiType.name, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
                 config.baseUrl, config.enabled, connection.useDefaultTransport, connection.proxyMode.name, connection.proxyHost,
                 connection.proxyPort, connection.proxyUsername, !connection.proxyPassword.isNullOrBlank(), connection.nonProxyHosts,
                 connection.dnsMode.name, connection.proxyRemoteDnsAllowedHosts, connection.allowPrivateNetwork,
@@ -196,6 +202,7 @@ class AiModelProviderConfigController(
     /** 通过 OpenAI 兼容的 /v1/models 接口拉取模型 ID，并使用表单中的连接设置。 */
     fun fetchModels(
         @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
+        @RequestParam("api_type", defaultValue = "CHAT") apiType: AiApiType,
         @RequestParam("api_key", required = false) @Size(max = 1024) apiKey: String?,
         @RequestParam("config_id", required = false) configId: Long?,
         @RequestParam("provider", required = false) @Size(max = 50) provider: String?,
@@ -267,6 +274,7 @@ class AiModelProviderConfigController(
     fun update(
         @PathVariable("id") id: Long,
         @RequestParam("provider") @NotBlank @Size(max = 50) provider: String,
+        @RequestParam("api_type", defaultValue = "CHAT") apiType: AiApiType,
         @RequestParam("model_id") @NotBlank @Size(max = 200) modelId: String,
         @RequestParam("base_url") @NotBlank @Size(max = 500) baseUrl: String,
         @RequestParam("api_key", required = false) @Size(max = 1024) secretKey: String?,
@@ -287,6 +295,7 @@ class AiModelProviderConfigController(
         data class ResponseData(
             val id: Long,
             val provider: String,
+            @param:JsonProperty("api_type") val apiType: String,
             @param:JsonProperty("model_id") val modelId: String,
             @param:JsonProperty("base_url") val baseUrl: String,
             val enabled: Boolean,
@@ -330,11 +339,11 @@ class AiModelProviderConfigController(
                 allowPrivateNetwork = allowPrivateNetwork,
                 connectTimeoutSeconds = connectTimeoutSeconds,
                 responseTimeoutSeconds = responseTimeoutSeconds,
-            ),
+            ), apiType,
         ) ?: return responseBuilder.notFound().build()
         val connection = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
         val rs = ResponseData(
-            requireNotNull(config.id), config.provider, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
+            requireNotNull(config.id), config.provider, config.apiType.name, config.model["id"] ?: config.model.values.firstOrNull().orEmpty(),
             config.baseUrl, config.enabled, connection.useDefaultTransport, connection.proxyMode.name, connection.proxyHost,
             connection.proxyPort, connection.proxyUsername, !connection.proxyPassword.isNullOrBlank(), connection.nonProxyHosts,
             connection.dnsMode.name, connection.proxyRemoteDnsAllowedHosts, connection.allowPrivateNetwork,

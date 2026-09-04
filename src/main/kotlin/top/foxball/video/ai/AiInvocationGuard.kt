@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
-enum class AiOperation { MODEL_LIST, CHAT, IMAGE }
+enum class AiOperation { MODEL_LIST, CHAT, IMAGE, VIDEO }
 
 /** 提供商级有界并发和轻量断路器，避免单一上游故障耗尽应用工作线程。 */
 @Component
@@ -63,6 +63,7 @@ class AiInvocationGuard {
         AiOperation.MODEL_LIST -> profile.maxInFlightModelListRequests
         AiOperation.CHAT -> profile.maxInFlightChatRequests
         AiOperation.IMAGE -> profile.maxInFlightImageRequests
+        AiOperation.VIDEO -> profile.maxInFlightImageRequests
     }
 
     private fun connectionKey(connection: AiProviderConnection): String =

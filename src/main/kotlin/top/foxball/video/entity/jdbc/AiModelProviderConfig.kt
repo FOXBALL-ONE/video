@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.LocalDateTime
+import top.foxball.video.ai.AiApiType
 
 /** AI 模型提供商连接配置，密钥仅存储在服务端，不通过响应返回。 */
 @Entity
@@ -16,8 +17,8 @@ class AiModelProviderConfig(
     /** 数据库主键。 */
     var id: Long? = null,
     
-    @Column(nullable = false, unique = true, length = 50)
-    /** 提供商唯一标识，例如 openai 或 anthropic。 */
+    @Column(nullable = false, length = 50)
+    /** 提供商标识；同一提供商可以分别保存对话、图片和视频连接。 */
     var provider: String = "",
     
     @JdbcTypeCode(SqlTypes.JSON)
@@ -51,3 +52,9 @@ class AiModelProviderConfig(
     /** 配置最近更新时间。 */
     var updatedAt: LocalDateTime? = null,
 )
+
+/** 从旧配置兼容读取能力类型；历史记录默认视为对话 API。 */
+val AiModelProviderConfig.apiType: AiApiType
+    get() = model["api_type"]?.let { value ->
+        runCatching { AiApiType.valueOf(value.uppercase()) }.getOrNull()
+    } ?: AiApiType.CHAT

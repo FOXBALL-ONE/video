@@ -4,6 +4,9 @@ import tools.jackson.databind.JsonNode
 import top.foxball.video.config.AiClientProperties
 import java.time.Duration
 
+/** AI API 能力类型，决定配置可被哪类业务调用。 */
+enum class AiApiType { CHAT, IMAGE, VIDEO }
+
 /** 可由 API 管理页覆盖的提供商网络设置；缺省时沿用应用级连接档案。 */
 data class AiProviderConnectionSettings(
     val useDefaultTransport: Boolean = true,
@@ -124,6 +127,8 @@ data class AiProviderConnection(
     val baseUri: java.net.URI,
     val apiKey: String,
     val profile: AiConnectionProfile,
+    /** 已保存配置的能力类型；临时连接为空以保持模型探测兼容。 */
+    val apiType: AiApiType? = null,
 )
 
 /** 代理、DNS、超时和并发限制的不可变连接档案。 */
@@ -259,4 +264,34 @@ data class AiGeneratedImage(
 data class AiImageGenerationResult(
     val createdAtEpochSeconds: Long?,
     val images: List<AiGeneratedImage>,
+)
+
+/** OpenAI Videos API 的生成请求。视频 API 采用异步任务模型。 */
+data class AiVideoGenerationCommand(
+    val providerConfigId: Long,
+    val model: String,
+    val prompt: String,
+    val size: String = "1280x720",
+    val seconds: Int = 8,
+    val inputReference: AiImageInput? = null,
+    val requestId: String? = null,
+)
+
+enum class AiVideoStatus { QUEUED, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, UNKNOWN }
+
+data class AiVideoGenerationResult(
+    val id: String,
+    val model: String?,
+    val status: AiVideoStatus,
+    val progress: Int? = null,
+    val createdAtEpochSeconds: Long? = null,
+    val completedAtEpochSeconds: Long? = null,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+)
+
+data class AiVideoContent(
+    val bytes: ByteArray,
+    val contentType: String,
+    val filename: String,
 )

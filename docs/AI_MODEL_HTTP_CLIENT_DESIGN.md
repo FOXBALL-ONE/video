@@ -17,6 +17,9 @@
 | 流式对话补全 | `POST /v1/chat/completions`，`stream=true` | Server-Sent Events | 交互式助手输出 |
 | 文生图 | `POST /v1/images/generations` | JSON | 概念图、资产图、分镜图 |
 | 图像编辑或局部重绘 | `POST /v1/images/edits` | `multipart/form-data` | 资产修订、蒙版编辑 |
+| 视频生成 | `POST /v1/videos`、`GET /v1/videos/{id}`、`GET /v1/videos/{id}/content` | JSON 或 multipart | 文字/图片生成视频片段 |
+
+三类 API 配置、视频异步状态及生成结果保存的落地说明见 [`AI_API_TYPE_IMPLEMENTATION.md`](AI_API_TYPE_IMPLEMENTATION.md)。
 
 `/v1/images/generations` 与 `/v1/images/edits` 是两个明确分离的操作。业务调用方必须显式选择其一，不能依赖语义模糊的通用图像接口。
 

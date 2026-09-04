@@ -30,6 +30,7 @@
               <thead class="border-b border-[#edf0f4] bg-[#fafbfc] text-[11px] font-medium text-[#8994a8]">
               <tr>
                 <th class="px-5 py-3">提供商</th>
+                <th class="px-5 py-3">API 类型</th>
                 <th class="px-5 py-3">模型 ID</th>
                 <th class="px-5 py-3">服务地址</th>
                 <th class="px-5 py-3">网络路由</th>
@@ -43,6 +44,9 @@
                 <td class="px-5 py-4">
                   <strong class="block font-semibold text-[#303b51]">{{ config.provider }}</strong>
                   <span class="mt-1 block text-[10px] text-[#9aa3b4]">ID · {{ config.id }}</span>
+                </td>
+                <td class="px-5 py-4">
+                  <n-tag :bordered="false" size="small">{{ apiTypeLabel(config.api_type) }}</n-tag>
                 </td>
                 <td class="px-5 py-4">
                   <span class="block max-w-[160px] truncate font-medium text-[#4b566b]">{{ config.model_id }}</span>
@@ -87,6 +91,9 @@
         <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <n-form-item label="提供商" required>
             <n-input v-model:value="form.provider" :disabled="Boolean(editingId)" placeholder="例如：openai"/>
+          </n-form-item>
+          <n-form-item label="API 类型" required>
+            <n-select v-model:value="form.apiType" :disabled="Boolean(editingId)" :options="apiTypeOptions"/>
           </n-form-item>
           <n-form-item label="模型 ID" required>
             <n-select v-if="modelOptions.length" v-model:value="form.modelId" :options="modelOptions" filterable placeholder="选择模型 ID"/>
@@ -181,10 +188,12 @@ import {computed, onMounted, reactive, ref} from 'vue'
 
 type ProxyMode = 'DIRECT' | 'HTTP' | 'SOCKS5'
 type DnsMode = 'LOCAL' | 'PROXY'
+type ApiType = 'CHAT' | 'IMAGE' | 'VIDEO'
 
 interface ProviderConfig {
   id: number
   provider: string
+  api_type: ApiType
   model_id: string
   base_url: string
   enabled: boolean
@@ -206,6 +215,7 @@ interface ProviderConfig {
 
 interface ProviderForm {
   provider: string
+  apiType: ApiType
   modelId: string
   baseUrl: string
   apiKey: string
@@ -245,6 +255,11 @@ const dnsModeOptions = [
   {label: '本地解析', value: 'LOCAL'},
   {label: '代理解析', value: 'PROXY'},
 ]
+const apiTypeOptions = [
+  {label: '对话', value: 'CHAT'},
+  {label: '图片', value: 'IMAGE'},
+  {label: '视频', value: 'VIDEO'},
+]
 
 onMounted(loadConfigs)
 
@@ -272,6 +287,7 @@ function openEdit(config: ProviderConfig) {
   modelOptions.value = []
   Object.assign(form, {
     provider: config.provider,
+    apiType: config.api_type || 'CHAT',
     modelId: config.model_id,
     baseUrl: config.base_url,
     apiKey: '',
@@ -305,6 +321,7 @@ async function fetchModels() {
 
   const formData = new FormData()
   formData.append('base_url', form.baseUrl.trim())
+  formData.append('api_type', form.apiType)
   if (form.provider.trim()) formData.append('provider', form.provider.trim())
   if (form.apiKey.trim()) formData.append('api_key', form.apiKey.trim())
   if (editingId.value) formData.append('config_id', String(editingId.value))
@@ -354,6 +371,7 @@ async function saveConfig() {
 
   const payload = {
     provider: form.provider.trim(),
+    api_type: form.apiType,
     model_id: form.modelId.trim(),
     base_url: form.baseUrl.trim(),
     api_key: form.apiKey.trim(),
@@ -414,11 +432,15 @@ function transportDetails(config: ProviderConfig): string {
 
 function emptyForm(): ProviderForm {
   return {
-    provider: '', modelId: '', baseUrl: '', apiKey: '', enabled: true,
+    provider: '', apiType: 'CHAT', modelId: '', baseUrl: '', apiKey: '', enabled: true,
     useDefaultTransport: true, proxyMode: 'DIRECT', proxyHost: '', proxyPort: null,
     proxyUsername: '', proxyPassword: '', proxyPasswordConfigured: false, nonProxyHosts: '', dnsMode: 'LOCAL',
     proxyRemoteDnsAllowedHosts: '', allowPrivateNetwork: false, connectTimeoutSeconds: 10, responseTimeoutSeconds: 90,
   }
+}
+
+function apiTypeLabel(type: ApiType | string | undefined): string {
+  return apiTypeOptions.find((option) => option.value === type)?.label || '对话'
 }
 
 function requestMessage(error: unknown, fallback: string): string {

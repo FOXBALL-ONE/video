@@ -3,6 +3,7 @@ package top.foxball.video.service
 import org.springframework.stereotype.Service
 import top.foxball.video.ai.AiProviderConnectionSettings
 import top.foxball.video.ai.AiInvocationService
+import top.foxball.video.ai.AiApiType
 import top.foxball.video.ai.AiProxyMode
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
 import top.foxball.video.repository.AiModelProviderConfigRepository
@@ -41,10 +42,14 @@ class AiModelProviderConfigService(
         secretKey: String?,
         enabled: Boolean,
         connectionSettings: AiProviderConnectionSettings,
+        apiType: AiApiType = AiApiType.CHAT,
     ): AiModelProviderConfig? {
         val config = findById(id) ?: return null
         val previousSettings = AiProviderConnectionSettings.fromStorage(config.connectionConfig)
-        config.provider = provider; config.model = mapOf("id" to modelId); config.baseUrl = baseUrl; config.enabled = enabled
+        config.provider = provider
+        config.model = mapOf("id" to modelId, "api_type" to apiType.name)
+        config.baseUrl = baseUrl
+        config.enabled = enabled
         if (!secretKey.isNullOrBlank()) config.secretKey = secretKey
         config.connectionConfig = connectionSettings.copy(
             proxyPassword = if (!connectionSettings.useDefaultTransport && connectionSettings.proxyMode != AiProxyMode.DIRECT) {

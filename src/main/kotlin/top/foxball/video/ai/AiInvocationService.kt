@@ -11,6 +11,7 @@ import java.util.UUID
 class AiInvocationService(
     private val providerResolver: AiProviderResolver,
     private val client: AiModelClient,
+    private val resultDownloader: AiResultDownloader,
 ) {
     fun listModels(providerConfigId: Long): Mono<List<AiModelDescriptor>> {
         val connection = providerResolver.resolveSaved(providerConfigId)
@@ -44,22 +45,47 @@ class AiInvocationService(
             .orEmpty()
 
     fun createChatCompletion(command: AiChatCompletionCommand): Mono<AiChatCompletionResult> {
-        val connection = providerResolver.resolveSaved(command.providerConfigId)
+        val connection = providerResolver.resolveSaved(command.providerConfigId, AiApiType.CHAT)
         return client.createChatCompletion(connection, command.copy(requestId = command.requestId ?: UUID.randomUUID().toString()))
     }
 
     fun streamChatCompletion(command: AiChatCompletionCommand): Flux<AiChatCompletionDelta> {
-        val connection = providerResolver.resolveSaved(command.providerConfigId)
+        val connection = providerResolver.resolveSaved(command.providerConfigId, AiApiType.CHAT)
         return client.streamChatCompletion(connection, command.copy(requestId = command.requestId ?: UUID.randomUUID().toString()))
     }
 
     fun generateImage(command: AiImageGenerationCommand): Mono<AiImageGenerationResult> {
-        val connection = providerResolver.resolveSaved(command.providerConfigId)
+        val connection = providerResolver.resolveSaved(command.providerConfigId, AiApiType.IMAGE)
         return client.generateImage(connection, command.copy(requestId = command.requestId ?: UUID.randomUUID().toString()))
     }
 
     fun editImage(command: AiImageEditCommand): Mono<AiImageGenerationResult> {
-        val connection = providerResolver.resolveSaved(command.providerConfigId)
+        val connection = providerResolver.resolveSaved(command.providerConfigId, AiApiType.IMAGE)
         return client.editImage(connection, command.copy(requestId = command.requestId ?: UUID.randomUUID().toString()))
+    }
+
+    fun createVideo(command: AiVideoGenerationCommand): Mono<AiVideoGenerationResult> {
+        val connection = providerResolver.resolveSaved(command.providerConfigId, AiApiType.VIDEO)
+        return client.createVideo(connection, command.copy(requestId = command.requestId ?: UUID.randomUUID().toString()))
+    }
+
+    fun getVideo(providerConfigId: Long, videoId: String, requestId: String? = null): Mono<AiVideoGenerationResult> {
+        val connection = providerResolver.resolveSaved(providerConfigId, AiApiType.VIDEO)
+        return client.getVideo(connection, videoId, requestId ?: UUID.randomUUID().toString())
+    }
+
+    fun downloadVideo(
+        providerConfigId: Long,
+        videoId: String,
+        variant: String? = null,
+        requestId: String? = null,
+    ): Mono<AiVideoContent> {
+        val connection = providerResolver.resolveSaved(providerConfigId, AiApiType.VIDEO)
+        return client.downloadVideo(connection, videoId, variant, requestId ?: UUID.randomUUID().toString())
+    }
+
+    fun downloadImage(providerConfigId: Long, imageUrl: String): Mono<AiResultDownloader.DownloadedAiImage> {
+        val connection = providerResolver.resolveSaved(providerConfigId, AiApiType.IMAGE)
+        return resultDownloader.download(connection, imageUrl)
     }
 }

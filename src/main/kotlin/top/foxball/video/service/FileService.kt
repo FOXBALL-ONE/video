@@ -36,6 +36,9 @@ interface FileService {
     /** 保存一份或多份上传文件，并返回带短期链接的元数据。 */
     fun upload(ownerId: Long, files: List<MultipartFile>): List<FileDetails>
 
+    /** 保存服务端生成的内容，并按生成用户签发下载链接。 */
+    fun storeGenerated(ownerId: Long, filename: String, contentType: String, bytes: ByteArray): FileDetails
+
     /** 列出当前用户的文件，并为每项重新签发链接。 */
     fun list(ownerId: Long, pageable: Pageable): Page<FileDetails>
 
