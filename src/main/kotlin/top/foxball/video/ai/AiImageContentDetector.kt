@@ -2,6 +2,16 @@ package top.foxball.video.ai
 
 /** 依据文件签名识别模型返回的栅格图片格式，避免信任不可靠的 MIME 头。 */
 object AiImageContentDetector {
+    /**
+     * 根据图片字节流开头的文件签名推断真实 MIME 类型。
+     *
+     * 该方法只接受 PNG、JPEG、WebP 和 GIF 四种常见格式；无法匹配时抛出协议异常，
+     * 以避免调用方盲目信任上游返回的 Content-Type。
+     *
+     * @param bytes 待检测的完整或部分图片字节。
+     * @return 与文件签名对应的 `image/` 前缀 MIME 类型。
+     * @throws AiProtocolException 当字节流不符合支持的图片格式时抛出。
+     */
     fun detect(bytes: ByteArray): String = when {
         startsWith(bytes, PNG_SIGNATURE) -> "image/png"
         startsWith(bytes, JPEG_SIGNATURE) -> "image/jpeg"
@@ -10,6 +20,7 @@ object AiImageContentDetector {
         else -> throw AiProtocolException("模型返回了无法识别的图片数据")
     }
 
+    /** 判断字节数组是否以指定签名开头，并在长度不足时安全返回 false。 */
     private fun startsWith(bytes: ByteArray, signature: ByteArray): Boolean =
         bytes.size >= signature.size && bytes.copyOfRange(0, signature.size).contentEquals(signature)
 

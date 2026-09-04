@@ -13,15 +13,18 @@ import java.util.concurrent.ConcurrentHashMap
 class ProxyAwareHttpTransportFactory {
     private val clients = ConcurrentHashMap<TransportCacheKey, WebClient>()
 
+    /** 根据连接档案取得可复用的 WebClient；临时档案每次创建独立客户端。 */
     fun client(profile: AiConnectionProfile): WebClient {
         val cacheKey = profile.cacheKey ?: return createClient(profile)
         return clients.computeIfAbsent(TransportCacheKey.from(profile, cacheKey)) { createClient(profile) }
     }
 
+    /** 删除指定档案版本对应的客户端缓存，使后续请求使用新配置。 */
     fun invalidate(cacheKey: String) {
         clients.entries.removeIf { it.key.cacheKey == cacheKey }
     }
 
+    /** 创建带连接超时、响应超时和可选代理认证的 Reactor Netty 客户端。 */
     private fun createClient(profile: AiConnectionProfile): WebClient {
         var httpClient = HttpClient.create()
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, profile.connectTimeout.toMillis().toInt())
@@ -56,6 +59,7 @@ class ProxyAwareHttpTransportFactory {
         val responseTimeoutMillis: Long,
     ) {
         companion object {
+            /** 从连接档案提取不含代理密码的缓存键字段。 */
             fun from(profile: AiConnectionProfile, cacheKey: String) = TransportCacheKey(
                 cacheKey,
                 profile.proxyMode,

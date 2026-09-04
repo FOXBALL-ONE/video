@@ -16,6 +16,15 @@ class AiProviderResolver(
     private val uriPolicy = AiProviderUriPolicy()
     private val cachedProfileKeys = ConcurrentHashMap<Long, String>()
 
+    /**
+     * 从数据库读取并校验已保存的提供商配置，生成可直接调用的连接对象。
+     * 会检查启用状态、API 能力类型，并在连接档案变化时失效旧的 HTTP 客户端缓存。
+     *
+     * @param providerConfigId 提供商配置主键。
+     * @param expectedApiType 调用方要求的能力类型，为空时不限制类型。
+     * @return 包含脱敏网络档案和 API 密钥的内部连接对象。
+     * @throws AiConfigurationException 配置不存在、停用或校验失败时抛出。
+     */
     fun resolveSaved(providerConfigId: Long, expectedApiType: AiApiType? = null): AiProviderConnection {
         val config = repository.findById(providerConfigId).orElseThrow {
             AiConfigurationException("AI 提供商配置不存在")
@@ -39,6 +48,10 @@ class AiProviderResolver(
         return connection
     }
 
+    /**
+     * 根据调用方临时提供的参数构造连接，用于新增配置前的连通性测试。
+     * 临时连接不写入数据库，也不会使用可长期缓存的连接键。
+     */
     fun resolveTransient(
         provider: String,
         baseUrl: String,
@@ -46,6 +59,7 @@ class AiProviderResolver(
         connectionSettings: AiProviderConnectionSettings = AiProviderConnectionSettings(),
     ): AiProviderConnection = resolve(null, provider, baseUrl, apiKey, connectionSettings, "", null)
 
+    /** 统一完成提供商名称、连接档案、地址及目标主机的规范化与校验。 */
     private fun resolve(
         providerConfigId: Long?,
         provider: String,
@@ -71,6 +85,7 @@ class AiProviderResolver(
         return AiProviderConnection(providerConfigId, normalizedProvider, baseUri, apiKey, profile, apiType)
     }
 
+    /** 校验超时、并发上限及代理主机端口等连接档案参数。 */
     private fun validateProfile(profile: AiConnectionProfile) {
         if (profile.connectTimeout.isNegative || profile.connectTimeout.isZero || profile.responseTimeout.isNegative || profile.responseTimeout.isZero) {
             throw AiConfigurationException("AI 连接超时配置必须大于零")

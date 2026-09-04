@@ -34,6 +34,10 @@ class OpenAiCompatibleClient(
     private val modelCatalog = ConcurrentHashMap<String, CachedModels>()
     private val log = LoggerFactory.getLogger(OpenAiCompatibleClient::class.java)
 
+    /**
+     * 获取 `/v1/models` 模型目录，并按连接档案缓存结果。
+     * 缓存未命中时通过调用保护器执行请求，并对可恢复的网络、限流和 5xx 错误自动重试。
+     */
     override fun listModels(connection: AiProviderConnection): Mono<List<AiModelDescriptor>> {
         val cacheKey = "${connection.providerConfigId ?: connection.baseUri}|${connection.profile.name}"
         val cached = modelCatalog[cacheKey]
@@ -85,6 +89,10 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /**
+     * 创建非流式聊天补全请求。
+     * OpenAI 官方提供商走 Responses API，其余兼容服务走 Chat Completions API。
+     */
     override fun createChatCompletion(
         connection: AiProviderConnection,
         command: AiChatCompletionCommand,
@@ -120,7 +128,10 @@ class OpenAiCompatibleClient(
         }
     }
 
-    /** OpenAI 官方文本模型使用 Responses API；兼容供应商保留 Chat Completions 路径。 */
+    /**
+     * 调用 OpenAI Responses API 并将其响应转换为统一的聊天结果模型。
+     * 当前入口只接受文本消息，工具调用消息会被拒绝以避免协议语义不一致。
+     */
     private fun createResponsesCompletion(
         connection: AiProviderConnection,
         command: AiChatCompletionCommand,
@@ -155,6 +166,10 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /**
+     * 调用 Chat Completions SSE 接口，将每个事件解析为统一的增量对象。
+     * 收到 `[DONE]` 标记后结束流，并记录增量数量和终止信号。
+     */
     override fun streamChatCompletion(
         connection: AiProviderConnection,
         command: AiChatCompletionCommand,
@@ -205,6 +220,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 校验图像生成参数，构造 JSON 请求并解析上游返回的图像列表。 */
     override fun generateImage(
         connection: AiProviderConnection,
         command: AiImageGenerationCommand,
@@ -242,6 +258,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 校验图片及蒙版大小后构造 multipart 请求，调用图像编辑接口。 */
     override fun editImage(
         connection: AiProviderConnection,
         command: AiImageEditCommand,
@@ -299,6 +316,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 校验视频生成参数并创建 JSON 或 multipart 形式的异步视频任务。 */
     override fun createVideo(
         connection: AiProviderConnection,
         command: AiVideoGenerationCommand,
@@ -358,6 +376,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 根据视频任务 ID 查询状态，并将供应商状态名称映射为统一枚举。 */
     override fun getVideo(
         connection: AiProviderConnection,
         videoId: String,
@@ -377,6 +396,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 下载视频任务的指定内容变体，并包装为带 MIME 类型和文件名的结果。 */
     override fun downloadVideo(
         connection: AiProviderConnection,
         videoId: String,
@@ -423,6 +443,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 构造并执行 JSON GET/POST 请求，统一处理响应解析和传输异常映射。 */
     private fun exchangeJson(
         connection: AiProviderConnection,
         resource: String,
@@ -444,6 +465,7 @@ class OpenAiCompatibleClient(
             .onErrorMap(::mapTransportException)
     }
 
+    /** 将视频生成命令转换为无文件引用时使用的 JSON 请求体。 */
     private fun videoPayload(command: AiVideoGenerationCommand): Map<String, Any> = linkedMapOf(
         "model" to command.model,
         "prompt" to command.prompt,
@@ -451,11 +473,13 @@ class OpenAiCompatibleClient(
         "seconds" to command.seconds.toString(),
     )
 
+    /** 规范化调用追踪 ID，清理控制字符并在缺失时生成随机 UUID。 */
     private fun invocationId(requestId: String?): String =
         requestId?.trim()?.takeIf(String::isNotBlank)?.take(MAX_REQUEST_ID_CHARS)?.map { character ->
             if (character.isISOControl()) '_' else character
         }?.joinToString("") ?: UUID.randomUUID().toString()
 
+    /** 记录一次模型调用开始事件，统一输出提供商、模型和请求 ID。 */
     private fun logInvocationStarted(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -474,6 +498,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 记录模型调用成功及耗时、结果规模等摘要信息。 */
     private fun logInvocationSucceeded(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -492,6 +517,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 记录模型调用失败，错误摘要不包含密钥、提示词或完整上游响应。 */
     private fun logInvocationFailed(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -512,6 +538,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 记录流式调用正常结束或取消时的终止信号和耗时。 */
     private fun logInvocationFinished(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -530,6 +557,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 记录上游 HTTP 响应状态，仅保留资源名和安全截断后的标识。 */
     private fun logUpstreamResponse(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -548,13 +576,16 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 将单调时钟起点转换为本次调用已经历的毫秒数。 */
     private fun elapsedMillis(startedAt: Long): Long = Duration.ofNanos(System.nanoTime() - startedAt).toMillis()
 
+    /** 清理日志中的控制字符并截断长度，降低日志注入和过量输出风险。 */
     private fun safeLog(value: String, maxChars: Int = MAX_LOG_FIELD_CHARS): String =
         value.map { character ->
             if (character.isISOControl() || character == '\u2028' || character == '\u2029') '_' else character
         }.joinToString("").take(maxChars)
 
+    /** 将异常压缩为不泄露响应正文的类型和状态摘要。 */
     private fun errorSummary(exception: Throwable): String = when (exception) {
         is AiUpstreamAuthenticationException -> "${exception::class.simpleName}(status=${exception.statusCode})"
         is AiRateLimitException -> "${exception::class.simpleName}(status=429)"
@@ -562,6 +593,7 @@ class OpenAiCompatibleClient(
         else -> exception::class.simpleName ?: "UnknownException"
     }
 
+    /** 将成功响应解码为 JSON；非 2xx 响应转换为带状态码的领域异常。 */
     private fun jsonResponse(response: ClientResponse): Mono<JsonNode> {
         if (response.statusCode().is2xxSuccessful) {
             return response.bodyToMono(JsonNode::class.java)
@@ -579,15 +611,18 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 消费错误响应正文后，以协议异常结束流式结果。 */
     private fun errorFlux(response: ClientResponse): Flux<AiChatCompletionDelta> =
         jsonResponse(response).thenMany(Flux.error(AiProtocolException("模型服务流式响应格式错误")))
 
+    /** 写入所有请求共享的认证、客户端标识和可选追踪请求头。 */
     private fun applyHeaders(headers: HttpHeaders, connection: AiProviderConnection, requestId: String?) {
         headers.setBearerAuth(connection.apiKey)
         headers.set(HttpHeaders.USER_AGENT, "video-ai-client")
         requestId?.takeIf { it.isNotBlank() }?.let { headers.set("X-Request-Id", it) }
     }
 
+    /** 校验聊天命令并构造 Chat Completions JSON 请求体。 */
     private fun chatPayload(command: AiChatCompletionCommand, stream: Boolean): Map<String, Any> {
         require(command.model.isNotBlank()) { "模型 ID 不能为空" }
         require(command.messages.isNotEmpty()) { "对话消息不能为空" }
@@ -605,6 +640,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 将统一聊天消息模型转换为上游协议字段，并校验工具消息完整性。 */
     private fun chatMessagePayload(message: AiChatMessage): Map<String, Any> {
         if (message.content.isNullOrBlank() && message.toolCalls.isEmpty()) throw AiConfigurationException("对话消息必须包含文本或工具调用")
         if (message.role == AiChatRole.TOOL && message.toolCallId.isNullOrBlank()) throw AiConfigurationException("工具消息缺少 tool_call_id")
@@ -620,6 +656,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 将工具定义转换为 OpenAI function 工具结构并校验名称。 */
     private fun toolPayload(tool: AiChatToolDefinition): Map<String, Any> {
         if (tool.name.isBlank()) throw AiConfigurationException("工具名称不能为空")
         return mapOf("type" to "function", "function" to linkedMapOf<String, Any>("name" to tool.name, "parameters" to tool.parameters).apply {
@@ -627,6 +664,7 @@ class OpenAiCompatibleClient(
         })
     }
 
+    /** 解析模型列表 JSON，过滤缺少 ID 的项目并按 ID 去重。 */
     private fun parseModels(response: JsonNode): List<AiModelDescriptor> {
         val data = response.path("data")
         if (!data.isArray) throw AiProtocolException("模型服务响应不符合 /v1/models 协议")
@@ -635,6 +673,7 @@ class OpenAiCompatibleClient(
         }.distinctBy(AiModelDescriptor::id)
     }
 
+    /** 解析 Chat Completions 响应中的 choices、消息和 token 用量。 */
     private fun parseChatCompletion(response: JsonNode): AiChatCompletionResult {
         val choices = response.path("choices")
         if (!choices.isArray) throw AiProtocolException("模型服务响应不包含 choices")
@@ -647,6 +686,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 从 Responses API 的 output_text 或 output.message.content 提取文本结果。 */
     private fun parseResponsesCompletion(response: JsonNode): AiChatCompletionResult {
         val content = response.fieldString("output_text") ?: response.path("output")
             .firstOrNull { item -> item.fieldString("type") == "message" }
@@ -669,6 +709,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 将单个 choices 节点解析为统一选项，无法识别角色时返回 null。 */
     private fun parseChatChoice(choice: JsonNode): AiChatChoice? {
         val message = choice.path("message")
         val role = message.fieldString("role")?.uppercase()?.let { value -> AiChatRole.entries.firstOrNull { it.name == value } } ?: return null
@@ -679,6 +720,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 解析单个 SSE JSON 事件，提取增量文本、工具调用和结束原因。 */
     private fun parseChatDelta(event: String): AiChatCompletionDelta {
         val response = try {
             objectMapper.readTree(event)
@@ -697,12 +739,14 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 兼容 Chat Completions 与 Responses API 的 token 用量字段命名。 */
     private fun parseUsage(usage: JsonNode): AiTokenUsage = AiTokenUsage(
         inputTokens = usage.fieldInt("prompt_tokens") ?: usage.fieldInt("input_tokens"),
         outputTokens = usage.fieldInt("completion_tokens") ?: usage.fieldInt("output_tokens"),
         totalTokens = usage.fieldInt("total_tokens"),
     )
 
+    /** 从消息或增量节点提取合法的函数工具调用，忽略缺少 ID 或名称的条目。 */
     private fun parseToolCalls(node: JsonNode): List<AiChatToolCall> {
         if (!node.isArray) return emptyList()
         return node.mapNotNull { call ->
@@ -713,6 +757,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 解析图像接口的 data 数组，支持 URL 和 base64 两种返回形式。 */
     private fun parseImages(response: JsonNode): AiImageGenerationResult {
         val data = response.path("data")
         if (!data.isArray) throw AiProtocolException("模型服务响应不包含图像数据")
@@ -726,6 +771,7 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 解析视频任务响应并兼容不同供应商的状态、时间和错误字段命名。 */
     private fun parseVideo(response: JsonNode): AiVideoGenerationResult {
         val id = response.fieldString("id") ?: throw AiProtocolException("视频服务响应不包含视频 ID")
         val statusValue = response.fieldString("status")?.uppercase() ?: "UNKNOWN"
@@ -750,10 +796,13 @@ class OpenAiCompatibleClient(
         )
     }
 
+    /** 将内存中的图片字节包装为带原始文件名的 multipart 资源。 */
     private fun imageResource(image: AiImageInput): ByteArrayResource = object : ByteArrayResource(image.bytes) {
+        /** 返回 multipart 部件应使用的原始文件名。 */
         override fun getFilename(): String = image.filename
     }
 
+    /** 校验图像模型、提示词、数量、尺寸和质量等生成参数。 */
     private fun validateImageCommand(model: String, prompt: String, count: Int?, size: String?, quality: String?) {
         require(model.isNotBlank()) { "图像模型 ID 不能为空" }
         require(prompt.isNotBlank()) { "图像提示词不能为空" }
@@ -766,6 +815,7 @@ class OpenAiCompatibleClient(
         }
     }
 
+    /** 清理并校验图像尺寸，统一处理 `1K`、`2K`、`auto` 和像素尺寸写法。 */
     private fun normalizeImageSize(value: String): String {
         val normalized = value.trim()
         if (normalized.isBlank() || normalized.length > MAX_IMAGE_OPTION_CHARS || normalized.any(Char::isISOControl)) {
@@ -778,12 +828,14 @@ class OpenAiCompatibleClient(
         return normalized
     }
 
+    /** 校验上传图片的文件名、MIME 类型、非空内容和单文件大小上限。 */
     private fun validateImage(image: AiImageInput) {
         if (image.filename.isBlank() || image.contentType.isBlank() || image.bytes.isEmpty()) throw AiConfigurationException("图像编辑输入不完整")
         if (!image.contentType.startsWith("image/")) throw AiConfigurationException("图像编辑仅支持图片文件")
         if (image.bytes.size > MAX_IMAGE_BYTES) throw AiConfigurationException("单张图像不能超过 20 MB")
     }
 
+    /** 清理视频 ID 并拒绝空值、控制字符及路径分隔符，防止路径注入。 */
     private fun normalizeVideoId(videoId: String): String {
         val value = videoId.trim()
         if (value.isBlank() || value.length > 200 || value.any { it.isISOControl() } || value.contains('/')) {
@@ -792,26 +844,31 @@ class OpenAiCompatibleClient(
         return value
     }
 
+    /** 确认命令中的配置 ID 与实际解析出的连接一致，避免串用提供商。 */
     private fun validateCommandConnection(connection: AiProviderConnection, providerConfigId: Long) {
         if (connection.providerConfigId != providerConfigId) throw AiConfigurationException("AI 调用与提供商配置不匹配")
     }
 
+    /** 将 WebClient 底层异常统一映射为应用层 AI 客户端异常类型。 */
     private fun mapTransportException(exception: Throwable): Throwable = when (exception) {
         is AiClientException -> exception
         is WebClientRequestException -> AiTransportException("无法连接模型服务", exception)
         else -> AiTransportException("模型服务调用失败", exception)
     }
 
+    /** 读取并裁剪 JSON 字符串字段，空字符串按缺失处理。 */
     private fun JsonNode.fieldString(name: String): String? {
         val value = path(name)
         return if (value.isString) value.stringValue().trim().takeIf(String::isNotEmpty) else null
     }
 
+    /** 读取 JSON 整数或长整数节点并转换为 Int。 */
     private fun JsonNode.fieldInt(name: String): Int? {
         val value = path(name)
         return if (value.isInt || value.isLong) value.intValue() else null
     }
 
+    /** 读取 JSON 整数节点并转换为 Long。 */
     private fun JsonNode.fieldLong(name: String): Long? {
         val value = path(name)
         return if (value.isLong || value.isInt) value.longValue() else null

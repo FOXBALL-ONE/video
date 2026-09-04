@@ -22,6 +22,7 @@ data class AiProviderConnectionSettings(
     val connectTimeoutSeconds: Long = 10,
     val responseTimeoutSeconds: Long = 90,
 ) {
+    /** 将连接设置序列化为数据库配置键值，省略默认值中的敏感或无关字段。 */
     fun toStorage(): Map<String, String> {
         if (useDefaultTransport) return mapOf("use_default_transport" to "true")
         return buildMap {
@@ -46,6 +47,7 @@ data class AiProviderConnectionSettings(
         }
     }
 
+    /** 将当前设置与应用级连接档案合并，生成单次调用使用的不可变档案。 */
     fun resolveProfile(
         source: AiClientProperties.ConnectionProfile,
         name: String,
@@ -92,6 +94,7 @@ data class AiProviderConnectionSettings(
     }
 
     companion object {
+        /** 从数据库键值读取连接设置；缺失或空配置使用安全默认值。 */
         fun fromStorage(storage: Map<String, String>?): AiProviderConnectionSettings {
             if (storage.isNullOrEmpty()) return AiProviderConnectionSettings()
             val useDefaultTransport = storage["use_default_transport"]?.toBooleanStrictOrNull() ?: true
@@ -120,7 +123,10 @@ data class AiProviderConnectionSettings(
     }
 }
 
-/** 经校验、可用于单次上游调用的提供商连接。密钥仅在客户端内部使用。 */
+/**
+ * 一次 AI 上游调用所需的提供商地址、密钥和连接档案。
+ * 连接已在解析阶段完成校验，密钥仅在客户端内部使用。
+ */
 data class AiProviderConnection(
     val providerConfigId: Long?,
     val provider: String,
@@ -131,7 +137,7 @@ data class AiProviderConnection(
     val apiType: AiApiType? = null,
 )
 
-/** 代理、DNS、超时和并发限制的不可变连接档案。 */
+/** 经过校验且可复用的代理、DNS、超时和并发限制不可变配置。 */
 data class AiConnectionProfile(
     val name: String,
     val proxyMode: AiProxyMode,
@@ -156,6 +162,7 @@ enum class AiProxyMode { DIRECT, HTTP, SOCKS5 }
 
 enum class AiDnsMode { LOCAL, PROXY }
 
+/** 模型目录中的单个模型及其可选归属信息。 */
 data class AiModelDescriptor(
     val id: String,
     val ownedBy: String? = null,
@@ -163,18 +170,21 @@ data class AiModelDescriptor(
 
 enum class AiChatRole { SYSTEM, USER, ASSISTANT, TOOL }
 
+/** 提交给聊天模型的函数工具定义及 JSON Schema 参数。 */
 data class AiChatToolDefinition(
     val name: String,
     val description: String? = null,
     val parameters: JsonNode,
 )
 
+/** 模型返回或请求继续执行的单个工具调用。 */
 data class AiChatToolCall(
     val id: String,
     val name: String,
     val arguments: String,
 )
 
+/** 统一表示系统、用户、助手和工具角色的聊天消息。 */
 data class AiChatMessage(
     val role: AiChatRole,
     val content: String? = null,
@@ -183,6 +193,7 @@ data class AiChatMessage(
     val toolCalls: List<AiChatToolCall> = emptyList(),
 )
 
+/** 聊天补全请求命令，包含模型、消息、采样参数和可选工具。 */
 data class AiChatCompletionCommand(
     val providerConfigId: Long,
     val model: String,
@@ -193,27 +204,32 @@ data class AiChatCompletionCommand(
     val requestId: String? = null,
 )
 
+/** 聊天补全响应中的一个候选答案及结束原因。 */
 data class AiChatChoice(
     val index: Int,
     val message: AiChatMessage,
     val finishReason: String?,
 )
 
+/** 上游返回的输入、输出及总 token 用量统计。 */
 data class AiTokenUsage(
     val inputTokens: Int? = null,
     val outputTokens: Int? = null,
     val totalTokens: Int? = null,
 )
 
+/** 非流式聊天补全的统一响应模型。 */
 data class AiChatCompletionResult(
     val id: String?,
     val model: String?,
     val choices: List<AiChatChoice>,
     val usage: AiTokenUsage? = null,
 ) {
+    /** 便于业务层读取的首个候选答案；没有候选时返回 null。 */
     val primaryChoice: AiChatChoice? get() = choices.firstOrNull()
 }
 
+/** 流式聊天响应中的单个增量事件。 */
 data class AiChatCompletionDelta(
     val id: String?,
     val choiceIndex: Int,
@@ -225,6 +241,7 @@ data class AiChatCompletionDelta(
 
 enum class AiImageResponseFormat(val wireValue: String) { URL("url"), B64_JSON("b64_json") }
 
+/** 图像生成请求命令及可选尺寸、质量、风格和返回格式。 */
 data class AiImageGenerationCommand(
     val providerConfigId: Long,
     val model: String,
@@ -237,12 +254,14 @@ data class AiImageGenerationCommand(
     val requestId: String? = null,
 )
 
+/** 上传给图像编辑或视频参考帧的图片文件内容。 */
 data class AiImageInput(
     val filename: String,
     val contentType: String,
     val bytes: ByteArray,
 )
 
+/** 图像编辑请求命令，支持多张输入图片及可选蒙版。 */
 data class AiImageEditCommand(
     val providerConfigId: Long,
     val model: String,
@@ -255,18 +274,20 @@ data class AiImageEditCommand(
     val requestId: String? = null,
 )
 
+/** 单张生成图片，按上游响应可能包含 URL 或 base64 数据。 */
 data class AiGeneratedImage(
     val url: String? = null,
     val base64Data: String? = null,
     val revisedPrompt: String? = null,
 )
 
+/** 图像生成或编辑接口的统一结果及创建时间。 */
 data class AiImageGenerationResult(
     val createdAtEpochSeconds: Long?,
     val images: List<AiGeneratedImage>,
 )
 
-/** OpenAI Videos API 的生成请求。视频 API 采用异步任务模型。 */
+/** OpenAI Videos API 的视频生成请求命令；视频接口通常异步返回任务。 */
 data class AiVideoGenerationCommand(
     val providerConfigId: Long,
     val model: String,
@@ -279,6 +300,7 @@ data class AiVideoGenerationCommand(
 
 enum class AiVideoStatus { QUEUED, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, UNKNOWN }
 
+/** 视频任务的统一状态、进度、时间戳和错误信息。 */
 data class AiVideoGenerationResult(
     val id: String,
     val model: String?,
@@ -290,6 +312,7 @@ data class AiVideoGenerationResult(
     val errorMessage: String? = null,
 )
 
+/** 视频下载结果，包含响应 MIME 类型、文件名和完整二进制内容。 */
 data class AiVideoContent(
     val bytes: ByteArray,
     val contentType: String,

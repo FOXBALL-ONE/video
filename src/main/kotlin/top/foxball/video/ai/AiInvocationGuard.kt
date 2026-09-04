@@ -17,6 +17,10 @@ class AiInvocationGuard {
     private val semaphores = ConcurrentHashMap<GateKey, Semaphore>()
     private val circuits = ConcurrentHashMap<String, CircuitState>()
 
+    /**
+     * 为单值响应式调用套用断路器和信号量并发闸门。
+     * 调用开始前检查断路器状态及并发额度，结束时无论成功失败都释放许可。
+     */
     fun <T : Any> protect(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -38,6 +42,7 @@ class AiInvocationGuard {
             .doFinally { semaphore.release() }
     }
 
+    /** 对流式响应式调用执行与 [protect] 相同的断路器和并发限制。 */
     fun <T : Any> protectFlux(
         connection: AiProviderConnection,
         operation: AiOperation,
@@ -59,6 +64,7 @@ class AiInvocationGuard {
             .doFinally { semaphore.release() }
     }
 
+    /** 根据操作类型读取连接档案中的最大并发请求数。 */
     private fun limitFor(profile: AiConnectionProfile, operation: AiOperation): Int = when (operation) {
         AiOperation.MODEL_LIST -> profile.maxInFlightModelListRequests
         AiOperation.CHAT -> profile.maxInFlightChatRequests
@@ -66,6 +72,7 @@ class AiInvocationGuard {
         AiOperation.VIDEO -> profile.maxInFlightImageRequests
     }
 
+    /** 生成用于共享断路器和信号量的连接标识，不包含 API 密钥。 */
     private fun connectionKey(connection: AiProviderConnection): String =
         "${connection.providerConfigId ?: connection.baseUri}|${connection.profile.name}"
 
@@ -76,6 +83,7 @@ class AiInvocationGuard {
         private val openUntilEpochMillis = AtomicLong(0)
         private val halfOpenProbeInFlight = AtomicBoolean(false)
 
+        /** 尝试进入断路器；半开状态只允许一个探测请求通过。 */
         fun tryAcquire(): Boolean {
             val openUntil = openUntilEpochMillis.get()
             if (openUntil == 0L) return true
@@ -83,12 +91,14 @@ class AiInvocationGuard {
             return halfOpenProbeInFlight.compareAndSet(false, true)
         }
 
+        /** 记录成功调用并关闭断路器、清零连续失败计数。 */
         fun recordSuccess() {
             consecutiveFailures.set(0)
             openUntilEpochMillis.set(0)
             halfOpenProbeInFlight.set(false)
         }
 
+        /** 仅针对传输、代理及 5xx 上游错误累计失败并在阈值后打开断路器。 */
         fun recordFailure(exception: Throwable) {
             halfOpenProbeInFlight.set(false)
             if (exception !is AiTransportException && exception !is AiProxyException && (exception !is AiUpstreamException || exception.statusCode < 500)) {
