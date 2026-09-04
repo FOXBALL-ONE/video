@@ -197,6 +197,124 @@ class CharacterProfile(
     var entityVersion: Long = 0,
 )
 
+/** 单集场景详情；承载场景资产在氛围描述、主图与四视图、多角度、光照图像生成阶段所需的扩展信息。 */
+@Entity
+@Table(name = "scene_profiles")
+class SceneProfile(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null,
+
+    @Column(name = "project_id", nullable = false)
+    var projectId: Long = 0,
+
+    @Column(name = "episode_id", nullable = false)
+    var episodeId: Long = 0,
+
+    @Column(name = "episode_asset_id", nullable = false, unique = true)
+    var episodeAssetId: Long = 0,
+
+    @Column(name = "identity_title", length = 200)
+    var identityTitle: String? = null,
+
+    @Column(name = "location", length = 100)
+    var location: String? = null,
+
+    @Column(name = "time_note", length = 100)
+    var timeNote: String? = null,
+
+    @Column(length = 200)
+    var atmosphere: String? = null,
+
+    @Column(name = "main_image_file_id", length = 64)
+    var mainImageFileId: String? = null,
+
+    @Column(name = "view_east_file_id", length = 64)
+    var viewEastFileId: String? = null,
+
+    @Column(name = "view_south_file_id", length = 64)
+    var viewSouthFileId: String? = null,
+
+    @Column(name = "view_west_file_id", length = 64)
+    var viewWestFileId: String? = null,
+
+    @Column(name = "view_north_file_id", length = 64)
+    var viewNorthFileId: String? = null,
+
+    @Column(name = "angle_long_shot_file_id", length = 64)
+    var angleLongShotFileId: String? = null,
+
+    @Column(name = "angle_full_shot_file_id", length = 64)
+    var angleFullShotFileId: String? = null,
+
+    @Column(name = "angle_medium_shot_file_id", length = 64)
+    var angleMediumShotFileId: String? = null,
+
+    @Column(name = "angle_close_shot_file_id", length = 64)
+    var angleCloseShotFileId: String? = null,
+
+    @Column(name = "light_morning_file_id", length = 64)
+    var lightMorningFileId: String? = null,
+
+    @Column(name = "light_afternoon_file_id", length = 64)
+    var lightAfternoonFileId: String? = null,
+
+    @Column(name = "light_night_file_id", length = 64)
+    var lightNightFileId: String? = null,
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null,
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null,
+
+    @Version
+    var entityVersion: Long = 0,
+)
+
+/** 单集道具详情；承载道具资产在类别、剧情作用与概念图阶段所需的扩展信息。 */
+@Entity
+@Table(name = "prop_profiles")
+class PropProfile(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null,
+
+    @Column(name = "project_id", nullable = false)
+    var projectId: Long = 0,
+
+    @Column(name = "episode_id", nullable = false)
+    var episodeId: Long = 0,
+
+    @Column(name = "episode_asset_id", nullable = false, unique = true)
+    var episodeAssetId: Long = 0,
+
+    @Column(name = "identity_title", length = 200)
+    var identityTitle: String? = null,
+
+    @Column(length = 100)
+    var category: String? = null,
+
+    @Column(name = "plot_function", columnDefinition = "text")
+    var plotFunction: String? = null,
+
+    @Column(name = "concept_image_file_id", length = 64)
+    var conceptImageFileId: String? = null,
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null,
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null,
+
+    @Version
+    var entityVersion: Long = 0,
+)
+
 /** 资产生成或人工编辑的版本。 */
 @Entity
 @Table(name = "asset_versions")

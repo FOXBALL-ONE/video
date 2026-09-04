@@ -20,6 +20,8 @@ import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.CharacterProfile
 import top.foxball.video.entity.jdbc.EpisodeAsset
 import top.foxball.video.entity.jdbc.EpisodeAssetType
+import top.foxball.video.entity.jdbc.SceneProfile
+import top.foxball.video.entity.jdbc.PropProfile
 import top.foxball.video.repository.AssetIssueRepository
 import top.foxball.video.repository.AssetRepository
 import top.foxball.video.repository.CharacterProfileRepository
@@ -27,6 +29,8 @@ import top.foxball.video.repository.EpisodeAssetRepository
 import top.foxball.video.repository.EpisodeRepository
 import top.foxball.video.repository.ScriptDocumentRepository
 import top.foxball.video.repository.ScriptVersionRepository
+import top.foxball.video.repository.SceneProfileRepository
+import top.foxball.video.repository.PropProfileRepository
 import top.foxball.video.repository.AiModelProviderConfigRepository
 import top.foxball.video.repository.ProjectRepository
 import java.time.LocalDateTime
@@ -42,6 +46,8 @@ class AssetService(
     private val episodeRepository: EpisodeRepository,
     private val episodeAssetRepository: EpisodeAssetRepository,
     private val characterProfileRepository: CharacterProfileRepository,
+    private val sceneProfileRepository: SceneProfileRepository,
+    private val propProfileRepository: PropProfileRepository,
     private val scriptDocumentRepository: ScriptDocumentRepository,
     private val scriptVersionRepository: ScriptVersionRepository,
     private val aiInvocationService: AiInvocationService,
@@ -64,6 +70,10 @@ class AssetService(
     )
 
     data class CharacterProfileCommand(
+        val name: String? = null,
+        val description: String? = null,
+        val referenceUrl: String? = null,
+        val status: AssetStatus? = null,
         val identityTitle: String? = null,
         val roleTag: String? = null,
         val gender: String? = null,
@@ -81,6 +91,44 @@ class AssetService(
         val costumeRef: String? = null,
         val accessoryRef: String? = null,
         val voiceAssetId: Long? = null,
+    )
+
+    data class SceneProfileView(
+        val asset: EpisodeAsset,
+        val profile: SceneProfile,
+    )
+
+    data class PropProfileView(
+        val asset: EpisodeAsset,
+        val profile: PropProfile,
+    )
+
+    data class PropProfileCommand(
+        val identityTitle: String? = null,
+        val category: String? = null,
+        val plotFunction: String? = null,
+        val description: String? = null,
+        val conceptImageFileId: String? = null,
+    )
+
+    data class SceneProfileCommand(
+        val identityTitle: String? = null,
+        val location: String? = null,
+        val time: String? = null,
+        val atmosphere: String? = null,
+        val description: String? = null,
+        val mainImageFileId: String? = null,
+        val viewEastFileId: String? = null,
+        val viewSouthFileId: String? = null,
+        val viewWestFileId: String? = null,
+        val viewNorthFileId: String? = null,
+        val angleLongShotFileId: String? = null,
+        val angleFullShotFileId: String? = null,
+        val angleMediumShotFileId: String? = null,
+        val angleCloseShotFileId: String? = null,
+        val lightMorningFileId: String? = null,
+        val lightAfternoonFileId: String? = null,
+        val lightNightFileId: String? = null,
     )
 
     @Transactional(readOnly = true)
@@ -163,6 +211,14 @@ class AssetService(
         val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
         if (asset.type != EpisodeAssetType.CHARACTER) return null
         val profile = characterProfileRepository.findByEpisodeAssetId(assetId) ?: CharacterProfile(projectId = projectId, episodeId = episodeId, episodeAssetId = assetId)
+        command.name?.trim()?.takeIf { it.isNotBlank() }?.take(100)?.let { asset.name = it }
+        if (command.description != null) {
+            asset.description = command.description.trim().ifBlank { null }?.take(100_000)
+        }
+        if (command.referenceUrl != null) {
+            asset.referenceUrl = command.referenceUrl.trim().ifBlank { null }?.take(1_000)
+        }
+        command.status?.let { asset.status = it }
         profile.identityTitle = command.identityTitle?.trim()?.ifBlank { null }?.take(200)
         profile.roleTag = command.roleTag?.trim()?.ifBlank { null }?.take(50)
         profile.gender = command.gender?.trim()?.ifBlank { null }?.take(50)
@@ -180,7 +236,12 @@ class AssetService(
         profile.costumeRef = command.costumeRef?.trim()?.ifBlank { null }?.take(100)
         profile.accessoryRef = command.accessoryRef?.trim()?.ifBlank { null }?.take(100)
         profile.voiceAssetId = command.voiceAssetId
-            ?.takeIf { it > 0 && episodeAssetRepository.findById(it).orElse(null)?.let { voice -> voice.projectId == projectId && voice.type == EpisodeAssetType.VOICE } == true }
+            ?.takeIf {
+                it > 0 && episodeAssetRepository.findById(it).orElse(null)?.let { voice ->
+                    voice.projectId == projectId && voice.episodeId == episodeId && voice.type == EpisodeAssetType.VOICE
+                } == true
+            }
+        episodeAssetRepository.save(asset)
         val saved = characterProfileRepository.save(profile)
         val voiceAssetName = saved.voiceAssetId?.let { voiceAssetId -> episodeAssetRepository.findById(voiceAssetId).orElse(null)?.name }
         return CharacterProfileView(asset, saved, voiceAssetName, parseExpressionFileIds(saved.expressionFileIds))
@@ -191,6 +252,66 @@ class AssetService(
             ?.takeIf { it.isArray }
             ?.mapNotNull { node -> node.textValue()?.takeIf { it.isNotBlank() } }
             ?: emptyList()
+
+    /** 加载单集场景详情；尚无详情记录时返回一份未持久化的默认视图。 */
+    @Transactional(readOnly = true)
+    fun loadSceneProfile(projectId: Long, episodeId: Long, assetId: Long): SceneProfileView? {
+        val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
+        if (asset.type != EpisodeAssetType.SCENE_BACKGROUND) return null
+        val profile = sceneProfileRepository.findByEpisodeAssetId(assetId) ?: SceneProfile(projectId = projectId, episodeId = episodeId, episodeAssetId = assetId)
+        return SceneProfileView(asset, profile)
+    }
+
+    /** 保存单集场景详情；不存在时创建，存在时全量更新可编辑字段。场景描述直接落在本集资产描述上。 */
+    @Transactional
+    fun saveSceneProfile(projectId: Long, episodeId: Long, assetId: Long, command: SceneProfileCommand): SceneProfileView? {
+        val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
+        if (asset.type != EpisodeAssetType.SCENE_BACKGROUND) return null
+        val profile = sceneProfileRepository.findByEpisodeAssetId(assetId) ?: SceneProfile(projectId = projectId, episodeId = episodeId, episodeAssetId = assetId)
+        profile.identityTitle = command.identityTitle?.trim()?.ifBlank { null }?.take(200)
+        profile.location = command.location?.trim()?.ifBlank { null }?.take(100)
+        profile.timeNote = command.time?.trim()?.ifBlank { null }?.take(100)
+        profile.atmosphere = command.atmosphere?.trim()?.ifBlank { null }?.take(200)
+        asset.description = command.description?.trim()?.ifBlank { null }?.take(100_000)
+        profile.mainImageFileId = command.mainImageFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.viewEastFileId = command.viewEastFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.viewSouthFileId = command.viewSouthFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.viewWestFileId = command.viewWestFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.viewNorthFileId = command.viewNorthFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.angleLongShotFileId = command.angleLongShotFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.angleFullShotFileId = command.angleFullShotFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.angleMediumShotFileId = command.angleMediumShotFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.angleCloseShotFileId = command.angleCloseShotFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.lightMorningFileId = command.lightMorningFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.lightAfternoonFileId = command.lightAfternoonFileId?.trim()?.ifBlank { null }?.take(64)
+        profile.lightNightFileId = command.lightNightFileId?.trim()?.ifBlank { null }?.take(64)
+        episodeAssetRepository.save(asset)
+        return SceneProfileView(asset, sceneProfileRepository.save(profile))
+    }
+
+    /** 加载单集道具详情；尚无详情记录时返回一份未持久化的默认视图。 */
+    @Transactional(readOnly = true)
+    fun loadPropProfile(projectId: Long, episodeId: Long, assetId: Long): PropProfileView? {
+        val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
+        if (asset.type != EpisodeAssetType.PROP) return null
+        val profile = propProfileRepository.findByEpisodeAssetId(assetId) ?: PropProfile(projectId = projectId, episodeId = episodeId, episodeAssetId = assetId)
+        return PropProfileView(asset, profile)
+    }
+
+    /** 保存单集道具详情；不存在时创建，存在时全量更新可编辑字段。道具描述直接落在本集资产描述上。 */
+    @Transactional
+    fun savePropProfile(projectId: Long, episodeId: Long, assetId: Long, command: PropProfileCommand): PropProfileView? {
+        val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
+        if (asset.type != EpisodeAssetType.PROP) return null
+        val profile = propProfileRepository.findByEpisodeAssetId(assetId) ?: PropProfile(projectId = projectId, episodeId = episodeId, episodeAssetId = assetId)
+        profile.identityTitle = command.identityTitle?.trim()?.ifBlank { null }?.take(200)
+        profile.category = command.category?.trim()?.ifBlank { null }?.take(100)
+        profile.plotFunction = command.plotFunction?.trim()?.ifBlank { null }?.take(100_000)
+        asset.description = command.description?.trim()?.ifBlank { null }?.take(100_000)
+        profile.conceptImageFileId = command.conceptImageFileId?.trim()?.ifBlank { null }?.take(64)
+        episodeAssetRepository.save(asset)
+        return PropProfileView(asset, propProfileRepository.save(profile))
+    }
 
     /** 将已由用户采纳的 AI 解析项创建为剧集资产；既有人工资产不会被覆盖。 */
     @Transactional

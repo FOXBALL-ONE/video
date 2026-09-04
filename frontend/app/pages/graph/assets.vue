@@ -1251,8 +1251,8 @@ function triggerImageUpload(slot: ProfileImageSlot) {
 async function onImageChosen(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
- const slot = uploadSlot.value
- if (!file || !slot) return
+  const slot = uploadSlot.value
+  if (!file || !slot) return
   if (!file.type.startsWith('image/')) {
     message.warning('请选择图片文件')
     return
@@ -1261,7 +1261,7 @@ async function onImageChosen(event: Event) {
     message.warning('图片大小不能超过 20MB')
     return
   }
- uploading.value = true
+  uploading.value = true
   try {
     const formData = new FormData();
     formData.append('files', file)

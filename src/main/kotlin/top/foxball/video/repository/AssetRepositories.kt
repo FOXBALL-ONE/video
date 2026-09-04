@@ -13,6 +13,8 @@ import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.CharacterProfile
 import top.foxball.video.entity.jdbc.EpisodeAsset
 import top.foxball.video.entity.jdbc.EpisodeAssetType
+import top.foxball.video.entity.jdbc.PropProfile
+import top.foxball.video.entity.jdbc.SceneProfile
 import top.foxball.video.entity.jdbc.VoiceProfile
 
 /** 项目资产的数据访问接口。 */
@@ -69,6 +71,24 @@ interface CharacterProfileRepository : JpaRepository<CharacterProfile, Long> {
 
     /** 按剧集查询全部角色详情。 */
     fun findAllByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): List<CharacterProfile>
+}
+
+/** 单集场景详情的数据访问接口。 */
+interface SceneProfileRepository : JpaRepository<SceneProfile, Long> {
+    /** 按单集资产主键查询场景详情。 */
+    fun findByEpisodeAssetId(episodeAssetId: Long): SceneProfile?
+
+    /** 按剧集查询全部场景详情。 */
+    fun findAllByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): List<SceneProfile>
+}
+
+/** 单集道具详情的数据访问接口。 */
+interface PropProfileRepository : JpaRepository<PropProfile, Long> {
+    /** 按单集资产主键查询道具详情。 */
+    fun findByEpisodeAssetId(episodeAssetId: Long): PropProfile?
+
+    /** 按剧集查询全部道具详情。 */
+    fun findAllByProjectIdAndEpisodeId(projectId: Long, episodeId: Long): List<PropProfile>
 }
 
 /** 资产缺口问题的数据访问接口。 */

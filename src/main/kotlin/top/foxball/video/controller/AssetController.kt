@@ -35,6 +35,10 @@ class AssetController(
     private data class CharacterImageData(@param:JsonProperty("file_id") val fileId: String?, val url: String?)
 
     data class CharacterProfileRequest(
+        val name: String? = null,
+        val description: String? = null,
+        @param:JsonProperty("reference_url") val referenceUrl: String? = null,
+        val status: AssetStatus? = null,
         @param:JsonProperty("identity_title") val identityTitle: String? = null,
         @param:JsonProperty("role_tag") val roleTag: String? = null,
         val gender: String? = null,
@@ -57,6 +61,9 @@ class AssetController(
     private data class CharacterProfileData(
         @param:JsonProperty("asset_id") val assetId: Long,
         val name: String,
+        val description: String?,
+        @param:JsonProperty("reference_url") val referenceUrl: String?,
+        val status: String,
         @param:JsonProperty("identity_title") val identityTitle: String?,
         @param:JsonProperty("role_tag") val roleTag: String?,
         val gender: String?,
@@ -90,6 +97,9 @@ class AssetController(
         return CharacterProfileData(
             assetId = requireNotNull(view.asset.id),
             name = view.asset.name,
+            description = view.asset.description,
+            referenceUrl = view.asset.referenceUrl,
+            status = view.asset.status.name,
             identityTitle = profile.identityTitle,
             roleTag = profile.roleTag,
             gender = profile.gender,
@@ -133,6 +143,10 @@ class AssetController(
     ): ResponseEntity<Response> {
         data class Response(val data: CharacterProfileData)
         val command = AssetService.CharacterProfileCommand(
+            name = request.name,
+            description = request.description,
+            referenceUrl = request.referenceUrl,
+            status = request.status,
             identityTitle = request.identityTitle,
             roleTag = request.roleTag,
             gender = request.gender,
@@ -153,6 +167,180 @@ class AssetController(
         )
         val view = assetService.saveCharacterProfile(projectId, episodeId, assetId, command) ?: return responseBuilder.notFound().build()
         return responseBuilder.ok().data(buildCharacterProfileData(userId, view)).build()
+    }
+
+    data class SceneProfileRequest(
+        @param:JsonProperty("identity_title") val identityTitle: String? = null,
+        val location: String? = null,
+        val time: String? = null,
+        val atmosphere: String? = null,
+        val description: String? = null,
+        @param:JsonProperty("main_image_file_id") val mainImageFileId: String? = null,
+        @param:JsonProperty("view_east_file_id") val viewEastFileId: String? = null,
+        @param:JsonProperty("view_south_file_id") val viewSouthFileId: String? = null,
+        @param:JsonProperty("view_west_file_id") val viewWestFileId: String? = null,
+        @param:JsonProperty("view_north_file_id") val viewNorthFileId: String? = null,
+        @param:JsonProperty("angle_long_shot_file_id") val angleLongShotFileId: String? = null,
+        @param:JsonProperty("angle_full_shot_file_id") val angleFullShotFileId: String? = null,
+        @param:JsonProperty("angle_medium_shot_file_id") val angleMediumShotFileId: String? = null,
+        @param:JsonProperty("angle_close_shot_file_id") val angleCloseShotFileId: String? = null,
+        @param:JsonProperty("light_morning_file_id") val lightMorningFileId: String? = null,
+        @param:JsonProperty("light_afternoon_file_id") val lightAfternoonFileId: String? = null,
+        @param:JsonProperty("light_night_file_id") val lightNightFileId: String? = null,
+    )
+
+    private data class SceneProfileData(
+        @param:JsonProperty("asset_id") val assetId: Long,
+        val name: String,
+        @param:JsonProperty("identity_title") val identityTitle: String?,
+        val location: String?,
+        val time: String?,
+        val atmosphere: String?,
+        val description: String?,
+        @param:JsonProperty("main_image") val mainImage: CharacterImageData?,
+        @param:JsonProperty("view_east") val viewEast: CharacterImageData?,
+        @param:JsonProperty("view_south") val viewSouth: CharacterImageData?,
+        @param:JsonProperty("view_west") val viewWest: CharacterImageData?,
+        @param:JsonProperty("view_north") val viewNorth: CharacterImageData?,
+        @param:JsonProperty("angle_long_shot") val angleLongShot: CharacterImageData?,
+        @param:JsonProperty("angle_full_shot") val angleFullShot: CharacterImageData?,
+        @param:JsonProperty("angle_medium_shot") val angleMediumShot: CharacterImageData?,
+        @param:JsonProperty("angle_close_shot") val angleCloseShot: CharacterImageData?,
+        @param:JsonProperty("light_morning") val lightMorning: CharacterImageData?,
+        @param:JsonProperty("light_afternoon") val lightAfternoon: CharacterImageData?,
+        @param:JsonProperty("light_night") val lightNight: CharacterImageData?,
+        @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+    )
+
+    private fun buildSceneProfileData(userId: Long?, view: AssetService.SceneProfileView): SceneProfileData {
+        val profile = view.profile
+        return SceneProfileData(
+            assetId = requireNotNull(view.asset.id),
+            name = view.asset.name,
+            identityTitle = profile.identityTitle,
+            location = profile.location,
+            time = profile.timeNote,
+            atmosphere = profile.atmosphere,
+            description = view.asset.description,
+            mainImage = resolveCharacterImage(userId, profile.mainImageFileId),
+            viewEast = resolveCharacterImage(userId, profile.viewEastFileId),
+            viewSouth = resolveCharacterImage(userId, profile.viewSouthFileId),
+            viewWest = resolveCharacterImage(userId, profile.viewWestFileId),
+            viewNorth = resolveCharacterImage(userId, profile.viewNorthFileId),
+            angleLongShot = resolveCharacterImage(userId, profile.angleLongShotFileId),
+            angleFullShot = resolveCharacterImage(userId, profile.angleFullShotFileId),
+            angleMediumShot = resolveCharacterImage(userId, profile.angleMediumShotFileId),
+            angleCloseShot = resolveCharacterImage(userId, profile.angleCloseShotFileId),
+            lightMorning = resolveCharacterImage(userId, profile.lightMorningFileId),
+            lightAfternoon = resolveCharacterImage(userId, profile.lightAfternoonFileId),
+            lightNight = resolveCharacterImage(userId, profile.lightNightFileId),
+            updatedAt = profile.updatedAt,
+        )
+    }
+
+    @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/scene-profile")
+    fun getSceneProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+    ): ResponseEntity<Response> {
+        val view = assetService.loadSceneProfile(projectId, episodeId, assetId) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildSceneProfileData(userId, view)).build()
+    }
+
+    @PutMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/scene-profile")
+    fun updateSceneProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+        @RequestBody request: SceneProfileRequest,
+    ): ResponseEntity<Response> {
+        val command = AssetService.SceneProfileCommand(
+            identityTitle = request.identityTitle,
+            location = request.location,
+            time = request.time,
+            atmosphere = request.atmosphere,
+            description = request.description,
+            mainImageFileId = request.mainImageFileId,
+            viewEastFileId = request.viewEastFileId,
+            viewSouthFileId = request.viewSouthFileId,
+            viewWestFileId = request.viewWestFileId,
+            viewNorthFileId = request.viewNorthFileId,
+            angleLongShotFileId = request.angleLongShotFileId,
+            angleFullShotFileId = request.angleFullShotFileId,
+            angleMediumShotFileId = request.angleMediumShotFileId,
+            angleCloseShotFileId = request.angleCloseShotFileId,
+            lightMorningFileId = request.lightMorningFileId,
+            lightAfternoonFileId = request.lightAfternoonFileId,
+            lightNightFileId = request.lightNightFileId,
+        )
+        val view = assetService.saveSceneProfile(projectId, episodeId, assetId, command) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildSceneProfileData(userId, view)).build()
+    }
+
+    data class PropProfileRequest(
+        @param:JsonProperty("identity_title") val identityTitle: String? = null,
+        val category: String? = null,
+        @param:JsonProperty("plot_function") val plotFunction: String? = null,
+        val description: String? = null,
+        @param:JsonProperty("concept_image_file_id") val conceptImageFileId: String? = null,
+    )
+
+    private data class PropProfileData(
+        @param:JsonProperty("asset_id") val assetId: Long,
+        val name: String,
+        @param:JsonProperty("identity_title") val identityTitle: String?,
+        val category: String?,
+        @param:JsonProperty("plot_function") val plotFunction: String?,
+        val description: String?,
+        @param:JsonProperty("concept_image") val conceptImage: CharacterImageData?,
+        @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+    )
+
+    private fun buildPropProfileData(userId: Long?, view: AssetService.PropProfileView): PropProfileData {
+        val profile = view.profile
+        return PropProfileData(
+            assetId = requireNotNull(view.asset.id),
+            name = view.asset.name,
+            identityTitle = profile.identityTitle,
+            category = profile.category,
+            plotFunction = profile.plotFunction,
+            description = view.asset.description,
+            conceptImage = resolveCharacterImage(userId, profile.conceptImageFileId),
+            updatedAt = profile.updatedAt,
+        )
+    }
+
+    @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/prop-profile")
+    fun getPropProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+    ): ResponseEntity<Response> {
+        val view = assetService.loadPropProfile(projectId, episodeId, assetId) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildPropProfileData(userId, view)).build()
+    }
+
+    @PutMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/prop-profile")
+    fun updatePropProfile(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @PathVariable("asset_id") assetId: Long,
+        @AuthenticationPrincipal userId: Long?,
+        @RequestBody request: PropProfileRequest,
+    ): ResponseEntity<Response> {
+        val command = AssetService.PropProfileCommand(
+            identityTitle = request.identityTitle,
+            category = request.category,
+            plotFunction = request.plotFunction,
+            description = request.description,
+            conceptImageFileId = request.conceptImageFileId,
+        )
+        val view = assetService.savePropProfile(projectId, episodeId, assetId, command) ?: return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(buildPropProfileData(userId, view)).build()
     }
 
     @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")
