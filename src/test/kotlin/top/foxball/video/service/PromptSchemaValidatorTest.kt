@@ -20,7 +20,7 @@ class PromptSchemaValidatorTest {
             PromptVersion(
                 id = 2,
                 promptDefinitionId = 1,
-                messagesJson = """[{"role":"system","content":"只返回 JSON"},{"role":"user","content":"<input>{{script_content}}</input>"}]""",
+                messagesJson = """[{"role":"system","content":"只返回 json"},{"role":"user","content":"<input>{{script_content}}</input>"}]""",
                 variablesSchemaJson = """{"type":"object","properties":{"script_content":{"type":"string","maxLength":100}},"required":["script_content"]}""",
                 outputSchemaJson = """{"type":"object","properties":{"items":{"type":"array","items":{"type":"object"}}},"additionalProperties":false}""",
                 generationPolicyJson = """{"max_input_tokens":1000}""",
@@ -47,7 +47,7 @@ class PromptSchemaValidatorTest {
             PromptVersion(
                 id = 2,
                 promptDefinitionId = 1,
-                messagesJson = """[{"role":"system","content":"只返回 JSON"},{"role":"user","content":"{{script_content}}"}]""",
+                messagesJson = """[{"role":"system","content":"只返回 json"},{"role":"user","content":"{{script_content}}"}]""",
                 variablesSchemaJson = """{"type":"object","properties":{"script_content":{"type":"string"}},"required":["script_content"]}""",
                 outputSchemaJson = """{"type":"object"}""",
                 generationPolicyJson = """{"temperature":0.2,"max_completion_tokens":123,"response_format":"json_object"}""",
@@ -71,7 +71,7 @@ class PromptSchemaValidatorTest {
             PromptVersion(
                 id = 2,
                 promptDefinitionId = 1,
-                messagesJson = """[{"role":"system","content":"只返回 JSON"},{"role":"user","content":"{{script_content}}"}]""",
+                messagesJson = """[{"role":"system","content":"只返回 json"},{"role":"user","content":"{{script_content}}"}]""",
                 variablesSchemaJson = """{"type":"object","properties":{"script_content":{"type":"string"}},"required":["script_content"]}""",
                 outputSchemaJson = """{"type":"object","properties":{"items":{"type":"array"}},"additionalProperties":false}""",
                 generationPolicyJson = """{"response_format":"json_schema"}""",
@@ -94,7 +94,7 @@ class PromptSchemaValidatorTest {
             PromptVersion(
                 id = 2,
                 promptDefinitionId = 1,
-                messagesJson = """[{"role":"system","content":"只返回 JSON"},{"role":"user","content":"{{required_text}} / {{optional_text}}"}]""",
+                messagesJson = """[{"role":"system","content":"只返回 json"},{"role":"user","content":"{{required_text}} / {{optional_text}}"}]""",
                 variablesSchemaJson = """{"type":"object","properties":{"required_text":{"type":"string"},"optional_text":{"type":"string","default":"默认值"}},"required":["required_text"]}""",
                 outputSchemaJson = """{"type":"object"}""",
                 generationPolicyJson = "{}",

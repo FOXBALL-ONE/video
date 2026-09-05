@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -53,6 +54,7 @@ class PromptController(
             @param:JsonProperty("latest_version_id") val latestVersionId: Long?,
             @param:JsonProperty("published_version_no") val publishedVersionNo: Int?,
             @param:JsonProperty("published_version_id") val publishedVersionId: Long?,
+            @param:JsonProperty("default_locale") val defaultLocale: String,
             val enabled: Boolean,
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
         )
@@ -66,7 +68,7 @@ class PromptController(
                 versions.maxOfOrNull { it.versionNo }, versions.maxByOrNull { it.versionNo }?.id,
                 versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.versionNo,
                 versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.id,
-                definition.enabled, definition.updatedAt,
+                definition.defaultLocale, definition.enabled, definition.updatedAt,
             )
         }
         return responseBuilder.ok().data(Response(prompts)).build()
@@ -158,6 +160,68 @@ class PromptController(
         }
         val version = created.version
         return responseBuilder.created().data(Response(requireNotNull(created.definition.id), requireNotNull(version.id), version.versionNo, version.status.name, version.contentHash)).build()
+    }
+
+    @PutMapping("/api/ai/prompts/{prompt_id}")
+    fun updateDefinition(
+        @AuthenticationPrincipal userId: Long?,
+        @PathVariable("prompt_id") promptId: Long,
+        @RequestParam("display_name") @NotBlank @Size(max = 200) displayName: String,
+        @RequestParam("purpose", defaultValue = "") @Size(max = 1000) purpose: String,
+        @RequestParam("default_locale", required = false) @Size(max = 20) defaultLocale: String?,
+        @RequestParam("enabled", required = false) enabled: Boolean?,
+    ): ResponseEntity<Response> {
+        data class Response(
+            val id: Long,
+            val key: String,
+            @param:JsonProperty("display_name") val displayName: String,
+            val purpose: String,
+            @param:JsonProperty("scope_type") val scopeType: String,
+            @param:JsonProperty("project_id") val projectId: Long?,
+            @param:JsonProperty("default_locale") val defaultLocale: String,
+            val enabled: Boolean,
+            @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+        )
+        val definition = try {
+            catalog.updateDefinition(userId, promptId, displayName, purpose, defaultLocale, enabled)
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } ?: return responseBuilder.notFound().build()
+        val rs = Response(
+            requireNotNull(definition.id), definition.key, definition.displayName, definition.purpose, definition.scopeType.name,
+            definition.projectId, definition.defaultLocale, definition.enabled, definition.updatedAt,
+        )
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @DeleteMapping("/api/ai/prompts/{prompt_id}")
+    fun deleteDefinition(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long): ResponseEntity<Response> {
+        val deleted = try {
+            catalog.deleteDefinition(userId, promptId)
+        } catch (exception: PromptCatalogService.ConflictException) {
+            return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        }
+        if (!deleted) return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(mapOf("id" to promptId, "deleted" to true)).build()
+    }
+
+    @DeleteMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
+    fun deleteVersion(
+        @AuthenticationPrincipal userId: Long?,
+        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("version_id") versionId: Long,
+    ): ResponseEntity<Response> {
+        val deleted = try {
+            catalog.deleteVersion(userId, promptId, versionId)
+        } catch (exception: PromptCatalogService.ConflictException) {
+            return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        }
+        if (!deleted) return responseBuilder.notFound().build()
+        return responseBuilder.ok().data(mapOf("id" to versionId, "deleted" to true)).build()
     }
 
     @PutMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
