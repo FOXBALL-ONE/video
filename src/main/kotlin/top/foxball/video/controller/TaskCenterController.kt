@@ -15,9 +15,11 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import top.foxball.video.entity.jdbc.ProductionTaskStatus
 import top.foxball.video.entity.jdbc.ProductionTaskType
+import top.foxball.video.service.ScriptAnalysisTaskService
 import top.foxball.video.service.TaskCenterService
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
+import tools.jackson.databind.ObjectMapper
 import java.time.LocalDateTime
 
 @Validated
@@ -25,6 +27,8 @@ import java.time.LocalDateTime
 /** 项目异步任务的统一查询和取消接口。 */
 class TaskCenterController(
     private val taskCenterService: TaskCenterService,
+    private val scriptAnalysisTaskService: ScriptAnalysisTaskService,
+    private val objectMapper: ObjectMapper,
     private val responseBuilder: ResponseBuilder,
 ) {
     @GetMapping("/api/tasks")
@@ -182,6 +186,30 @@ class TaskCenterController(
             @param:JsonProperty("message_code") val messageCode: String?,
             @param:JsonProperty("created_at") val createdAt: LocalDateTime?,
         )
+        data class AnalysisTypeData(
+            val type: String,
+            val status: String,
+            val progress: Int,
+            @param:JsonProperty("progress_indeterminate") val progressIndeterminate: Boolean,
+            val count: Int,
+            val provider: String?,
+            val model: String?,
+            @param:JsonProperty("request_id") val requestId: String?,
+            val error: String?,
+        )
+        data class AnalysisProgressData(
+            val progress: Int,
+            @param:JsonProperty("progress_indeterminate") val progressIndeterminate: Boolean,
+            @param:JsonProperty("current_type") val currentType: String?,
+            @param:JsonProperty("result_status") val resultStatus: String?,
+            val stream: Boolean,
+            val total: Int,
+            val completed: Int,
+            val failed: Int,
+            val running: Int,
+            val pending: Int,
+            val types: List<AnalysisTypeData>,
+        )
         data class TaskData(
             val id: Long,
             @param:JsonProperty("project_id") val projectId: Long,
@@ -211,10 +239,53 @@ class TaskCenterController(
             @param:JsonProperty("completed_at") val completedAt: LocalDateTime?,
             @param:JsonProperty("can_cancel") val canCancel: Boolean,
             val events: List<EventData>,
+            @param:JsonProperty("analysis_progress") val analysisProgress: AnalysisProgressData?,
         )
 
         val snapshot = taskCenterService.detail(projectId, taskId, userId) ?: return responseBuilder.notFound().build()
         val task = snapshot.task
+        val analysisProgress = if (task.taskType == ProductionTaskType.SCRIPT_ANALYSIS) {
+            val analysis = scriptAnalysisTaskService.detail(projectId, userId, taskId)
+            val typeResultsNode = analysis?.let { runCatching { objectMapper.readTree(it.result.typeResultsJson) }.getOrNull() }
+            val assetTypes = (task.inputPayload["asset_types"] as? Collection<*>)?.mapNotNull { it?.toString() }.orEmpty()
+            val typeResults = assetTypes.map { type ->
+                val node = typeResultsNode?.get(type)
+                val storedStatus = node?.path("status")?.takeIf { it.isTextual }?.stringValue()?.takeIf { it.isNotBlank() } ?: "PENDING"
+                val status = if (storedStatus == "PENDING" && task.stage?.removePrefix("ANALYZE_") == type && task.status == ProductionTaskStatus.RUNNING) "RUNNING" else storedStatus
+                val terminal = status == "SUCCEEDED" || status == "FAILED"
+                AnalysisTypeData(
+                    type = type,
+                    status = status,
+                    progress = if (terminal) 100 else 0,
+                    progressIndeterminate = status == "RUNNING",
+                    count = node?.path("items")?.takeIf { it.isArray }?.size() ?: 0,
+                    provider = node?.path("provider")?.takeIf { it.isTextual }?.stringValue(),
+                    model = node?.path("model")?.takeIf { it.isTextual }?.stringValue(),
+                    requestId = node?.path("requestId")?.takeIf { it.isTextual }?.stringValue()
+                        ?: node?.path("request_id")?.takeIf { it.isTextual }?.stringValue(),
+                    error = node?.path("errorMessage")?.takeIf { it.isTextual }?.stringValue()
+                        ?: node?.path("error_message")?.takeIf { it.isTextual }?.stringValue(),
+                )
+            }
+            val currentType = typeResults.firstOrNull { it.status == "RUNNING" }?.type
+                ?: task.stage?.removePrefix("ANALYZE_")?.takeIf { it != task.stage && task.status == ProductionTaskStatus.RUNNING && task.progressIndeterminate }
+            AnalysisProgressData(
+                progress = task.progress,
+                progressIndeterminate = task.progressIndeterminate || typeResults.any { it.progressIndeterminate },
+                currentType = currentType,
+                resultStatus = analysis?.resultStatus?.name,
+                stream = when (val value = task.inputPayload["stream"]) {
+                    is Boolean -> value
+                    else -> value?.toString()?.toBooleanStrictOrNull() ?: true
+                },
+                total = typeResults.size,
+                completed = typeResults.count { it.status == "SUCCEEDED" },
+                failed = typeResults.count { it.status == "FAILED" },
+                running = typeResults.count { it.status == "RUNNING" },
+                pending = typeResults.count { it.status == "PENDING" },
+                types = typeResults,
+            )
+        } else null
         val rs = TaskData(
             requireNotNull(task.id), task.projectId, task.episodeId, task.projectVersionId, task.taskType.name,
             task.title ?: task.taskType.name, task.status.name, task.progress, task.progressIndeterminate,
@@ -226,6 +297,7 @@ class TaskCenterController(
             snapshot.events.map { event ->
                 EventData(requireNotNull(event.id), event.eventType, event.fromStatus?.name, event.toStatus?.name, event.stage, event.progress, event.messageCode, event.createdAt)
             },
+            analysisProgress,
         )
         return responseBuilder.ok().data(rs).build()
     }
