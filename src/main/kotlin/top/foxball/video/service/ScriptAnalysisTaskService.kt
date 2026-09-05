@@ -148,6 +148,7 @@ class ScriptAnalysisTaskService(
         contentHash: String,
         selections: List<ModelSelection>,
         idempotencyKey: String?,
+        stream: Boolean = true,
     ): Submission? {
         if (!taskCenterService.canWriteProject(projectId, userId)) return null
         require(episodeId > 0) { "必须选择剧集" }
@@ -210,6 +211,7 @@ class ScriptAnalysisTaskService(
                     "content_hash" to actualHash,
                     "content_length" to snapshot.version.content.length,
                     "content_summary" to "已保存剧本来源引用（正文不写入任务输入）",
+                    "stream" to stream,
                     "asset_types" to normalizedSelections.map { it.assetType.name },
                     "selections" to normalizedSelections.map { mapOf("asset_type" to it.assetType.name, "provider_config_id" to it.providerConfigId, "model" to it.model) },
                     "summary" to "解析剧本并暂存所选资产",
@@ -375,7 +377,7 @@ class ScriptAnalysisTaskService(
     private fun execute(taskId: Long) {
         val started = runCatching { taskCenterService.markRunning(taskId) }.getOrNull() ?: return
         if (started.status != ProductionTaskStatus.RUNNING) return
-        val result = resultRepository.findByTaskId(taskId) ?: run {
+        var result = resultRepository.findByTaskId(taskId) ?: run {
             taskCenterService.markFailed(taskId, "MISSING_ANALYSIS_RESULT", "解析结果记录不存在")
             return
         }
@@ -393,8 +395,23 @@ class ScriptAnalysisTaskService(
                 if (currentResult?.resultStatus == ScriptAnalysisResultStatus.SUPERSEDED || currentResult?.let(::isResultSuperseded) == true) {
                     throw SupersededResultException()
                 }
+                typeResults[selection.assetType.name] = StoredTypeResult(
+                    status = "RUNNING",
+                    providerConfigId = selection.providerConfigId,
+                    model = selection.model,
+                    provider = "unknown",
+                    requestId = "",
+                    items = emptyList(),
+                )
+                result.typeResultsJson = objectMapper.writeValueAsString(typeResults)
+                result = resultRepository.save(result)
+                taskCenterService.updateProgress(taskId, index * 100 / selections.size, "ANALYZE_${selection.assetType.name}", indeterminate = true)
                 val promptVersionId = (started.inputPayload["prompt_version_id"] as? Number)?.toLong()
                 val promptHash = started.inputPayload["template_hash"]?.toString()
+                val stream = when (val value = started.inputPayload["stream"]) {
+                    is Boolean -> value
+                    else -> value?.toString()?.toBooleanStrictOrNull() ?: true
+                }
                 val analysis = analysisService.analyze(
                     selection.assetType,
                     selection.providerConfigId,
@@ -405,6 +422,7 @@ class ScriptAnalysisTaskService(
                     result.episodeId,
                     started.id,
                     started.attempt,
+                    stream,
                 )
                 typeResults[selection.assetType.name] = StoredTypeResult(
                     status = if (analysis.succeeded) "SUCCEEDED" else "FAILED",
@@ -417,13 +435,15 @@ class ScriptAnalysisTaskService(
                     errorCode = analysis.errorCode,
                     errorMessage = analysis.errorMessage?.take(2_000),
                 )
+                result.typeResultsJson = objectMapper.writeValueAsString(typeResults)
+                result = resultRepository.save(result)
                 taskCenterService.updateProgress(taskId, ((index + 1) * 100 / selections.size), "ANALYZE_${selection.assetType.name}")
             }
             checkNotCancelled(taskId)
             result.typeResultsJson = objectMapper.writeValueAsString(typeResults)
             val succeeded = typeResults.filterValues { it.status == "SUCCEEDED" }
             if (succeeded.isEmpty()) {
-                resultRepository.save(result)
+                result = resultRepository.save(result)
                 val failure = typeResults.values.firstOrNull { it.errorCode != null }
                 taskCenterService.markFailed(taskId, failure?.errorCode ?: "SCRIPT_ANALYSIS_FAILED", failure?.errorMessage ?: "所有资产类型解析失败")
                 return
@@ -442,7 +462,7 @@ class ScriptAnalysisTaskService(
             }
             result.resultJson = objectMapper.writeValueAsString(resultNode)
             result.resultStatus = ScriptAnalysisResultStatus.STAGED
-            resultRepository.save(result)
+            result = resultRepository.save(result)
             val completed = taskCenterService.markSucceeded(taskId, if (succeeded.size == selections.size) "RESULT_STAGED" else "PARTIAL_RESULT_STAGED")
             if (completed?.status != ProductionTaskStatus.SUCCEEDED) return
         } catch (_: CancellationRequestedException) {

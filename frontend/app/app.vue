@@ -60,7 +60,10 @@ const workflowRoute = computed(() => {
     : `/projects/${activeProject.value.id}/workflow/script`
 })
 const taskRoute = computed(() => activeProject.value?.id ? `/projects/${activeProject.value.id}/tasks` : '/projects')
-const showEpisodeSidebar = computed(() => route.path !== '/login' && Boolean(activeProject.value) && /^\/projects\/\d+/.test(route.path))
+const showEpisodeSidebar = computed(() => {
+  if (route.path === '/login' || !activeProject.value || !/^\/projects\/\d+/.test(route.path)) return false
+  return !route.path.endsWith('/canvas')
+})
 const accountOptions = [{label: '退出登录', key: 'logout'}];
 
 async function refreshProjects() {

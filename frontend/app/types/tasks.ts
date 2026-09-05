@@ -38,6 +38,33 @@ export interface TaskItem {
   cancel_reason?: string | null
   can_cancel: boolean
   events?: TaskEvent[]
+  analysis_progress?: ScriptAnalysisProgress | null
+}
+
+export interface ScriptAnalysisProgressType {
+  type: string
+  status: string
+  progress: number
+  progress_indeterminate: boolean
+  count: number
+  provider: string | null
+  model: string | null
+  request_id: string | null
+  error: string | null
+}
+
+export interface ScriptAnalysisProgress {
+  progress: number
+  progress_indeterminate: boolean
+  current_type: string | null
+  result_status: string | null
+  stream: boolean
+  total: number
+  completed: number
+  failed: number
+  running: number
+  pending: number
+  types: ScriptAnalysisProgressType[]
 }
 
 export interface TaskPage {

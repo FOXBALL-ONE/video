@@ -1,4 +1,6 @@
 import { computed, ref } from 'vue'
+import type { CatalogCategory } from '~/types/graph'
+import { GRAPH_NODE_CATALOG_FALLBACK } from '~/types/graph'
 
 type ApiCanvas = { id: number; project_id?: number; projectId?: number; graph_kind?: string; graphKind?: string }
 type ApiNode = Record<string, any> & { id: number; node_key?: string; nodeKey?: string }
@@ -12,6 +14,18 @@ export const useGraphWorkspace = () => {
   const supported = ref(false)
   const error = ref<string | null>(null)
   const linkIds = new Map<number, number>()
+  const catalog = ref<CatalogCategory[]>(GRAPH_NODE_CATALOG_FALLBACK)
+
+  /** 加载节点类型目录；后端不可用时回退到本地内置目录。 */
+  async function loadCatalog() {
+    try {
+      const result = await http.get<{ list: CatalogCategory[] }>('/graphs/node-catalog')
+      if (result.list?.length) catalog.value = result.list
+    } catch {
+      catalog.value = GRAPH_NODE_CATALOG_FALLBACK
+    }
+    return catalog.value
+  }
 
   async function load(projectId: string, episodeId?: string) {
     const id = Number(projectId)
@@ -130,5 +144,5 @@ export const useGraphWorkspace = () => {
   }
 
   const ready = computed(() => supported.value && graphId.value != null)
-  return { graphId, loading, error, ready, load, saveNode, saveGroup, saveLink, deleteLink, saveAll, deleteNode, deleteLinksForNode, deleteGroup }
+  return { graphId, loading, error, ready, catalog, loadCatalog, load, saveNode, saveGroup, saveLink, deleteLink, saveAll, deleteNode, deleteLinksForNode, deleteGroup }
 }

@@ -6,7 +6,7 @@ API 配置现在支持三种互斥的能力类型：
 
 | `api_type` | 用途 | 调用协议 |
 | --- | --- | --- |
-| `CHAT` | 剧本解析、结构化提取、纯文字对话 | OpenAI `POST /v1/responses`（`openai`）或兼容服务 `POST /v1/chat/completions` |
+| `CHAT` | 剧本解析、结构化提取、纯文字对话 | 流式统一使用 `POST /v1/responses`；非流式 OpenAI 使用 `POST /v1/responses`，其他兼容服务使用 `POST /v1/chat/completions` |
 | `IMAGE` | 角色/场景参考图、文生图、图生图 | `POST /v1/images/generations`、`POST /v1/images/edits` |
 | `VIDEO` | 根据文字或图片生成视频片段 | `POST /v1/videos`、`GET /v1/videos/{video_id}`、`GET /v1/videos/{video_id}/content` |
 
@@ -38,7 +38,7 @@ API 配置现在支持三种互斥的能力类型：
 
 ### 3.1 对话
 
-`POST /api/ai/chat/completions` 接收 `provider_config_id`、`model` 和 `prompt`，返回文本、结束原因和 token 用量。剧本解析服务继续使用同一个 `AiInvocationService`，因此业务调用不需要接触 API Key 或上游 HTTP DTO。
+`POST /api/ai/chat/completions` 接收 `provider_config_id`、`model`、`prompt` 和可选的 `stream`。`stream` 默认为 `true`，并要求前端使用 `Accept: text/event-stream`，返回 `delta`/`complete` Server-Sent Events；前端传入 `stream=false` 时返回完整文本、结束原因和 token 用量。剧本解析服务继续使用同一个 `AiInvocationService`，因此业务调用不需要接触 API Key 或上游 HTTP DTO。
 
 ### 3.2 图片
 

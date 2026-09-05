@@ -91,7 +91,7 @@ class OpenAiCompatibleClient(
 
     /**
      * 创建非流式聊天补全请求。
-     * OpenAI 官方提供商走 Responses API，其余兼容服务走 Chat Completions API。
+     * 非流式请求按提供商协议发送；流式请求统一使用 Responses API。
      */
     override fun createChatCompletion(
         connection: AiProviderConnection,
@@ -136,44 +136,7 @@ class OpenAiCompatibleClient(
         connection: AiProviderConnection,
         command: AiChatCompletionCommand,
     ): Mono<AiChatCompletionResult> {
-        require(command.model.isNotBlank()) { "模型 ID 不能为空" }
-        require(command.messages.isNotEmpty()) { "对话消息不能为空" }
-        if (command.messages.any { it.role == AiChatRole.TOOL || it.toolCalls.isNotEmpty() }) {
-            throw AiConfigurationException("Responses API 暂不支持通过此入口提交工具调用")
-        }
-        val payload = linkedMapOf<String, Any>(
-            "model" to command.model,
-            "input" to command.messages.map { message ->
-                mapOf(
-                    "role" to message.role.name.lowercase(),
-                    "content" to listOf(mapOf("type" to "input_text", "text" to message.content.orEmpty())),
-                )
-            },
-        ).apply {
-            command.temperature?.let { put("temperature", it) }
-            command.maxCompletionTokens?.let { put("max_output_tokens", it) }
-            command.responseFormat?.let { format ->
-                when (format) {
-                    "json_object" -> put("text", mapOf("format" to mapOf("type" to "json_object")))
-                    "json_schema" -> {
-                        val schema = command.responseSchema ?: throw AiConfigurationException("json_schema 缺少输出 schema")
-                        put(
-                            "text",
-                            mapOf(
-                                "format" to mapOf(
-                                    "type" to "json_schema",
-                                    "name" to "structured_output",
-                                    "strict" to true,
-                                    "schema" to schema,
-                                ),
-                            ),
-                        )
-                    }
-                    "text" -> Unit
-                    else -> throw AiConfigurationException("不支持的响应格式")
-                }
-            }
-        }
+        val payload = responsesPayload(command, stream = false)
         val requestId = invocationId(command.requestId)
         val startedAt = System.nanoTime()
         logInvocationStarted(connection, AiOperation.CHAT, requestId, command.model, "protocol=responses message_count=${command.messages.size}")
@@ -196,38 +159,39 @@ class OpenAiCompatibleClient(
         command: AiChatCompletionCommand,
     ): Flux<AiChatCompletionDelta> {
         validateCommandConnection(connection, command.providerConfigId)
-        val payload = chatPayload(command, stream = true)
+        return streamResponsesCompletion(connection, command)
+    }
+
+    /** 调用 OpenAI Responses API 的 SSE 接口并转换为统一的文本增量事件。 */
+    private fun streamResponsesCompletion(
+        connection: AiProviderConnection,
+        command: AiChatCompletionCommand,
+    ): Flux<AiChatCompletionDelta> {
+        val payload = responsesPayload(command, stream = true)
         val requestId = invocationId(command.requestId)
         val startedAt = System.nanoTime()
         val deltaCount = AtomicInteger()
-        logInvocationStarted(
-            connection,
-            AiOperation.CHAT,
-            requestId,
-            command.model,
-            "stream=true message_count=${command.messages.size} input_chars=${command.messages.sumOf { it.content?.length ?: 0 }} tool_count=${command.tools.size}",
-        )
+        logInvocationStarted(connection, AiOperation.CHAT, requestId, command.model, "protocol=responses stream=true message_count=${command.messages.size}")
         return invocationGuard.protectFlux(connection, AiOperation.CHAT) {
-            val uri = uriPolicy.endpoint(connection.baseUri, "chat/completions")
             transportFactory.client(connection.profile)
                 .post()
-                .uri(uri)
+                .uri(uriPolicy.endpoint(connection.baseUri, "responses"))
                 .headers { headers -> applyHeaders(headers, connection, requestId) }
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(payload)
                 .exchangeToFlux<AiChatCompletionDelta> { response ->
-                    logUpstreamResponse(connection, AiOperation.CHAT, requestId, "chat/completions", response)
+                    logUpstreamResponse(connection, AiOperation.CHAT, requestId, "responses", response)
                     if (!response.statusCode().is2xxSuccessful) errorFlux(response)
                     else response.bodyToFlux(SSE_TYPE)
                         .mapNotNull(ServerSentEvent<String>::data)
                         .takeWhile { it != "[DONE]" }
-                        .map(::parseChatDelta)
+                        .mapNotNull(::parseResponsesDelta)
                 }
                 .onErrorMap(::mapTransportException)
                 .doOnNext { deltaCount.incrementAndGet() }
         }.doOnError { exception ->
-            logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception, "stream=true delta_count=${deltaCount.get()}")
+            logInvocationFailed(connection, AiOperation.CHAT, requestId, startedAt, exception, "protocol=responses stream=true delta_count=${deltaCount.get()}")
         }.doFinally { signal ->
             if (signal != reactor.core.publisher.SignalType.ON_ERROR) {
                 logInvocationFinished(
@@ -235,7 +199,7 @@ class OpenAiCompatibleClient(
                     AiOperation.CHAT,
                     requestId,
                     startedAt,
-                    "stream=true signal=${signal.name} delta_count=${deltaCount.get()}",
+                    "protocol=responses stream=true signal=${signal.name} delta_count=${deltaCount.get()}",
                 )
             }
         }
@@ -650,9 +614,10 @@ class OpenAiCompatibleClient(
         if (command.messages.sumOf { it.content?.length ?: 0 } > MAX_CHAT_CONTENT_CHARS) {
             throw AiConfigurationException("对话内容超过 2 MB 限制")
         }
+        val messages = ensureJsonInstruction(command.messages, command.responseFormat)
         return linkedMapOf<String, Any>(
             "model" to command.model,
-            "messages" to command.messages.map(::chatMessagePayload),
+            "messages" to messages.map(::chatMessagePayload),
             "stream" to stream,
         ).apply {
             command.temperature?.let { put("temperature", it) }
@@ -675,6 +640,63 @@ class OpenAiCompatibleClient(
                 }
             }
             if (command.tools.isNotEmpty()) put("tools", command.tools.map(::toolPayload))
+        }
+    }
+
+    /** 校验 Responses API 命令并构造普通或流式请求体。 */
+    private fun responsesPayload(command: AiChatCompletionCommand, stream: Boolean): Map<String, Any> {
+        require(command.model.isNotBlank()) { "模型 ID 不能为空" }
+        require(command.messages.isNotEmpty()) { "对话消息不能为空" }
+        if (command.messages.any { it.role == AiChatRole.TOOL || it.toolCalls.isNotEmpty() }) {
+            throw AiConfigurationException("Responses API 暂不支持通过此入口提交工具调用")
+        }
+        val messages = ensureJsonInstruction(command.messages, command.responseFormat)
+        return linkedMapOf<String, Any>(
+            "model" to command.model,
+            "input" to messages.map { message ->
+                mapOf(
+                    "role" to message.role.name.lowercase(),
+                    "content" to listOf(mapOf("type" to "input_text", "text" to message.content.orEmpty())),
+                )
+            },
+        ).apply {
+            if (stream) put("stream", true)
+            command.temperature?.let { put("temperature", it) }
+            command.maxCompletionTokens?.let { put("max_output_tokens", it) }
+            command.responseFormat?.let { format ->
+                when (format) {
+                    "json_object" -> put("text", mapOf("format" to mapOf("type" to "json_object")))
+                    "json_schema" -> {
+                        val schema = command.responseSchema ?: throw AiConfigurationException("json_schema 缺少输出 schema")
+                        put(
+                            "text",
+                            mapOf(
+                                "format" to mapOf(
+                                    "type" to "json_schema",
+                                    "name" to "structured_output",
+                                    "strict" to true,
+                                    "schema" to schema,
+                                ),
+                            ),
+                        )
+                    }
+                    "text" -> Unit
+                    else -> throw AiConfigurationException("不支持的响应格式")
+                }
+            }
+        }
+    }
+
+    /** 结构化 JSON 输出要求输入消息明确提及 json；为历史或自定义提示词补齐该协议约束。 */
+    private fun ensureJsonInstruction(messages: List<AiChatMessage>, responseFormat: String?): List<AiChatMessage> {
+        if (responseFormat !in setOf("json_object", "json_schema") || messages.any { it.content?.contains("json") == true }) {
+            return messages
+        }
+        val userIndex = messages.indexOfLast { it.role == AiChatRole.USER }
+        if (userIndex < 0) return messages + AiChatMessage(AiChatRole.USER, "请以 json 格式输出结果。")
+        return messages.toMutableList().also { normalized ->
+            val message = normalized[userIndex]
+            normalized[userIndex] = message.copy(content = "${message.content.orEmpty()}\n请以 json 格式输出结果。".trim())
         }
     }
 
@@ -758,23 +780,41 @@ class OpenAiCompatibleClient(
         )
     }
 
-    /** 解析单个 SSE JSON 事件，提取增量文本、工具调用和结束原因。 */
-    private fun parseChatDelta(event: String): AiChatCompletionDelta {
+    /** 解析 Responses API 语义化 SSE 事件，仅向上层发出文本增量和完成信号。 */
+    private fun parseResponsesDelta(event: String): AiChatCompletionDelta? {
         val response = try {
             objectMapper.readTree(event)
         } catch (exception: Exception) {
-            throw AiProtocolException("模型服务返回了无法解析的 SSE 事件")
+            throw AiProtocolException("Responses API 返回了无法解析的 SSE 事件")
         }
-        val choice = response.path("choices").firstOrNull() ?: throw AiProtocolException("模型服务 SSE 事件不包含 choices")
-        val delta = choice.path("delta")
-        return AiChatCompletionDelta(
-            id = response.fieldString("id"),
-            choiceIndex = choice.fieldInt("index") ?: 0,
-            role = delta.fieldString("role")?.uppercase()?.let { value -> AiChatRole.entries.firstOrNull { it.name == value } },
-            content = delta.fieldString("content"),
-            toolCalls = parseToolCalls(delta.path("tool_calls")),
-            finishReason = choice.fieldString("finish_reason"),
-        )
+        return when (response.fieldString("type")) {
+            "response.output_text.delta" -> AiChatCompletionDelta(
+                id = response.fieldString("item_id") ?: response.fieldString("response_id"),
+                choiceIndex = 0,
+                role = null,
+                content = response.path("delta").takeIf { it.isString }?.stringValue(),
+                toolCalls = emptyList(),
+                finishReason = null,
+            )
+            "response.completed" -> {
+                val completed = response.path("response")
+                AiChatCompletionDelta(
+                    id = completed.fieldString("id") ?: response.fieldString("response_id"),
+                    choiceIndex = 0,
+                    role = null,
+                    content = null,
+                    toolCalls = emptyList(),
+                    finishReason = completed.fieldString("status") ?: "completed",
+                )
+            }
+            "response.failed", "error" -> throw AiProtocolException(
+                response.fieldString("message")
+                    ?: response.path("error").fieldString("message")
+                    ?: response.path("response").path("error").fieldString("message")
+                    ?: "Responses API 流式响应失败",
+            )
+            else -> null
+        }
     }
 
     /** 兼容 Chat Completions 与 Responses API 的 token 用量字段命名。 */

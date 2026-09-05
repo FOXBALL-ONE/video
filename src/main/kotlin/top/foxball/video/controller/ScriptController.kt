@@ -110,6 +110,7 @@ class ScriptController(
         @RequestParam("scene_background_model", required = false) @Size(max = 200) sceneBackgroundModel: String?,
         @RequestParam("prop_provider_config_id", required = false) propProviderConfigId: Long?,
         @RequestParam("prop_model", required = false) @Size(max = 200) propModel: String?,
+        @RequestParam("stream", defaultValue = "true") stream: Boolean,
         @RequestParam("asset_types", required = false) legacyAssetTypes: List<String>?,
         @RequestParam("provider_config_ids", required = false) legacyProviderConfigIds: List<Long>?,
         @RequestParam("models", required = false) legacyModels: List<String>?,
@@ -162,7 +163,7 @@ class ScriptController(
         }
         if (selections.isEmpty()) return responseBuilder.badRequest().message("请至少选择一种资产类型").build()
         val submitted = try {
-            scriptAnalysisTaskService.submit(projectId, userId, episodeId, versionId, contentHash, selections, idempotencyKey)
+            scriptAnalysisTaskService.submit(projectId, userId, episodeId, versionId, contentHash, selections, idempotencyKey, stream)
         } catch (_: ScriptAnalysisTaskService.QueueFullException) {
             return responseBuilder.tooManyRequests().retryAfter(2).message("解析任务队列已满，请稍后重试").build()
         } catch (_: ScriptAnalysisTaskService.ContentConflictException) {

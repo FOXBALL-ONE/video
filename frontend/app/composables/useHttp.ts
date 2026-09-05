@@ -148,7 +148,9 @@ export const useHttp = (baseURL?: string) => {
             : (params ?? (payload as QueryParams | undefined));
         const requestBody = bodyPayload ? (rawPayload as JsonBody) : undefined;
         const requestHeaders = new Headers(headers as HeadersInit | undefined);
-        requestHeaders.set("Accept", "application/json");
+        if (!requestHeaders.has("Accept")) {
+            requestHeaders.set("Accept", "application/json");
+        }
         const authorization = normalizeAuthorization(authToken.value);
         if (authorization && !requestHeaders.has("Authorization")) {
             requestHeaders.set("Authorization", authorization);

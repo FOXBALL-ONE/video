@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | 获取模型列表 | `GET /v1/models` | JSON 响应 | API 管理、模型选择 |
 | 对话补全 | `POST /v1/chat/completions` | JSON | 剧本分析、创作助手、结构化提取 |
-| 流式对话补全 | `POST /v1/chat/completions`，`stream=true` | Server-Sent Events | 交互式助手输出 |
+| 流式对话补全 | `POST /v1/responses`，`stream=true` | Server-Sent Events | 交互式助手输出 |
 | 文生图 | `POST /v1/images/generations` | JSON | 概念图、资产图、分镜图 |
 | 图像编辑或局部重绘 | `POST /v1/images/edits` | `multipart/form-data` | 资产修订、蒙版编辑 |
 | 视频生成 | `POST /v1/videos`、`GET /v1/videos/{id}`、`GET /v1/videos/{id}/content` | JSON 或 multipart | 文字/图片生成视频片段 |
@@ -32,7 +32,7 @@
 3. 提供商地址按服务根地址配置。客户端必须将其解析为 URI，拒绝 user-info、query 与 fragment；仅允许受控的路径前缀。客户端去除末尾斜杠与路径末尾的 `/v1` 后，再以 URI 路径拼接固定协议接口，不能用未经校验的字符串连接。例如 `https://api.example.com` 和 `https://api.example.com/v1` 都会请求 `https://api.example.com/v1/models`。
 4. HTTP 代理与 SOCKS5 代理是连接配置的一部分，不能使用 JVM 全局代理属性。一个进程可能需要通过不同代理访问不同模型服务。
 5. 首选传输层为 Reactor Netty 加 Spring `WebClient`。它可以按客户端配置 HTTP/SOCKS5 代理并支持流式响应。现有模型列表查询中的单独 `RestClient` 调用将在客户端落地后迁移，不能长期保留两套上游传输实现。
-6. 当前项目使用 Spring MVC。客户端返回 Reactor `Mono` 和 `Flux`；控制器中禁止调用 `.block()`。耗时的图像生成和非流式生成应由业务任务调度，流式对话后续通过专用流式接口或 WebSocket 适配。
+6. 当前项目使用 Spring MVC。客户端返回 Reactor `Mono` 和 `Flux`；控制器中禁止调用 `.block()`。耗时的图像生成和非流式生成应由业务任务调度，流式对话通过专用 SSE 接口适配，前端可显式传入 `stream=false` 回退为完整 JSON。
 7. 当前 `AiModelProviderConfig.provider` 具有唯一约束，无法承载同一供应商的多个连接、代理或环境档案。后续实现以“连接档案”而非提供商名称作为客户端选择单位；本轮只定义模型，不修改表结构。
 8. 默认模型仅用于初始化界面和任务建议。每次调用都必须携带明确模型 ID；模型目录不能写回或覆盖默认模型。
 
@@ -142,7 +142,7 @@ interface AiModelClient {
 必须满足：
 
 - 普通模式发送 `stream=false`，返回全部 assistant choices 和上游提供的 usage 数据，并提供只读的 `primaryChoice` 便利访问器。
-- 流式模式发送 `stream=true`，增量读取 SSE，忽略心跳，识别终止标记，按顺序发出 `ChatCompletionDelta`。
+- 流式模式统一发送到 Responses API 并设置 `stream=true`，增量读取语义化 SSE，忽略心跳和非文本事件，识别 `response.completed`，按顺序发出 `ChatCompletionDelta`。
 - 映射器保留上游的结束原因、工具调用与 usage 元数据。
 - 流式工具调用只发出不可变增量；拼接参数和执行工具由上层编排服务完成，客户端不得在收到不完整参数时调用工具。
 - 对供应商私有参数，必须在校验阶段明确拒绝，不能静默丢弃。
@@ -300,7 +300,7 @@ SSE 解析器必须处理：事件跨帧拆分、单帧包含多个事件、空�
 1. 建立领域命令和结果、强类型异常、提供商解析器、连接配置模型、代理感知传输工厂；暂不接入业务调用。
 2. 实现 `listModels`，迁移现有 API 管理与模型选择接口，且不改变前端响应。
 3. 实现非流式对话补全，并添加模拟协议测试。
-4. 实现流式对话、SSE 解析测试，以及受控的流式控制器或 WebSocket 适配。
+4. 实现流式对话、SSE 解析测试和受控的流式控制器适配。
 5. 实现图像生成，安全持久化返回的 URL 或字节，并接入 `ProductionTask`。
 6. 实现图像编辑，补充原图、蒙版和 multipart 测试。
 7. 接入任务调度、能力控制、指标、审计和管理端代理配置。
@@ -311,7 +311,7 @@ SSE 解析器必须处理：事件跨帧拆分、单帧包含多个事件、空�
 
 ## 13. 验收测试
 
-- 使用模拟 OpenAI 兼容服务验证 `/v1/models`、`/v1/chat/completions`、`/v1/images/generations` 和 `/v1/images/edits` 的路径、Bearer 认证、JSON 与 multipart 边界。
+- 使用模拟 OpenAI 兼容服务验证 `/v1/models`、`/v1/chat/completions`、`/v1/responses`、`/v1/images/generations` 和 `/v1/images/edits` 的路径、Bearer 认证、JSON 与 multipart 边界。
 - 对话测试覆盖文本消息、工具调用、非法 choices、带 `Retry-After` 的 429、5xx 和超时。
 - SSE 测试覆盖单事件跨帧、单帧多事件、中途取消和非法终止事件。
 - 图像生成测试覆盖 URL 与 base64 响应；图像编辑测试覆盖原图、蒙版上传和媒体类型拒绝。

@@ -81,7 +81,7 @@ class OpenAiCompatibleClientTest {
                 messages = listOf(AiChatMessage(AiChatRole.USER, "stream")),
             ),
         ).collectList().block()
-        assertEquals(listOf("part one", "part two"), deltas?.mapNotNull { it.content })
+        assertEquals(listOf("第一段", "第二段"), deltas?.mapNotNull { it.content })
 
         val generated = client.generateImage(
             connection,
@@ -101,7 +101,7 @@ class OpenAiCompatibleClientTest {
         assertEquals("https://example.test/output.png", edited?.images?.single()?.url)
 
         assertEquals(
-            listOf("/v1/models", "/v1/chat/completions", "/v1/chat/completions", "/v1/images/generations", "/v1/images/edits"),
+            listOf("/v1/models", "/v1/chat/completions", "/v1/responses", "/v1/images/generations", "/v1/images/edits"),
             requests.map { it.path },
         )
         assertTrue(requests.all { it.authorization == "Bearer test-key" })
@@ -156,6 +156,45 @@ class OpenAiCompatibleClientTest {
         val body = requests.single().body
         assertTrue(body.contains("\"type\":\"json_schema\""))
         assertTrue(body.contains("\"schema\":{\"type\":\"object\""))
+        assertTrue(body.contains("请以 json 格式输出结果。"))
+    }
+
+    @Test
+    fun `adds json instruction for OpenAI Responses structured output`() {
+        requests.clear()
+        client.createChatCompletion(
+            connection.copy(provider = "openai"),
+            AiChatCompletionCommand(
+                providerConfigId = 1,
+                model = "gpt-test",
+                messages = listOf(AiChatMessage(AiChatRole.SYSTEM, "只输出 JSON"), AiChatMessage(AiChatRole.USER, "分析剧本")),
+                responseFormat = "json_object",
+            ),
+        ).block()
+
+        val request = requests.single()
+        assertEquals("/v1/responses", request.path)
+        assertTrue(request.body.contains("\"type\":\"json_object\""))
+        assertTrue(request.body.contains("请以 json 格式输出结果。"))
+    }
+
+    @Test
+    fun `streams Responses text deltas for every provider`() {
+        requests.clear()
+        val deltas = client.streamChatCompletion(
+            connection,
+            AiChatCompletionCommand(
+                providerConfigId = 1,
+                model = "gpt-test",
+                messages = listOf(AiChatMessage(AiChatRole.USER, "讲一个故事")),
+            ),
+        ).collectList().block()
+
+        assertEquals(listOf("第一段", "第二段"), deltas?.mapNotNull { it.content })
+        assertEquals("completed", deltas?.lastOrNull()?.finishReason)
+        val request = requests.single()
+        assertEquals("/v1/responses", request.path)
+        assertTrue(request.body.contains("\"stream\":true"))
     }
 
     @Test
@@ -184,6 +223,19 @@ class OpenAiCompatibleClientTest {
         )
         when (exchange.requestURI.path) {
             "/v1/models" -> respondJson(exchange, """{"data":[{"id":"demo-model","owned_by":"test"}]}""")
+            "/v1/responses" -> {
+                if (body.contains("\"stream\":true")) {
+                    exchange.responseHeaders.set("Content-Type", "text/event-stream")
+                    exchange.sendResponseHeaders(200, 0)
+                    exchange.responseBody.use { output ->
+                        output.write("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"item-1\",\"delta\":\"第一段\"}\n\n".toByteArray())
+                        output.write("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"item_id\":\"item-1\",\"delta\":\"第二段\"}\n\n".toByteArray())
+                        output.write("event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"response-1\",\"status\":\"completed\"}}\n\n".toByteArray())
+                    }
+                } else {
+                    respondJson(exchange, """{"id":"response-1","model":"gpt-test","output_text":"{\"ok\":true}","status":"completed"}""")
+                }
+            }
             "/v1/chat/completions" -> {
                 if (body.contains("\"stream\":true")) {
                     exchange.responseHeaders.set("Content-Type", "text/event-stream")
@@ -191,6 +243,7 @@ class OpenAiCompatibleClientTest {
                     exchange.responseBody.use { output ->
                         output.write("data: {\"id\":\"chat-1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"part one\"}}]}\n\n".toByteArray())
                         output.write("data: {\"id\":\"chat-1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"part two\"},\"finish_reason\":\"stop\"}]}\n\n".toByteArray())
+                        output.write("data: {\"id\":\"chat-1\",\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\n".toByteArray())
                         output.write("data: [DONE]\n\n".toByteArray())
                     }
                 } else {

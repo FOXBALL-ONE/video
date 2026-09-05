@@ -16,6 +16,7 @@ import top.foxball.video.entity.jdbc.graph.GraphCanvas
 import top.foxball.video.entity.jdbc.graph.GraphGroup
 import top.foxball.video.entity.jdbc.graph.GraphLink
 import top.foxball.video.entity.jdbc.graph.GraphNode
+import top.foxball.video.entity.jdbc.graph.GraphNodeCatalog
 import top.foxball.video.entity.jdbc.graph.GraphReroute
 import top.foxball.video.entity.jdbc.graph.GraphSubgraph
 import top.foxball.video.entity.jdbc.graph.GraphSubgraphInstance
@@ -69,6 +70,55 @@ class GraphController(
         }
         val rs = ResponseData(requireNotNull(saved.id), saved.projectId, saved.graphKind.name)
         return responseBuilder.created().data(rs).build()
+    }
+
+    @GetMapping("/api/graphs/node-catalog")
+    /** 查询画布节点类型目录：前端节点面板与节点端口渲染的数据源。 */
+    fun nodeCatalog(): ResponseEntity<Response> {
+        data class PortData(
+            val handle: String,
+            val label: String,
+            val color: String,
+            @param:JsonProperty("required") val required: Boolean,
+        )
+        data class NodeData(
+            val type: String,
+            val title: String,
+            @param:JsonProperty("category_key") val categoryKey: String,
+            val color: String,
+            val icon: List<String>,
+            val singleton: Boolean,
+            val inputs: List<PortData>,
+            val outputs: List<PortData>,
+        )
+        data class CategoryData(
+            val key: String,
+            val label: String,
+            @param:JsonProperty("node_count") val nodeCount: Int,
+            val nodes: List<NodeData>,
+        )
+        data class ResponseData(val list: List<CategoryData>)
+
+        val list = GraphNodeCatalog.categories.map { category ->
+            CategoryData(
+                category.key,
+                category.label,
+                category.nodes.size,
+                category.nodes.map { node ->
+                    NodeData(
+                        node.type,
+                        node.title,
+                        node.categoryKey,
+                        node.color,
+                        node.icon,
+                        node.singleton,
+                        node.inputs.map { port -> PortData(port.handle, port.label, port.color, port.required) },
+                        node.outputs.map { port -> PortData(port.handle, port.label, port.color, port.required) },
+                    )
+                },
+            )
+        }
+        return responseBuilder.ok().data(ResponseData(list)).build()
     }
 
     @GetMapping("/api/graphs/{graph_id}")

@@ -426,7 +426,7 @@ class AssetService(
         return """你是一名专业的影视剧本资产提取师,负责从 AI 短剧剧本正文中提取结构化资产信息。
 
 ## 任务
-阅读【剧本文本】,提取三类资产:角色(characters)、场景(scenes)、道具(props),输出一个 JSON 对象。
+阅读【剧本文本】,提取三类资产:角色(characters)、场景(scenes)、道具(props),输出一个 json 对象。
 
 ## 提取规则
 1. 忠实原文:只提取正文中出现、或能从上下文明确推断的实体;禁止虚构、扩写或引入剧本之外的设定。
@@ -445,7 +445,7 @@ class AssetService(
 - props:name 道具名;category 类别(手持/穿戴/陈设/交通工具等);description 外观;owner 持有角色;function 剧情功能;continuity_notes 连续性要求(磨损、数量、位置变化等)。
 
 ## 输出格式
-只输出一个合法 JSON 对象,不要 Markdown 代码块、注释或任何解释文字。结构如下(值仅为示例,须替换为实际提取结果):
+只输出一个合法 json 对象,不要 Markdown 代码块、注释或任何解释文字。结构如下(值仅为示例,须替换为实际提取结果):
 {
   "characters": [
     {"id": "C1", "name": null, "identity": null, "appearance": null, "personality": null, "relationships": null, "dialogue_intent": null, "remarks": null, "description": null}

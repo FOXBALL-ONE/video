@@ -47,28 +47,18 @@
           </div>
 
           <div class="mt-4 border-b border-[#e8eaf0] pb-5">
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <n-form-item label="解析提供商" class="!mb-0">
-                <n-select v-model:value="selectedProviderId" :disabled="!providerConfigs.length" :options="providerOptions" placeholder="选择提供商" />
-              </n-form-item>
-              <div v-if="parseError" class="rounded-[9px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d] sm:col-span-2" role="alert">
-                <strong class="block font-medium">解析失败：{{ parseError.message }}</strong>
-                <div class="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-[#8e6262] sm:grid-cols-2">
-                  <span>错误代码：{{ parseError.error_code ?? '未返回' }}</span>
-                  <span>服务提供商：{{ parseError.provider || '未返回' }}</span>
-                  <span class="sm:col-span-2">请求 ID：{{ parseError.request_id || '未返回' }}</span>
-                </div>
-                <pre v-if="parseError.response_content" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white px-2 py-1.5 text-[10px] leading-4 text-[#765858]">{{ parseError.response_content }}</pre>
+            <div v-if="parseError" class="rounded-[9px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d]" role="alert">
+              <strong class="block font-medium">解析失败：{{ parseError.message }}</strong>
+              <div class="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-[#8e6262] sm:grid-cols-2">
+                <span>错误代码：{{ parseError.error_code ?? '未返回' }}</span>
+                <span>服务提供商：{{ parseError.provider || '未返回' }}</span>
+                <span class="sm:col-span-2">请求 ID：{{ parseError.request_id || '未返回' }}</span>
               </div>
-              <n-form-item label="解析模型" class="!mb-0">
-                <n-select v-if="modelOptions.length" v-model:value="selectedModelId" :options="modelOptions" filterable placeholder="选择模型 ID" />
-                <n-input v-else v-model:value="selectedModelId" placeholder="请先获取模型列表" readonly />
-                <n-button :disabled="!selectedProvider" :loading="fetchingModels" attr-type="button" class="!mt-2" size="small" @click="fetchModels">获取模型</n-button>
-              </n-form-item>
+              <pre v-if="parseError.response_content" class="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white px-2 py-1.5 text-[10px] leading-4 text-[#765858]">{{ parseError.response_content }}</pre>
             </div>
             <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span class="text-xs text-[#929bad]">支持 .txt 文本文件</span>
-              <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || !episodeQuery || parsing || !selectedProviderId || !selectedModelId" @click="parseScript">
+              <button type="button" class="inline-flex h-10 items-center justify-center gap-2 rounded-[9px] bg-[#6654ee] px-4 text-sm font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="!scriptText.trim() || !episodeQuery || parsing" @click="parseScript">
               <span aria-hidden="true" class="text-base">✦</span>{{ parsing ? '解析中...' : '开始解析' }}
               </button>
             </div>
@@ -216,6 +206,13 @@
 
     <n-modal v-model:show="analysisModalVisible" preset="card" title="提取剧本资产" class="w-[min(94vw,620px)]" :mask-closable="false">
       <p class="-mt-2 text-xs text-[#8a94aa]">选择要提取的资产类型和对应模型，任务提交后将在后台运行。</p>
+      <div class="mt-4 flex items-center justify-between rounded-[9px] border border-[#dfe3eb] bg-white px-3.5 py-3">
+        <div>
+          <p class="m-0 text-xs font-medium text-[#30394a]">流式传输</p>
+          <p class="mt-1 text-[11px] text-[#8994a8]">默认启用，可按本次解析需要关闭。</p>
+        </div>
+        <n-switch v-model:value="analysisStream" />
+      </div>
       <div class="mt-4 space-y-3">
         <div v-for="job in analysisJobs" :key="job.type" class="rounded-[12px] border border-[#dfe3eb] bg-[#fbfcfe] p-3.5">
           <div class="flex items-start gap-3">
@@ -404,11 +401,7 @@ const generating = ref(false)
 const isDragging = ref(false)
 const analysisSummaryVisible = ref(false)
 const providerConfigs = ref<ProviderConfig[]>([])
-const selectedProviderId = ref<number | null>(null)
-const selectedModelId = ref('')
-const modelOptions = ref<{ label: string; value: string }[]>([])
 const providerModelOptions = ref<Record<number, { label: string; value: string }[]>>({})
-const fetchingModels = ref(false)
 const scriptStats = ref<ScriptStats>({
   scene_count: 0,
   character_count: 0,
@@ -433,6 +426,7 @@ const analysisDetailsVisible = ref(false)
 const analysisAdopting = ref(false)
 const analysisSubmissionKey = ref('')
 const analysisSubmissionFingerprint = ref('')
+const analysisStream = ref(true)
 const analysisAdoptionKey = ref('')
 const analysisAdoptionFingerprint = ref('')
 const currentVersionId = ref<number | null>(null)
@@ -458,7 +452,6 @@ const episodeQuery = computed(() => {
 })
 const wordCount = computed(() => scriptText.value.length)
 const providerOptions = computed(() => providerConfigs.value.map((config) => ({ label: config.provider, value: config.id })))
-const selectedProvider = computed(() => providerConfigs.value.find((config) => config.id === selectedProviderId.value))
 const selectedAnalysisCount = computed(() => analysisJobs.value.filter((job) => job.enabled).length)
 const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model))
 const analysisAdoptedTypes = computed(() => new Set(analysisAdoptedTypeNames.value))
@@ -551,10 +544,6 @@ async function loadProviderConfigs() {
         // The saved default model remains available when discovery is unavailable.
       }
     }))
-    if (providerConfigs.value.length === 1) {
-      selectedProviderId.value = providerConfigs.value[0].id
-      selectedModelId.value = providerConfigs.value[0].model_id || ''
-    }
     analysisJobs.value.forEach((job) => {
       if (!job.providerId && providerConfigs.value.length) job.providerId = providerConfigs.value[0].id
       if (!job.model && job.providerId) job.model = providerConfigs.value.find((config) => config.id === job.providerId)?.model_id || ''
@@ -566,7 +555,7 @@ async function loadProviderConfigs() {
 
 function modelOptionsFor(job: AnalysisJob) {
   const configured = providerConfigs.value.find((config) => config.id === job.providerId)
-  const options = (job.providerId && providerModelOptions.value[job.providerId]) || modelOptions.value
+  const options = (job.providerId && providerModelOptions.value[job.providerId]) || []
   if (options.length) return options
   return configured?.model_id ? [{ label: configured.model_id, value: configured.model_id }] : []
 }
@@ -584,29 +573,10 @@ function openAnalysisModal() {
   analysisSubmissionKey.value = ''
   analysisSubmissionFingerprint.value = ''
   analysisJobs.value.forEach((job) => {
-    if (!job.providerId) job.providerId = selectedProviderId.value || providerConfigs.value[0]?.id || null
+    if (!job.providerId) job.providerId = providerConfigs.value[0]?.id || null
     if (!job.model && job.providerId) job.model = providerConfigs.value.find((config) => config.id === job.providerId)?.model_id || ''
   })
   analysisModalVisible.value = true
-}
-
-async function fetchModels() {
-  if (!selectedProvider.value) return
-  const formData = new FormData()
-  formData.append('base_url', selectedProvider.value.base_url)
-  formData.append('config_id', String(selectedProvider.value.id))
-
-  fetchingModels.value = true
-  try {
-    const response = await http.post<{ list: { id: string }[] }, FormData>('/ai/model-providers/models', formData)
-    modelOptions.value = response.list.map((model) => ({ label: model.id, value: model.id }))
-    providerModelOptions.value[selectedProvider.value.id] = modelOptions.value
-    if (!modelOptions.value.length) message.warning('该提供商未返回可用模型')
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : '获取模型列表失败')
-  } finally {
-    fetchingModels.value = false
-  }
 }
 
 async function saveScript() {
@@ -665,7 +635,8 @@ async function startAnalysisTask() {
     payload.append('version_id', String(currentVersionId.value))
     const submittedContentHash = await contentHash(scriptText.value)
     payload.append('content_hash', submittedContentHash)
-    const submissionFingerprint = jobs.map((job) => `${job.type}:${job.providerId}:${job.model}`).sort().join(',')
+    payload.append('stream', String(analysisStream.value))
+    const submissionFingerprint = `${analysisStream.value ? 'stream' : 'batch'}|${jobs.map((job) => `${job.type}:${job.providerId}:${job.model}`).sort().join(',')}`
     if (analysisSubmissionFingerprint.value !== submissionFingerprint) {
       analysisSubmissionFingerprint.value = submissionFingerprint
       analysisSubmissionKey.value = requestKey()
@@ -939,12 +910,6 @@ watch(episodeId, (next, previous) => {
   }
 })
 
-watch(selectedProviderId, (next, previous) => {
-  if (previous !== undefined && previous !== null && next !== previous) {
-    selectedModelId.value = ''
-    modelOptions.value = []
-  }
-})
 </script>
 
 <style scoped>

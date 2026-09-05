@@ -2,11 +2,19 @@
   <main class="graph-shell">
     <header class="graph-header">
       <div class="flex min-w-0 items-center gap-3">
-        <NuxtLink class="brand" :to="`/projects/${activeProject.id}/canvas`">VIDEO WORKSPACE</NuxtLink>
+        <NuxtLink :to="`/projects/${activeProject.id}`" class="back-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+               stroke-width="2">
+            <path d="m12 19-7-7 7-7"/>
+            <path d="M19 12H5"/>
+          </svg>
+          <span>返回</span>
+        </NuxtLink>
         <span aria-hidden="true" class="divider"></span>
         <div class="min-w-0">
           <p class="eyebrow">GRAPH CANVAS · {{ activeProject.code }}</p>
-          <h1 class="truncate">{{ activeProject.name }}<span v-if="activeEpisode" class="font-normal"> · {{ activeEpisode.title }}</span> 工作流</h1>
+          <h1 class="truncate">{{ activeProject.name }}<span v-if="activeEpisode" class="font-normal"> ·
+            {{ activeEpisode.title }}</span> 工作流</h1>
         </div>
       </div>
       <div class="header-actions">
@@ -14,42 +22,84 @@
           <span>自动保存</span>
           <n-select v-model:value="autoSaveSeconds" :options="autoSaveOptions" aria-label="自动保存间隔" size="small"/>
         </div>
-        <span :class="{ saved, saving }" class="save-state"><span :class="{ saved, saving }" class="status-dot"></span>{{
+        <span :class="{ saved, saving }" class="save-state"><span :class="{ saved, saving }"
+                                                                  class="status-dot"></span>{{
             saving ? '保存中...' : saved ? '已保存' : '未保存更改'
           }}</span>
-        <n-button secondary size="small" @click="saveCanvas()">保存画布</n-button>
-        <n-button color="#6654ee" size="small" type="primary" @click="runWorkflow">运行工作流</n-button>
+        <n-button secondary size="small" @click="autoLayout">
+          <span class="btn-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                 stroke-width="2">
+              <path d="M4 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+              <path d="M15 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/>
+              <path d="M15 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Z"/>
+              <path d="M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Z"/>
+            </svg>
+          </span>
+          自动布局
+        </n-button>
+        <n-button secondary size="small" @click="saveCanvas()">保存</n-button>
+        <n-button color="#6654ee" size="small" type="primary" @click="runWorkflow">全部运行</n-button>
       </div>
     </header>
 
     <div class="graph-body">
-      <aside class="node-library">
-        <div class="library-title"><span>节点库</span>
-          <n-button aria-label="搜索节点" size="small" text>⌕</n-button>
+      <aside class="node-palette">
+        <div class="palette-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+               stroke-width="2">
+            <path d="M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0"/>
+            <path d="m21 21-4.3-4.3"/>
+          </svg>
+          <n-input v-model:value="nodeSearch" clearable placeholder="搜索节点..." size="small"/>
         </div>
-        <n-input v-model:value="nodeSearch" clearable placeholder="搜索节点" size="small"/>
-        <div class="library-section">
-          <span class="section-label">工作流节点</span>
-          <button v-for="item in filteredLibrary" :key="item.type" class="library-item" type="button"
-                  @click="addNode(item)">
-            <span :style="{ background: item.color }" class="library-icon">{{ item.icon }}</span>
-            <span><strong>{{ item.title }}</strong><small>{{ item.type }}</small></span>
-            <span class="add-mark">+</span>
-          </button>
+        <div class="palette-list">
+          <section v-for="category in paletteCategories" :key="category.key" class="palette-category">
+            <button class="category-toggle" type="button" @click="toggleCategory(category.key)">
+              <svg :class="{ collapsed: collapsedCategories.has(category.key) }" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+              <span>{{ category.label }}</span>
+              <small>{{ category.nodes.length }}</small>
+            </button>
+            <template v-if="!collapsedCategories.has(category.key)">
+              <div v-for="item in category.nodes" :key="item.type"
+                   :class="{ disabled: isSingletonAdded(item), dragging: draggingType === item.type }"
+                   :draggable="!isSingletonAdded(item)"
+                   :title="item.title"
+                   class="palette-item"
+                   @dragend="draggingType = ''"
+                   @dragstart="onPaletteDragStart($event, item)"
+                   @click="addNode(item)">
+                <span :style="{ background: item.color }" class="item-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                       stroke-linejoin="round" stroke-width="2">
+                    <path v-for="(path, pathIndex) in item.icon" :key="pathIndex" :d="path"/>
+                  </svg>
+                </span>
+                <span class="item-label"><strong>{{ item.title }}</strong></span>
+                <span v-if="isSingletonAdded(item)" class="added-mark">已添加</span>
+                <span v-else class="add-mark">+</span>
+              </div>
+            </template>
+          </section>
+          <p v-if="!paletteCategories.length" class="palette-empty">没有匹配「{{ nodeSearch }}」的节点</p>
         </div>
-        <div class="library-footer"><span class="status-dot green"></span>画布同步正常</div>
+        <div class="palette-footer"><span class="status-dot green"></span>画布同步正常</div>
       </aside>
 
-      <section ref="viewport" class="canvas-viewport" @dblclick="cancelConnection" @pointercancel="handleViewportPointerUp"
-               @pointerdown="startPan" @pointerleave="endPan" @pointermove="pan"
-               @pointerup="handleViewportPointerUp" @wheel.prevent="zoomCanvas">
-        <div class="canvas-toolbar">
-          <n-button-group size="small">
-            <n-button aria-label="缩小" @click="changeZoom(-0.1)">−</n-button>
-            <n-button aria-label="放大" @click="changeZoom(0.1)">+</n-button>
-          </n-button-group>
-          <n-button secondary size="small" @click="fitView">适应画布</n-button>
-          <n-button secondary size="small" @click="addGroup">＋ 分组</n-button>
+      <section ref="viewport" class="canvas-viewport"
+               @dragover.prevent
+               @drop.prevent="onDropFromPalette"
+               @dblclick="cancelConnection"
+               @pointercancel="handleViewportPointerUp"
+               @pointerdown="startPan"
+               @pointerleave="endPan"
+               @pointermove="pan"
+               @pointerup="handleViewportPointerUp"
+               @wheel.prevent="zoomCanvas">
+        <div v-if="connecting || selectedLink" class="canvas-toastbar">
           <span v-if="connecting" class="connection-state">连接中 · 点击或松开到{{
               connecting.side === 'right' ? '输入' : '输出'
             }}端口完成，Esc 取消</span>
@@ -66,62 +116,95 @@
             </defs>
             <path v-for="link in links" :key="`hit-${link.id}`" :d="linkPath(link)" class="link-hit-area" fill="none"
                   stroke="transparent" stroke-width="14" @pointerdown.stop @click.stop="selectedLinkId = link.id"/>
-            <path v-for="link in links" :key="link.id" :class="{ selected: selectedLinkId === link.id }" :d="linkPath(link)"
+            <path v-for="link in links" :key="link.id" :class="{ selected: selectedLinkId === link.id }"
+                  :d="linkPath(link)"
+                  :style="{ stroke: linkColor(link) }"
                   class="canvas-link" fill="none" marker-end="url(#arrow)"
                   stroke-width="2"/>
-            <path v-if="connectionPath" :d="connectionPath" class="connection-preview" fill="none" stroke="#6654ee"
+            <path v-if="connectionPath" :d="connectionPath" :style="{ stroke: connectionColor }"
+                  class="connection-preview" fill="none"
                   stroke-dasharray="6 5" stroke-width="2"/>
           </svg>
           <div v-for="group in groups" :key="group.id" :style="groupStyle(group)" class="canvas-group">
             <span>{{ group.title }}</span></div>
-          <article v-for="node in nodes" :key="node.id" :class="{ selected: selectedId === node.id }" :style="nodeStyle(node)"
+          <article v-for="node in nodes" :key="node.id" :class="{ selected: selectedId === node.id }"
+                   :style="nodeStyle(node)"
                    class="graph-node" @wheel.stop.prevent="resizeNodeByWheel($event, node)"
                    @pointerdown.stop="startNodeDrag($event, node)" @click.stop="selectedId = node.id">
-            <div :style="{ background: node.color }" class="node-head-bg">
-              <div class="node-head-content"><span class="node-kind">{{ node.icon }}</span><strong
-                  v-if="!isEditing(node, 'title')"
-                  @dblclick.stop="beginEdit(node, 'title', undefined, node.title, $event)">{{
+            <div class="node-head">
+              <span :style="{ background: nodeIconBackground(node), color: nodeColor(node) }" class="node-icon">
+                <svg v-if="nodeDefIcon(node)" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                  <path v-for="(path, pathIndex) in nodeDefIcon(node)" :key="pathIndex" :d="path"/>
+                </svg>
+                <template v-else>{{ node.icon || '◇' }}</template>
+              </span>
+              <strong v-if="!isEditing(node, 'title')" class="node-title"
+                      @dblclick.stop="beginEdit(node, 'title', undefined, node.title, $event)">{{
                   node.title
-                }}</strong><input v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit"
-                                  @pointerdown.stop @mousedown.stop @click.stop
-                                  @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/>
-                <button aria-label="节点菜单" class="node-menu" type="button" @pointerdown.stop @mousedown.stop
-                        @click.stop.prevent="removeNode(node.id)">×
-                </button>
-              </div>
+                }}</strong>
+              <input v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit"
+                     @pointerdown.stop @mousedown.stop @click.stop
+                     @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/>
+              <button aria-label="运行节点" class="node-run" title="运行此节点" type="button" @pointerdown.stop
+                      @mousedown.stop @click.stop.prevent="runNode(node)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"
+                     stroke-linejoin="round" stroke-width="2">
+                  <path d="M6 3l14 9-14 9z"/>
+                </svg>
+              </button>
+              <button aria-label="移除节点" class="node-menu" type="button" @pointerdown.stop @mousedown.stop
+                      @click.stop.prevent="removeNode(node.id)">×
+              </button>
             </div>
             <div class="node-body">
-              <div v-for="(input, inputIndex) in node.inputs" :key="input.name" class="port-row"><span
-                  :class="portStateClass(node, 'left', inputIndex)" class="port input-port" title="拖拽到此处连接"
-                  @pointerdown.stop.prevent="startPortConnection($event, node, 'left', inputIndex)"
-                  @pointerup.stop.prevent="completePortConnection($event, node, 'left', inputIndex)"></span><span
-                  v-if="!isEditing(node, 'input-name', inputIndex)"
-                  @dblclick.stop="beginEdit(node, 'input-name', inputIndex, input.name, $event)">{{ input.name }}</span><input
-                  v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit" @pointerdown.stop
-                  @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/><small
-                  v-if="!isEditing(node, 'input-value', inputIndex)"
-                  @dblclick.stop="beginEdit(node, 'input-value', inputIndex, input.value, $event)">{{
-                  input.value
-                }}</small><input v-else ref="editInput" v-model="editText" class="node-inline-input node-value-input"
-                                 @blur="finishEdit" @pointerdown.stop @mousedown.stop @click.stop
-                                 @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/></div>
-              <div v-for="(output, outputIndex) in node.outputs" :key="output.name" class="port-row output-row"><small
-                  v-if="!isEditing(node, 'output-type', outputIndex)"
-                  @dblclick.stop="beginEdit(node, 'output-type', outputIndex, output.type, $event)">{{
-                  output.type
-                }}</small><input v-else ref="editInput" v-model="editText" class="node-inline-input node-value-input"
-                                 @blur="finishEdit" @pointerdown.stop @mousedown.stop @click.stop
-                                 @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/><span
-                  v-if="!isEditing(node, 'output-name', outputIndex)"
-                  @dblclick.stop="beginEdit(node, 'output-name', outputIndex, output.name, $event)">{{
-                  output.name
-                }}</span><input v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit"
-                                @pointerdown.stop @mousedown.stop @click.stop
-                                @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/><span :class="portStateClass(node, 'right', outputIndex)"
-                                                                                            class="port output-port"
-                                                                                            title="拖拽到输入端口连接"
-                                                                                            @pointerdown.stop.prevent="startPortConnection($event, node, 'right', outputIndex)"
-                                                                                            @pointerup.stop.prevent="completePortConnection($event, node, 'right', outputIndex)"></span>
+              <div v-for="(input, inputIndex) in displayInputs(node)" :key="`in-${inputIndex}`" class="port-row">
+                <span :class="portStateClass(node, 'left', inputIndex)"
+                      :style="{ borderColor: input.color }"
+                      class="port input-port" title="拖拽到此处连接"
+                      @pointerdown.stop.prevent="startPortConnection($event, node, 'left', inputIndex)"
+                      @pointerup.stop.prevent="completePortConnection($event, node, 'left', inputIndex)"></span>
+                <span v-if="!isEditing(node, 'input-name', inputIndex)" class="port-label"
+                      @dblclick.stop="canEditPorts(node) && beginEdit(node, 'input-name', inputIndex, input.name ?? input.label, $event)">{{
+                    input.label
+                  }}</span>
+                <input v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit"
+                       @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit"
+                       @keydown.esc.prevent="cancelEdit"/>
+                <span v-if="input.required" class="required-mark">*</span>
+                <small v-if="input.value != null && !isEditing(node, 'input-value', inputIndex)"
+                       @dblclick.stop="beginEdit(node, 'input-value', inputIndex, input.value, $event)">{{
+                    input.value
+                  }}</small>
+                <input v-else-if="isEditing(node, 'input-value', inputIndex)" ref="editInput" v-model="editText"
+                       class="node-inline-input node-value-input" @blur="finishEdit" @pointerdown.stop
+                       @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/>
+              </div>
+              <div class="port-row status-row">
+                <span aria-hidden="true" class="status-icon"></span>
+                <span>空闲</span>
+              </div>
+              <div v-for="(output, outputIndex) in displayOutputs(node)" :key="`out-${outputIndex}`"
+                   class="port-row output-row">
+                <small v-if="output.type && !isEditing(node, 'output-type', outputIndex)"
+                       @dblclick.stop="beginEdit(node, 'output-type', outputIndex, output.type, $event)">{{
+                    output.type
+                  }}</small>
+                <input v-else-if="isEditing(node, 'output-type', outputIndex)" ref="editInput" v-model="editText"
+                       class="node-inline-input node-value-input" @blur="finishEdit" @pointerdown.stop
+                       @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit" @keydown.esc.prevent="cancelEdit"/>
+                <span v-if="!isEditing(node, 'output-name', outputIndex)" class="port-label"
+                      @dblclick.stop="canEditPorts(node) && beginEdit(node, 'output-name', outputIndex, output.name ?? output.label, $event)">{{
+                    output.label
+                  }}</span>
+                <input v-else ref="editInput" v-model="editText" class="node-inline-input" @blur="finishEdit"
+                       @pointerdown.stop @mousedown.stop @click.stop @keydown.enter.prevent="finishEdit"
+                       @keydown.esc.prevent="cancelEdit"/>
+                <span :class="portStateClass(node, 'right', outputIndex)"
+                      :style="{ borderColor: output.color }"
+                      class="port output-port" title="拖拽到输入端口连接"
+                      @pointerdown.stop.prevent="startPortConnection($event, node, 'right', outputIndex)"
+                      @pointerup.stop.prevent="completePortConnection($event, node, 'right', outputIndex)"></span>
               </div>
             </div>
             <span :class="{ 'connect-source': connecting?.node === node && connecting.side === 'left', 'connect-target': isConnectionTarget(node, 'left') }"
@@ -130,7 +213,8 @@
                   @dblclick.stop.prevent="beginEdgeConnection($event, node, 'left')"></span>
             <span :class="{ 'connect-source': connecting?.node === node && connecting.side === 'right', 'connect-target': isConnectionTarget(node, 'right') }"
                   aria-hidden="true"
-                  class="node-resizer node-resizer-right" @pointerdown.stop="handleEdgePointerDown($event, node, 'right')"
+                  class="node-resizer node-resizer-right"
+                  @pointerdown.stop="handleEdgePointerDown($event, node, 'right')"
                   @dblclick.stop.prevent="beginEdgeConnection($event, node, 'right')"></span>
             <span aria-hidden="true" class="node-resizer node-resizer-top"
                   @pointerdown.stop="startNodeResize($event, node, 'top')"></span>
@@ -139,9 +223,36 @@
           </article>
         </div>
 
-        <div class="canvas-help"><span>点击或拖拽圆点连接节点</span><span>点击连线可删除</span><span>{{ nodes.length }} 个节点 · {{
-            links.length
-          }} 条连线</span></div>
+        <div class="canvas-controls">
+          <button aria-label="放大" title="放大" type="button" @click="changeZoom(0.1)">
+            <svg viewBox="0 0 32 32">
+              <path d="M32 18.133H18.133V32h-4.266V18.133H0v-4.266h13.867V0h4.266v13.867H32z"/>
+            </svg>
+          </button>
+          <button aria-label="缩小" title="缩小" type="button" @click="changeZoom(-0.1)">
+            <svg viewBox="0 0 32 5">
+              <path d="M0 0h32v4.2H0z"/>
+            </svg>
+          </button>
+          <button aria-label="适应画布" title="适应画布" type="button" @click="fitView">
+            <svg viewBox="0 0 32 30">
+              <path d="M3.692 4.63c0-.53.4-.938.939-.938h5.215V0H4.708C2.13 0 0 2.054 0 4.63v5.216h3.692V4.631zM27.354 0h-5.2v3.692h5.17c.53 0 .984.4.984.939v5.215H32V4.631A4.624 4.624 0 0027.354 0zm.954 24.83c0 .532-.4.94-.939.94h-5.215v3.768h5.215c2.577 0 4.631-2.13 4.631-4.707v-5.139h-3.692v5.139zm-23.677.94c-.531 0-.939-.4-.939-.94v-5.138H0v5.139c0 2.577 2.13 4.707 4.708 4.707h5.138V25.77H4.631z"/>
+            </svg>
+          </button>
+          <button aria-label="新建分组" title="新建分组" type="button" @click="addGroup">＋</button>
+        </div>
+
+        <div class="canvas-minimap" @pointerdown.stop>
+          <svg :viewBox="minimapViewBox" height="120" width="180">
+            <title>Mini Map</title>
+            <rect v-for="node in nodes" :key="`map-${node.id}`"
+                  :class="{ active: selectedId === node.id }"
+                  :height="minimapRect(node).h" :width="minimapRect(node).w"
+                  :x="minimapRect(node).x" :y="minimapRect(node).y" class="minimap-node" rx="3"/>
+            <rect :height="minimapViewRect.h" :width="minimapViewRect.w" :x="minimapViewRect.x"
+                  :y="minimapViewRect.y" class="minimap-view"/>
+          </svg>
+        </div>
       </section>
 
       <aside class="inspector">
@@ -150,44 +261,65 @@
             <h2>{{ selectedNode ? selectedNode.title : '画布属性' }}</h2></div>
           <n-button aria-label="关闭属性面板" text @click="selectedId = null">×</n-button>
         </div>
-        <template v-if="selectedNode">
-          <div class="inspector-content">
-            <n-form label-placement="top" size="small">
-              <n-form-item label="节点标题">
-                <n-input v-model:value="selectedNode.title" @update:value="markDirty"/>
-              </n-form-item>
-              <n-form-item label="标题栏颜色">
-                <n-color-picker v-model:value="selectedNode.color" :modes="['hex']" :show-alpha="false"
-                                @update:value="markDirty"/>
-              </n-form-item>
-              <n-form-item label="节点类型">
-                <n-input :value="selectedNode.type" readonly/>
-              </n-form-item>
-              <n-form-item label="执行模式">
-                <n-select v-model:value="selectedNode.mode" :options="modeOptions" @update:value="markDirty"/>
-              </n-form-item>
-              <n-form-item label="节点备注">
-                <n-input v-model:value="selectedNode.note" :rows="3" placeholder="添加这个节点的制作备注"
-                         type="textarea" @update:value="markDirty"/>
-              </n-form-item>
-            </n-form>
-            <div class="inspector-meta">
-              <div><span>位置</span><strong>{{ Math.round(selectedNode.x) }}, {{ Math.round(selectedNode.y) }}</strong>
+        <div class="inspector-scroll">
+          <template v-if="selectedNode">
+            <div class="inspector-content">
+              <n-form label-placement="top" size="small">
+                <n-form-item label="节点标题">
+                  <n-input v-model:value="selectedNode.title" @update:value="markDirty"/>
+                </n-form-item>
+                <n-form-item label="节点类型">
+                  <n-input :value="nodeTypeLabel(selectedNode)" readonly/>
+                </n-form-item>
+                <n-form-item label="执行模式">
+                  <n-select v-model:value="selectedNode.mode" :options="modeOptions" @update:value="markDirty"/>
+                </n-form-item>
+                <n-form-item label="节点备注">
+                  <n-input v-model:value="selectedNode.note" :rows="3" placeholder="添加这个节点的制作备注"
+                           type="textarea" @update:value="markDirty"/>
+                </n-form-item>
+              </n-form>
+              <div class="inspector-meta">
+                <div><span>位置</span><strong>{{ Math.round(selectedNode.x) }}, {{ Math.round(selectedNode.y) }}</strong>
+                </div>
+                <div><span>尺寸</span><strong>{{ selectedNode.width }} × {{ selectedNode.height }}</strong></div>
+                <div><span>执行顺序</span><strong>#{{ selectedNode.order }}</strong></div>
+                <div v-if="nodeDef(selectedNode)"><span>输入 / 输出</span>
+                  <strong>{{ nodeDef(selectedNode)!.inputs.length }} / {{ nodeDef(selectedNode)!.outputs.length }}</strong>
+                </div>
               </div>
-              <div><span>尺寸</span><strong>{{ selectedNode.width }} × {{ selectedNode.height }}</strong></div>
-              <div><span>执行顺序</span><strong>#{{ selectedNode.order }}</strong></div>
+            </div>
+          </template>
+          <div v-else class="empty-inspector"><span class="empty-icon">⌘</span><strong>选择一个节点</strong>
+            <p>点击画布中的节点查看属性和输入输出。</p></div>
+          <div class="inspector-stats">
+            <h4>画布统计</h4>
+            <div class="stat-row"><span class="stat-dot all"></span><span>总节点</span><strong>{{ nodes.length }}</strong>
+            </div>
+            <div class="stat-row"><span class="stat-dot done"></span><span>已完成</span><strong>0</strong></div>
+            <div class="stat-row"><span class="stat-dot running"></span><span>运行中</span><strong>0</strong></div>
+            <div class="stat-row"><span class="stat-dot pending"></span><span>待处理</span><strong>{{ nodes.length }}</strong>
             </div>
           </div>
-        </template>
-        <div v-else class="empty-inspector"><span class="empty-icon">⌘</span><strong>选择一个节点</strong>
-          <p>点击画布中的节点查看属性和输入输出。</p></div>
+        </div>
       </aside>
     </div>
+
+    <footer class="canvas-statusbar">
+      <span>节点: {{ nodes.length }}</span>
+      <span>连线: {{ links.length }}</span>
+      <span>分组: {{ groups.length }}</span>
+      <div class="flex-1"></div>
+      <span>缩放 {{ Math.round(zoom * 100) }}%</span>
+      <span :class="{ saved }" class="statusbar-save">{{ saving ? '保存中...' : saved ? '已保存' : '未保存更改' }}</span>
+    </footer>
   </main>
 </template>
 
 <script lang="ts" setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {resolveNodeDef} from '~/types/graph'
+import type {CatalogNodeType} from '~/types/graph'
 
 const message = useMessage()
 const {activeProject} = useProjectWorkspace()
@@ -197,7 +329,7 @@ const graphWorkspace = useGraphWorkspace()
 const episodeId = computed(() => String(route.params.episodeId || activeEpisodeId.value || ''))
 const nodeSearch = ref('')
 const viewport = ref(null)
-const selectedId = ref('ksampler')
+const selectedId = ref('script-demo')
 const zoom = ref(0.82)
 const panOffset = ref({x: 0, y: 0})
 const saved = ref(true)
@@ -224,112 +356,151 @@ let lastConnectionCompletedAt = 0
 const resizeSaveTimers = new Map()
 const editing = ref(null)
 const editText = ref('')
-const stageSize = {width: 1600, height: 980}
+const stageSize = {width: 2200, height: 1400}
+const collapsedCategories = ref(new Set<string>())
+const draggingType = ref('')
+
+const catalog = computed(() => graphWorkspace.catalog.value)
 
 const nodes = ref([
-  {
-    id: 'load',
-    type: 'LoadImage',
-    title: '加载参考图',
-    icon: '▧',
-    color: '#5f68d9',
-    x: 90,
-    y: 205,
-    width: 220,
-    height: 156,
-    order: 1,
-    mode: '启用',
-    note: '',
-    inputs: [{name: 'image', value: '雨夜车站.png'}],
-    outputs: [{name: 'IMAGE', type: '图像'}, {name: 'MASK', type: '遮罩'}]
-  },
-  {
-    id: 'clip',
-    type: 'CLIPTextEncode',
-    title: '场景提示词',
-    icon: 'T',
-    color: '#3e9c9a',
-    x: 390,
-    y: 110,
-    width: 240,
-    height: 184,
-    order: 2,
-    mode: '启用',
-    note: '',
-    inputs: [{name: 'text', value: '雨夜车站，蓝紫霓虹'}],
-    outputs: [{name: 'CONDITIONING', type: '条件'}]
-  },
-  {
-    id: 'vae',
-    type: 'VAEDecode',
-    title: '解码图像',
-    icon: '◈',
-    color: '#be7b4d',
-    x: 745,
-    y: 410,
-    width: 220,
-    height: 150,
-    order: 5,
-    mode: '启用',
-    note: '',
-    inputs: [{name: 'samples', value: 'latent'}, {name: 'vae', value: 'VAE'}],
-    outputs: [{name: 'IMAGE', type: '图像'}]
-  },
-  {
-    id: 'ksampler',
-    type: 'KSampler',
-    title: '采样器 · 镜头 01',
-    icon: '✦',
-    color: '#6654ee',
-    x: 715,
-    y: 105,
-    width: 255,
-    height: 232,
-    order: 4,
-    mode: '启用',
-    note: '保持角色服装和色调一致',
-    inputs: [{name: 'model', value: '模型'}, {name: 'positive', value: '场景提示词'}, {
-      name: 'latent',
-      value: '空 Latent'
-    }],
-    outputs: [{name: 'LATENT', type: '潜空间'}]
-  },
-  {
-    id: 'save',
-    type: 'SaveImage',
-    title: '保存成片帧',
-    icon: '▣',
-    color: '#4d8b65',
-    x: 1075,
-    y: 415,
-    width: 220,
-    height: 150,
-    order: 6,
-    mode: '启用',
-    note: '',
-    inputs: [{name: 'images', value: '解码图像'}],
-    outputs: []
-  }
+  demoNode('script_input', 'script-demo', 120, 330),
+  demoNode('character_extract', 'character-demo', 520, 120),
+  demoNode('prop_extract', 'prop-demo', 520, 310),
+  demoNode('scene_extract', 'scene-demo', 520, 500),
+  demoNode('storyboard_plan', 'storyboard-demo', 900, 230),
+  demoNode('seedance2_prompt', 's2prompt-demo', 1260, 90),
+  demoNode('seedance2_video', 's2video-demo', 1260, 430),
+  demoNode('compose', 'compose-demo', 1620, 240),
 ])
 const links = ref([
-  {id: 1, from: 'load', fromIndex: 0, to: 'ksampler', toIndex: 1},
-  {id: 2, from: 'clip', fromIndex: 0, to: 'ksampler', toIndex: 1},
-  {id: 3, from: 'ksampler', fromIndex: 0, to: 'vae', toIndex: 0},
-  {id: 4, from: 'vae', fromIndex: 0, to: 'save', toIndex: 0}
+  {id: 1, from: 'script-demo', fromIndex: 0, to: 'character-demo', toIndex: 0},
+  {id: 2, from: 'script-demo', fromIndex: 0, to: 'scene-demo', toIndex: 0},
+  {id: 3, from: 'script-demo', fromIndex: 0, to: 'prop-demo', toIndex: 0},
+  {id: 4, from: 'script-demo', fromIndex: 0, to: 'storyboard-demo', toIndex: 0},
+  {id: 5, from: 'character-demo', fromIndex: 0, to: 'storyboard-demo', toIndex: 1},
+  {id: 6, from: 'scene-demo', fromIndex: 0, to: 'storyboard-demo', toIndex: 2},
+  {id: 7, from: 'storyboard-demo', fromIndex: 0, to: 's2prompt-demo', toIndex: 0},
+  {id: 8, from: 's2prompt-demo', fromIndex: 0, to: 's2video-demo', toIndex: 0},
+  {id: 9, from: 's2video-demo', fromIndex: 0, to: 'compose-demo', toIndex: 1},
 ])
-const groups = ref([{id: 'group-1', title: '镜头 01 · 雨夜车站', x: 55, y: 60, width: 970, height: 570}])
-const library = [
-  {type: 'LoadImage', title: '加载图像', icon: '▧', color: '#5f68d9'},
-  {type: 'CLIPTextEncode', title: '文本提示词', icon: 'T', color: '#3e9c9a'},
-  {type: 'KSampler', title: '采样器', icon: '✦', color: '#6654ee'},
-  {type: 'VAEDecode', title: 'VAE 解码', icon: '◈', color: '#be7b4d'},
-  {type: 'SaveImage', title: '保存图像', icon: '▣', color: '#4d8b65'}
-]
-const filteredLibrary = computed(() => library.filter((item) => !nodeSearch.value || `${item.title}${item.type}`.toLowerCase().includes(nodeSearch.value.toLowerCase())))
+const groups = ref([{id: 'group-1', title: '示例 · 剧本到成片', x: 70, y: 60, width: 1100, height: 640}])
+
+function demoNode(type: string, id: string, x: number, y: number) {
+  const def = resolveNodeDef(catalog.value, type)
+  return {
+    id,
+    type,
+    title: def?.title || type,
+    icon: def ? '' : '◇',
+    color: def?.color || '#6654ee',
+    x,
+    y,
+    width: 220,
+    height: 150,
+    order: 0,
+    mode: '启用',
+    note: '',
+    inputs: (def?.inputs || []).map((port) => ({handle: port.handle, name: port.label, color: port.color, required: port.required})),
+    outputs: (def?.outputs || []).map((port) => ({handle: port.handle, name: port.label, color: port.color})),
+  }
+}
+
+const paletteCategories = computed(() => {
+  const search = nodeSearch.value.trim().toLowerCase()
+  return catalog.value
+      .map((category) => ({
+        ...category,
+        nodes: category.nodes.filter((item) => !search || `${item.title}${item.type}`.toLowerCase().includes(search)),
+      }))
+      .filter((category) => category.nodes.length)
+})
+
+function toggleCategory(key: string) {
+  const next = new Set(collapsedCategories.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsedCategories.value = next
+}
+
+function isSingletonAdded(item: CatalogNodeType) {
+  return Boolean(item.singleton) && nodes.value.some((node) => node.type === item.type)
+}
+
+function onPaletteDragStart(event: DragEvent, item: CatalogNodeType) {
+  draggingType.value = item.type
+  event.dataTransfer?.setData('text/plain', item.type)
+  event.dataTransfer?.setData('application/x-graph-node', item.type)
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
+}
+
+async function onDropFromPalette(event: DragEvent) {
+  draggingType.value = ''
+  const type = event.dataTransfer?.getData('application/x-graph-node') || event.dataTransfer?.getData('text/plain')
+  if (!type) return
+  const def = resolveNodeDef(catalog.value, type)
+  if (!def) return
+  if (isSingletonAdded(def)) {
+    message.warning(`「${def.title}」在画布中只能添加一个`)
+    return
+  }
+  const rect = viewport.value?.getBoundingClientRect()
+  if (!rect) return
+  const x = Math.max(0, (event.clientX - rect.left - panOffset.value.x) / zoom.value - 110)
+  const y = Math.max(0, (event.clientY - rect.top - panOffset.value.y) / zoom.value - 20)
+  await addNode(def, x, y)
+}
+
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedId.value))
 const selectedLink = computed(() => links.value.find((link) => link.id === selectedLinkId.value))
 const modeOptions = [{label: '启用', value: '启用'}, {label: '旁路', value: '旁路'}, {label: '禁用', value: '禁用'}]
 const stageStyle = computed(() => ({transform: `translate(${panOffset.value.x}px, ${panOffset.value.y}px) scale(${zoom.value})`}))
+
+function nodeDef(node: any) {
+  return resolveNodeDef(catalog.value, node.type)
+}
+
+function nodeDefIcon(node: any) {
+  return nodeDef(node)?.icon || null
+}
+
+function nodeColor(node: any) {
+  return nodeDef(node)?.color || node.color || '#6654ee'
+}
+
+function nodeIconBackground(node: any) {
+  return `${nodeColor(node)}1f`
+}
+
+function nodeTypeLabel(node: any) {
+  return nodeDef(node)?.type || node.type
+}
+
+/** 目录节点的端口由类型定义固定，只有旧版自由节点才允许内联编辑端口名。 */
+function canEditPorts(node: any) {
+  return !nodeDef(node)
+}
+
+/** 目录节点的端口展示直接来自目录定义；旧版 ComfyUI 节点回退到存储的插槽列表。 */
+function displayInputs(node: any) {
+  const def = nodeDef(node)
+  if (def) return def.inputs.map((port) => ({label: port.label, color: port.color, required: Boolean(port.required)}))
+  return (node.inputs || []).map((input: any) => ({
+    label: input.name ?? input.label ?? '输入',
+    value: input.value ?? input.widget,
+    color: input.color || '#b4aff5',
+  }))
+}
+
+function displayOutputs(node: any) {
+  const def = nodeDef(node)
+  if (def) return def.outputs.map((port) => ({label: port.label, color: port.color}))
+  return (node.outputs || []).map((output: any) => ({
+    label: output.name ?? output.label ?? '输出',
+    type: output.type ?? output.dtype,
+    color: output.color || '#b4aff5',
+  }))
+}
+
 const connectionPath = computed(() => {
   if (!connecting.value) return ''
   const source = portPoint(connecting.value.node, connecting.value.side === 'right' ? 'out' : 'in', connecting.value.index)
@@ -338,6 +509,13 @@ const connectionPath = computed(() => {
   return connecting.value.side === 'right'
       ? `M ${source.x} ${source.y} C ${source.x + bend} ${source.y}, ${target.x - bend} ${target.y}, ${target.x} ${target.y}`
       : `M ${target.x} ${target.y} C ${target.x + bend} ${target.y}, ${source.x - bend} ${source.y}, ${source.x} ${source.y}`
+})
+
+const connectionColor = computed(() => {
+  if (!connecting.value) return '#6654ee'
+  const def = nodeDef(connecting.value.node)
+  const port = connecting.value.side === 'right' ? def?.outputs[connecting.value.index] : null
+  return port?.color || '#6654ee'
 })
 
 function handleConnectionKeydown(event) {
@@ -362,13 +540,14 @@ function cancelConnection() {
 }
 
 onMounted(async () => {
+  graphWorkspace.loadCatalog()
   const result = await graphWorkspace.load(activeProject.value?.id, episodeId.value)
   if (!result) return
   const loadedNodes = (result.nodes || []).map((node) => ({
     id: node.nodeKey ?? node.node_key,
     type: node.nodeType ?? node.node_type,
     title: node.title || node.nodeType || node.node_type,
-    icon: '◇',
+    icon: '',
     color: node.color || '#6654ee',
     x: node.positionX ?? node.position_x ?? 0,
     y: node.positionY ?? node.position_y ?? 0,
@@ -377,16 +556,13 @@ onMounted(async () => {
     order: node.executionOrder ?? node.execution_order ?? 0,
     mode: (node.mode ?? 0) === 2 ? '旁路' : (node.mode ?? 0) === 4 ? '禁用' : '启用',
     note: '',
-    inputs: Array.isArray(node.inputs) ? node.inputs.map((input) => ({
-      name: input.name ?? input.label ?? '输入',
-      value: input.value ?? input.widget ?? '待连接'
-    })) : [],
-    outputs: Array.isArray(node.outputs) ? node.outputs.map((output) => ({
-      name: output.name ?? output.label ?? '输出',
-      type: output.type ?? output.dtype ?? '数据'
-    })) : [],
+    inputs: Array.isArray(node.inputs) ? node.inputs : [],
+    outputs: Array.isArray(node.outputs) ? node.outputs : [],
   }))
-  if (loadedNodes.length) nodes.value = loadedNodes
+  if (loadedNodes.length) {
+    nodes.value = loadedNodes
+    fitView()
+  }
   links.value = (result.links || []).map((link) => ({
     id: link.linkKey ?? link.link_key,
     serverId: link.id,
@@ -425,12 +601,15 @@ watch(autoSaveSeconds, (seconds) => {
 })
 
 function nodeMinWidth(node) {
-  const longest = Math.max(node.title?.length || 0, ...(node.inputs || []).map((item) => `${item.name}${item.value}`.length), ...(node.outputs || []).map((item) => `${item.name}${item.type}`.length))
+  const inputs = displayInputs(node)
+  const outputs = displayOutputs(node)
+  const longest = Math.max(node.title?.length || 0, ...inputs.map((item) => `${item.label}${item.value ?? ''}`.length), ...outputs.map((item) => `${item.label}${item.type ?? ''}`.length))
   return Math.max(190, Math.min(360, 120 + longest * 5.2))
 }
 
 function nodeBaseMinHeight(node) {
-  return Math.max(110, 38 + 20 + ((node.inputs?.length || 0) + (node.outputs?.length || 0)) * 27)
+  const rowCount = displayInputs(node).length + displayOutputs(node).length + 1
+  return Math.max(110, 58 + rowCount * 27)
 }
 
 function nodeMinHeight(node) {
@@ -526,7 +705,8 @@ function groupStyle(group) {
 }
 
 function portPoint(node, kind, index) {
-  const rowIndex = kind === 'out' ? node.inputs.length + index : index
+  const inputCount = displayInputs(node).length
+  const rowIndex = kind === 'out' ? inputCount + 1 + index : index
   const inset = nodeRenderWidth(node) * 0.015
   const scale = nodeContentScale(node)
   const y = inset + 38 * scale + inset + 13.5 * scale + rowIndex * 27 * scale
@@ -534,7 +714,7 @@ function portPoint(node, kind, index) {
 }
 
 function connectionSlotAt(node, side, event) {
-  const count = side === 'right' ? node.outputs?.length || 0 : node.inputs?.length || 0
+  const count = side === 'right' ? displayOutputs(node).length : displayInputs(node).length
   if (!count) return -1
   const rect = viewport.value?.getBoundingClientRect()
   if (!rect) return 0
@@ -555,7 +735,7 @@ function connectionSlotAt(node, side, event) {
 
 function isConnectionTarget(node, side) {
   if (!connecting.value || connecting.value.node === node || connecting.value.side === side) return false
-  return side === 'left' ? (node.inputs?.length || 0) > 0 : (node.outputs?.length || 0) > 0
+  return side === 'left' ? displayInputs(node).length > 0 : displayOutputs(node).length > 0
 }
 
 function portStateClass(node, side, index) {
@@ -563,6 +743,13 @@ function portStateClass(node, side, index) {
   if (connecting.value.node === node && connecting.value.side === side && connecting.value.index === index) return 'connect-source'
   if (connecting.value.node !== node && connecting.value.side !== side) return 'connect-target'
   return 'connect-disabled'
+}
+
+function linkColor(link) {
+  if (selectedLinkId.value === link.id) return '#6654ee'
+  const from = nodes.value.find((node) => node.id === link.from)
+  if (!from) return '#9a92e8'
+  return displayOutputs(from)[link.fromIndex]?.color || '#9a92e8'
 }
 
 function linkPath(link) {
@@ -580,12 +767,24 @@ function changeZoom(delta) {
 }
 
 function fitView() {
-  zoom.value = 0.65;
-  panOffset.value = {x: 30, y: 20}
+  if (!nodes.value.length) {
+    zoom.value = 0.8
+    panOffset.value = {x: 40, y: 40}
+    return
+  }
+  const minX = Math.min(...nodes.value.map((node) => node.x))
+  const minY = Math.min(...nodes.value.map((node) => node.y))
+  const maxX = Math.max(...nodes.value.map((node) => node.x + nodeRenderWidth(node)))
+  const maxY = Math.max(...nodes.value.map((node) => node.y + nodeRenderHeight(node)))
+  const width = viewport.value?.clientWidth || 1200
+  const height = viewport.value?.clientHeight || 800
+  const scale = Math.min(1.2, Math.max(0.3, Math.min(width / (maxX - minX + 160), height / (maxY - minY + 160))))
+  zoom.value = +scale.toFixed(2)
+  panOffset.value = {x: 80 - minX * scale, y: 80 - minY * scale}
 }
 
 function startPan(event) {
-  if (event.target?.closest?.('.graph-node, .canvas-toolbar, button, .link-hit-area')) return;
+  if (event.target?.closest?.('.graph-node, .canvas-controls, .canvas-minimap, button, .link-hit-area')) return;
   selectedLinkId.value = null;
   isPanning.value = true;
   panStart.value = {x: event.clientX - panOffset.value.x, y: event.clientY - panOffset.value.y};
@@ -783,23 +982,27 @@ async function beginEdgeConnection(event, node, side, explicitIndex) {
   selectedId.value = node.id
 }
 
-async function addNode(item) {
-  const id = `${item.type.toLowerCase()}-${Date.now()}`;
+async function addNode(item: CatalogNodeType, x?: number, y?: number) {
+  if (item.singleton && nodes.value.some((node) => node.type === item.type)) {
+    message.warning(`「${item.title}」在画布中只能添加一个`)
+    return
+  }
+  const id = `${item.type}-${Date.now()}`;
   const node = {
     id,
     type: item.type,
     title: item.title,
-    icon: item.icon,
+    icon: '',
     color: item.color,
-    x: 180 + (nodes.value.length % 3) * 280,
-    y: 700 + Math.floor(nodes.value.length / 3) * 220,
+    x: x ?? 180 + (nodes.value.length % 3) * 280,
+    y: y ?? 700 + Math.floor(nodes.value.length / 3) * 220,
     width: 220,
     height: 150,
     order: nodes.value.length + 1,
     mode: '启用',
     note: '',
-    inputs: [{name: '输入', value: '待连接'}],
-    outputs: [{name: '输出', type: '数据'}]
+    inputs: item.inputs.map((port) => ({handle: port.handle, name: port.label, color: port.color, required: port.required})),
+    outputs: item.outputs.map((port) => ({handle: port.handle, name: port.label, color: port.color}))
   };
   nodes.value.push(node);
   selectedId.value = id;
@@ -810,6 +1013,10 @@ async function addNode(item) {
     message.warning('节点已添加到画布，保存到服务器失败')
   }
   message.success(`已添加${item.title}节点`)
+}
+
+function runNode(node) {
+  message.success(`「${node.title}」已加入执行队列`)
 }
 
 async function removeNode(id) {
@@ -851,6 +1058,65 @@ async function addGroup() {
   } catch {
     message.warning('分组已添加到画布，保存到服务器失败')
   }
+}
+
+/** 按连线关系做拓扑分层布局：无入边的节点放第一列，其余按最长路径深度排列。 */
+async function autoLayout() {
+  if (!nodes.value.length) return
+  const depth = new Map()
+  const inDegree = new Map()
+  nodes.value.forEach((node) => {
+    depth.set(node.id, 0)
+    inDegree.set(node.id, 0)
+  })
+  links.value.forEach((link) => {
+    if (inDegree.has(link.to)) inDegree.set(link.to, (inDegree.get(link.to) || 0) + 1)
+  })
+  const queue = nodes.value.filter((node) => (inDegree.get(node.id) || 0) === 0).map((node) => node.id)
+  const visited = new Set(queue)
+  while (queue.length) {
+    const id = queue.shift()
+    links.value.filter((link) => link.from === id).forEach((link) => {
+      if (!depth.has(link.to)) return
+      depth.set(link.to, Math.max(depth.get(link.to) || 0, (depth.get(id) || 0) + 1))
+      const next = (inDegree.get(link.to) || 0) - 1
+      inDegree.set(link.to, next)
+      if (next === 0 && !visited.has(link.to)) {
+        visited.add(link.to)
+        queue.push(link.to)
+      }
+    })
+  }
+  // 成环等无法入队的节点直接跟在已布局节点后面，避免丢失。
+  nodes.value.forEach((node) => {
+    if (!visited.has(node.id)) {
+      depth.set(node.id, nodes.value.length)
+      visited.add(node.id)
+    }
+  })
+  const columns = new Map()
+  nodes.value.forEach((node) => {
+    const column = depth.get(node.id) || 0
+    if (!columns.has(column)) columns.set(column, [])
+    columns.get(column).push(node)
+  })
+  let x = 60
+  for (const column of [...columns.keys()].sort((a, b) => a - b)) {
+    const columnNodes = columns.get(column).sort((a, b) => a.y - b.y)
+    let y = 60
+    let columnWidth = 0
+    columnNodes.forEach((node) => {
+      node.x = Math.round(x)
+      node.y = Math.round(y)
+      y += nodeRenderHeight(node) + 40
+      columnWidth = Math.max(columnWidth, nodeRenderWidth(node))
+    })
+    x += columnWidth + 100
+  }
+  markDirty()
+  const ok = await saveCanvas({silent: true})
+  if (ok) message.success('已完成自动布局并保存')
+  else message.warning('已自动布局，但保存到服务器失败')
 }
 
 function markDirty() {
@@ -898,31 +1164,77 @@ async function saveCanvas(options: { silent?: boolean } = {}) {
 function runWorkflow() {
   message.success('工作流已加入执行队列')
 }
+
+const minimapBounds = computed(() => {
+  if (!nodes.value.length) return {minX: 0, minY: 0, maxX: 1600, maxY: 980}
+  const minX = Math.min(...nodes.value.map((node) => node.x)) - 80
+  const minY = Math.min(...nodes.value.map((node) => node.y)) - 80
+  const maxX = Math.max(...nodes.value.map((node) => node.x + nodeRenderWidth(node))) + 80
+  const maxY = Math.max(...nodes.value.map((node) => node.y + nodeRenderHeight(node))) + 80
+  return {minX, minY, maxX: Math.max(maxX, minX + 400), maxY: Math.max(maxY, minY + 300)}
+})
+const minimapViewBox = computed(() => {
+  const bounds = minimapBounds.value
+  return `${bounds.minX} ${bounds.minY} ${bounds.maxX - bounds.minX} ${bounds.maxY - bounds.minY}`
+})
+
+function minimapRect(node) {
+  return {
+    x: node.x,
+    y: node.y,
+    w: nodeRenderWidth(node),
+    h: nodeRenderHeight(node),
+  }
+}
+
+const minimapViewRect = computed(() => ({
+  x: -panOffset.value.x / zoom.value,
+  y: -panOffset.value.y / zoom.value,
+  w: (viewport.value?.clientWidth || 1200) / zoom.value,
+  h: (viewport.value?.clientHeight || 800) / zoom.value,
+}))
 </script>
 
 <style scoped>
 .graph-shell {
-  min-height: calc(100vh - 1px);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 65px);
+  min-height: 640px;
   background: #f5f6fa;
   color: #20283b;
 }
 
 .graph-header {
-  height: 64px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 0 22px;
+  padding: 0 16px;
   background: #fff;
   border-bottom: 1px solid #e4e7ee;
 }
 
-.brand {
+.back-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  color: #6b7688;
+  font-size: 12px;
+  transition: background .15s ease, color .15s ease;
+}
+
+.back-link:hover {
+  background: #f0eeff;
   color: #5c52ee;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .8px;
+}
+
+.back-link svg {
+  width: 13px;
+  height: 13px;
 }
 
 .divider {
@@ -932,7 +1244,7 @@ function runWorkflow() {
 }
 
 .eyebrow {
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   color: #8c96a8;
   font-size: 10px;
   letter-spacing: .7px;
@@ -940,7 +1252,7 @@ function runWorkflow() {
 
 .graph-header h1 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -948,6 +1260,16 @@ function runWorkflow() {
   display: flex;
   align-items: center;
   gap: 9px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  margin-right: 4px;
+}
+
+.btn-icon svg {
+  width: 13px;
+  height: 13px;
 }
 
 .autosave-control {
@@ -1001,102 +1323,181 @@ function runWorkflow() {
 }
 
 .graph-body {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 270px;
-  height: calc(100vh - 65px);
-  min-height: 650px;
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
-.node-library, .inspector {
+.node-palette {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  flex: 0 0 200px;
   background: #fff;
-}
-
-.node-library {
   border-right: 1px solid #e1e5ed;
-  padding: 18px 13px;
 }
 
-.library-title {
+.palette-search {
+  position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 13px;
-  font-size: 13px;
-  font-weight: 700;
+  padding: 10px 10px;
+  border-bottom: 1px solid #edeef3;
 }
 
-.library-section {
-  margin-top: 20px;
+.palette-search > svg {
+  position: absolute;
+  left: 17px;
+  width: 13px;
+  height: 13px;
+  color: #9aa3b2;
+  pointer-events: none;
 }
 
-.section-label {
-  display: block;
-  margin: 0 7px 9px;
-  color: #99a2b2;
-  font-size: 10px;
+.palette-search :deep(.n-input__input-el) {
+  padding-left: 16px;
 }
 
-.library-item {
+.palette-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.palette-category {
+  margin-bottom: 6px;
+}
+
+.category-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 7px;
+  padding: 5px 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
-  color: #4e596c;
-  text-align: left;
+  color: #8b95a8;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
+  text-align: left;
 }
 
-.library-item:hover {
+.category-toggle:hover {
+  color: #3f4a5e;
+  background: #f5f4ff;
+}
+
+.category-toggle svg {
+  width: 11px;
+  height: 11px;
+  transition: transform .15s ease;
+}
+
+.category-toggle svg.collapsed {
+  transform: rotate(-90deg);
+}
+
+.category-toggle small {
+  margin-left: auto;
+  color: #b3bac6;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 1px 0 1px 6px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  cursor: grab;
+  transition: background .12s ease;
+}
+
+.palette-item:hover {
   background: #f2f0ff;
 }
 
-.library-icon {
-  width: 27px;
-  height: 27px;
+.palette-item.dragging {
+  opacity: .55;
+}
+
+.palette-item.disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.palette-item:active {
+  cursor: grabbing;
+}
+
+.item-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  color: white;
-  font-size: 13px;
+  border-radius: 6px;
+  color: #fff;
 }
 
-.library-item strong, .library-item small {
+.item-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.item-label {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.item-label strong {
   display: block;
-}
-
-.library-item strong {
+  overflow: hidden;
+  color: #4e596c;
   font-size: 11px;
-  font-weight: 600;
-}
-
-.library-item small {
-  margin-top: 2px;
-  color: #9ca5b4;
-  font-size: 9px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .add-mark {
   margin-left: auto;
   color: #b5bdcb;
-  font-size: 17px;
+  font-size: 15px;
 }
 
-.library-footer {
-  position: absolute;
-  bottom: 18px;
+.added-mark {
+  margin-left: auto;
+  color: #a8b0bd;
+  font-size: 9px;
+}
+
+.palette-empty {
+  padding: 18px 8px;
+  color: #9aa3b2;
+  font-size: 11px;
+  text-align: center;
+}
+
+.palette-footer {
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 12px 14px;
+  border-top: 1px solid #edeef3;
   color: #9aa3b2;
   font-size: 10px;
 }
 
 .canvas-viewport {
   position: relative;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   background-color: #f7f8fb;
   background-image: radial-gradient(#d7dbe5 1px, transparent 1px);
@@ -1109,23 +1510,25 @@ function runWorkflow() {
   cursor: grabbing;
 }
 
-.canvas-toolbar {
+.canvas-toastbar {
   position: absolute;
   z-index: 20;
-  top: 14px;
-  left: 16px;
+  top: 12px;
+  left: 50%;
   display: flex;
-  gap: 8px;
-}
-
-.zoom-value {
-  min-width: 54px;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(55, 62, 93, .13);
+  transform: translateX(-50%);
 }
 
 .canvas-stage {
   position: absolute;
-  width: 1600px;
-  height: 980px;
+  width: 2200px;
+  height: 1400px;
   transform-origin: 0 0;
 }
 
@@ -1137,13 +1540,11 @@ function runWorkflow() {
 }
 
 .canvas-link {
-  stroke: #9a92e8;
   pointer-events: none;
   transition: stroke .12s ease, stroke-width .12s ease;
 }
 
 .canvas-link.selected {
-  stroke: #6654ee;
   stroke-width: 3;
 }
 
@@ -1189,62 +1590,208 @@ function runWorkflow() {
   box-shadow: 0 0 0 2px rgba(114, 104, 239, .22), 0 8px 22px rgba(65, 56, 140, .14);
 }
 
-.node-head-bg {
-  box-sizing: border-box;
-  height: calc(38px * var(--node-scale));
-  margin: 1.5%;
-  border-radius: 5px;
-  color: #fff;
-}
-
-.node-head-content {
+.node-head {
   display: flex;
   box-sizing: border-box;
   align-items: center;
-  gap: calc(8px * var(--node-scale));
-  height: 100%;
-  margin: 0 1.5%;
+  gap: calc(7px * var(--node-scale));
+  height: calc(38px * var(--node-scale));
+  margin: 1.5%;
+  padding: 0 calc(5px * var(--node-scale));
+  border-bottom: 1px solid #f0f1f5;
+  border-radius: 5px;
 }
 
-.node-kind {
-  font-size: calc(14px * var(--node-scale));
-  opacity: .9;
+.node-icon {
+  width: calc(22px * var(--node-scale));
+  height: calc(22px * var(--node-scale));
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: calc(13px * var(--node-scale));
 }
 
-.node-head-content strong {
+.node-icon svg {
+  width: calc(13px * var(--node-scale));
+  height: calc(13px * var(--node-scale));
+}
+
+.node-head .node-title {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
+  color: #30394a;
   font-size: calc(11px * var(--node-scale));
   font-weight: 600;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: text;
 }
 
 .node-inline-input {
   min-width: 0;
   width: 100%;
   flex: 1 1 auto;
-  border: 1px solid rgba(255, 255, 255, .65);
+  border: 1px solid #c7c3f5;
   border-radius: 3px;
   outline: none;
-  background: rgba(255, 255, 255, .95);
+  background: #fff;
   color: #394158;
   font-size: calc(10px * var(--node-scale));
   line-height: calc(18px * var(--node-scale));
   padding: 0 3px;
 }
 
-.node-body .node-inline-input {
-  border-color: #c7c3f5;
-  background: #fff;
-  color: #4d5870;
+.node-value-input {
+  max-width: 110px;
+  margin-left: auto;
 }
 
-.node-value-input {
-  max-width: 120px;
+.node-run, .node-menu {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: calc(18px * var(--node-scale));
+  height: calc(18px * var(--node-scale));
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #8b95a8;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+
+.node-run svg {
+  width: calc(10px * var(--node-scale));
+  height: calc(10px * var(--node-scale));
+}
+
+.node-run:hover {
+  background: #eef0ff;
+  color: #5c52ee;
+}
+
+.node-menu {
+  font-size: calc(15px * var(--node-scale));
+}
+
+.node-menu:hover {
+  background: #fdecec;
+  color: #d05050;
+}
+
+.node-body {
+  margin: 0 3% 2%;
+  padding: 0;
+}
+
+.port-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(7px * var(--node-scale));
+  min-height: calc(27px * var(--node-scale));
+  color: #667186;
+  font-size: calc(11px * var(--node-scale));
+  line-height: 1.35;
+}
+
+.port-row > span:not(.port):not(.status-icon) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.port-row small {
+  min-width: 0;
   margin-left: auto;
+  max-width: calc(120px * var(--node-scale));
+  overflow: hidden;
+  color: #a0a8b6;
+  font-size: calc(10px * var(--node-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.port-label {
+  cursor: text;
+}
+
+.required-mark {
+  flex: 0 0 auto;
+  color: #e11d48;
+  font-size: calc(11px * var(--node-scale));
+  font-weight: 700;
+}
+
+.status-row {
+  gap: calc(6px * var(--node-scale));
+  color: #9aa3b2;
+  font-size: calc(10px * var(--node-scale));
+}
+
+.status-icon {
+  width: calc(8px * var(--node-scale));
+  height: calc(8px * var(--node-scale));
+  flex: 0 0 auto;
+  border: calc(1.5px * var(--node-scale)) solid #b3bac6;
+  border-radius: 50%;
+}
+
+.output-row {
+  justify-content: flex-end;
+}
+
+.output-row small {
+  margin: 0 auto 0 0;
+  cursor: text;
+}
+
+.port {
+  position: relative;
+  z-index: 5;
+  width: calc(12px * var(--node-scale));
+  height: calc(12px * var(--node-scale));
+  flex: 0 0 auto;
+  border: calc(2px * var(--node-scale)) solid #b4aff5;
+  border-radius: 50%;
+  background: #fff;
+  cursor: crosshair;
+  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.port:hover, .port:active {
+  transform: scale(1.25);
+  background: #f2f0ff;
+  box-shadow: 0 0 0 2px rgba(102, 84, 238, .22);
+}
+
+.port.connect-source {
+  transform: scale(1.25);
+  background: #6654ee;
+  box-shadow: 0 0 0 3px rgba(102, 84, 238, .2);
+}
+
+.port.connect-target {
+  transform: scale(1.18);
+  background: #43b589;
+  box-shadow: 0 0 0 3px rgba(67, 181, 137, .2);
+}
+
+.port.connect-disabled {
+  opacity: .35;
+}
+
+.input-port {
+  margin-left: calc(-3% - (4.5px * var(--node-scale)));
+}
+
+.output-port {
+  margin-right: calc(-3% - (4.5px * var(--node-scale)));
 }
 
 .node-resizer {
@@ -1298,129 +1845,95 @@ function runWorkflow() {
   bottom: -4px;
 }
 
-.node-menu {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, .75);
-  font-size: 17px;
-  cursor: pointer;
-}
-
-.node-body {
-  margin: 0 3% 2%;
-  padding: 0;
-}
-
-.port-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: calc(7px * var(--node-scale));
-  min-height: calc(27px * var(--node-scale));
-  color: #667186;
-  font-size: calc(11px * var(--node-scale));
-  line-height: 1.35;
-}
-
-.port-row > span:not(.port) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.port-row small {
-  min-width: 0;
-  margin-left: auto;
-  max-width: calc(120px * var(--node-scale));
-  overflow: hidden;
-  color: #a0a8b6;
-  font-size: calc(10px * var(--node-scale));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.output-row {
-  justify-content: flex-end;
-}
-
-.output-row small {
-  margin: 0 auto 0 0;
-}
-
-.port {
-  position: relative;
-  z-index: 5;
-  width: calc(12px * var(--node-scale));
-  height: calc(12px * var(--node-scale));
-  flex: 0 0 auto;
-  border: calc(2px * var(--node-scale)) solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px #9a92e8;
-  background: #b4aff5;
-  cursor: crosshair;
-  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
-}
-
-.port:hover, .port:active {
-  transform: scale(1.25);
-  background: #6654ee;
-  box-shadow: 0 0 0 2px rgba(102, 84, 238, .22);
-}
-
-.port.connect-source {
-  transform: scale(1.25);
-  background: #6654ee;
-  box-shadow: 0 0 0 3px rgba(102, 84, 238, .2);
-}
-
-.port.connect-target {
-  transform: scale(1.18);
-  background: #43b589;
-  box-shadow: 0 0 0 3px rgba(67, 181, 137, .2);
-}
-
-.port.connect-disabled {
-  opacity: .35;
-}
-
-.input-port {
-  margin-left: calc(-3% - (4.5px * var(--node-scale)));
-}
-
-.output-port {
-  margin-right: calc(-3% - (4.5px * var(--node-scale)));
-}
-
-.canvas-help {
+.canvas-controls {
   position: absolute;
-  right: 16px;
-  bottom: 13px;
+  z-index: 20;
+  bottom: 14px;
+  left: 14px;
   display: flex;
-  gap: 14px;
-  color: #9ba4b3;
-  font-size: 10px;
+  flex-direction: column;
+  border: 1px solid #e1e5ed;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(55, 62, 93, .1);
+  overflow: hidden;
 }
 
-.connection-state {
-  color: #6654ee;
-  font-size: 10px;
-  font-weight: 600;
+.canvas-controls button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-bottom: 1px solid #edeef3;
+  background: #fff;
+  color: #667186;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background .12s ease, color .12s ease;
 }
 
-.connection-preview {
-  pointer-events: none;
+.canvas-controls button:last-child {
+  border-bottom: 0;
+}
+
+.canvas-controls button:hover {
+  background: #f2f0ff;
+  color: #5c52ee;
+}
+
+.canvas-controls svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.canvas-minimap {
+  position: absolute;
+  z-index: 20;
+  right: 14px;
+  bottom: 14px;
+  padding: 5px;
+  border: 1px solid #e1e5ed;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(55, 62, 93, .1);
+}
+
+.canvas-minimap svg {
+  display: block;
+}
+
+.minimap-node {
+  fill: rgba(102, 84, 238, .18);
+  stroke: rgba(102, 84, 238, .4);
+  stroke-width: 1;
+}
+
+.minimap-node.active {
+  fill: rgba(102, 84, 238, .35);
+}
+
+.minimap-view {
+  fill: rgba(38, 46, 74, .06);
+  stroke: rgba(102, 84, 238, .55);
+  stroke-dasharray: 3 2;
+  stroke-width: 1;
 }
 
 .inspector {
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  flex: 0 0 300px;
+  background: #fff;
   border-left: 1px solid #e1e5ed;
 }
 
 .inspector-head {
   display: flex;
   justify-content: space-between;
-  padding: 19px 16px 15px;
+  padding: 15px 16px 12px;
   border-bottom: 1px solid #e8eaf0;
 }
 
@@ -1430,13 +1943,21 @@ function runWorkflow() {
   font-weight: 600;
 }
 
+.inspector-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .inspector-content {
-  padding: 18px 16px;
+  padding: 16px;
 }
 
 .inspector-meta {
-  margin-top: 20px;
-  padding-top: 14px;
+  margin-top: 18px;
+  padding-top: 13px;
   border-top: 1px solid #eceef3;
 }
 
@@ -1459,7 +1980,7 @@ function runWorkflow() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 70%;
+  height: 52%;
   padding: 25px;
   text-align: center;
   color: #9aa3b2;
@@ -1488,11 +2009,79 @@ function runWorkflow() {
   line-height: 1.6;
 }
 
-@media (max-width: 900px) {
-  .graph-body {
-    grid-template-columns: 190px minmax(0, 1fr);
-  }
+.inspector-stats {
+  margin-top: auto;
+  padding: 14px 16px 16px;
+  border-top: 1px solid #e8eaf0;
+}
 
+.inspector-stats h4 {
+  margin: 0 0 10px;
+  color: #8b95a8;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  color: #667186;
+  font-size: 11px;
+}
+
+.stat-row strong {
+  margin-left: auto;
+  color: #30394a;
+  font-size: 11px;
+}
+
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.stat-dot.all {
+  background: #6654ee;
+}
+
+.stat-dot.done {
+  background: #49b788;
+}
+
+.stat-dot.running {
+  background: #4a90e2;
+}
+
+.stat-dot.pending {
+  background: #c8cdd8;
+}
+
+.canvas-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 0 14px;
+  background: #f2f3f7;
+  border-top: 1px solid #e4e7ee;
+  color: #8b95a8;
+  font-size: 11px;
+}
+
+.statusbar-save.saved {
+  color: #2f9e6f;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
   .inspector {
     display: none;
   }
@@ -1503,19 +2092,11 @@ function runWorkflow() {
     padding: 0 12px;
   }
 
-  .brand, .save-state, .autosave-control, .header-actions .n-button:first-of-type {
+  .back-link span, .save-state, .autosave-control, .header-actions .n-button:first-of-type {
     display: none;
   }
 
-  .graph-body {
-    grid-template-columns: 1fr;
-  }
-
-  .node-library {
-    display: none;
-  }
-
-  .canvas-help {
+  .node-palette {
     display: none;
   }
 }
