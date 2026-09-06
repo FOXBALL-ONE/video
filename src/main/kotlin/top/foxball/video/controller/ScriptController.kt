@@ -106,10 +106,13 @@ class ScriptController(
         @RequestParam("content_hash") @NotBlank @Size(max = 80) contentHash: String,
         @RequestParam("character_provider_config_id", required = false) characterProviderConfigId: Long?,
         @RequestParam("character_model", required = false) @Size(max = 200) characterModel: String?,
+        @RequestParam("character_prompt_version_id", required = false) @Min(1) characterPromptVersionId: Long?,
         @RequestParam("scene_background_provider_config_id", required = false) sceneBackgroundProviderConfigId: Long?,
         @RequestParam("scene_background_model", required = false) @Size(max = 200) sceneBackgroundModel: String?,
+        @RequestParam("scene_background_prompt_version_id", required = false) @Min(1) sceneBackgroundPromptVersionId: Long?,
         @RequestParam("prop_provider_config_id", required = false) propProviderConfigId: Long?,
         @RequestParam("prop_model", required = false) @Size(max = 200) propModel: String?,
+        @RequestParam("prop_prompt_version_id", required = false) @Min(1) propPromptVersionId: Long?,
         @RequestParam("stream", defaultValue = "true") stream: Boolean,
         @RequestParam("asset_types", required = false) legacyAssetTypes: List<String>?,
         @RequestParam("provider_config_ids", required = false) legacyProviderConfigIds: List<Long>?,
@@ -123,6 +126,7 @@ class ScriptController(
             @param:JsonProperty("prompt_key") val promptKey: String?,
             @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
             @param:JsonProperty("template_hash") val templateHash: String?,
+            @param:JsonProperty("prompt_selections") val promptSelections: List<Map<String, Any?>>,
             @param:JsonProperty("correlation_id") val correlationId: String?,
         )
         val selections = mutableListOf<ScriptAnalysisTaskService.ModelSelection>()
@@ -151,15 +155,15 @@ class ScriptController(
         }
         if (characterProviderConfigId != null || characterModel != null) {
             if (characterProviderConfigId == null || characterProviderConfigId <= 0 || characterModel.isNullOrBlank()) return responseBuilder.badRequest().message("请为角色选择有效的提供商和模型").build()
-            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.CHARACTER, characterProviderConfigId, characterModel.trim())
+            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.CHARACTER, characterProviderConfigId, characterModel.trim(), characterPromptVersionId)
         }
         if (sceneBackgroundProviderConfigId != null || sceneBackgroundModel != null) {
             if (sceneBackgroundProviderConfigId == null || sceneBackgroundProviderConfigId <= 0 || sceneBackgroundModel.isNullOrBlank()) return responseBuilder.badRequest().message("请为场景选择有效的提供商和模型").build()
-            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.SCENE_BACKGROUND, sceneBackgroundProviderConfigId, sceneBackgroundModel.trim())
+            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.SCENE_BACKGROUND, sceneBackgroundProviderConfigId, sceneBackgroundModel.trim(), sceneBackgroundPromptVersionId)
         }
         if (propProviderConfigId != null || propModel != null) {
             if (propProviderConfigId == null || propProviderConfigId <= 0 || propModel.isNullOrBlank()) return responseBuilder.badRequest().message("请为道具选择有效的提供商和模型").build()
-            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.PROP, propProviderConfigId, propModel.trim())
+            selections += ScriptAnalysisTaskService.ModelSelection(EpisodeAssetType.PROP, propProviderConfigId, propModel.trim(), propPromptVersionId)
         }
         if (selections.isEmpty()) return responseBuilder.badRequest().message("请至少选择一种资产类型").build()
         val submitted = try {
@@ -172,7 +176,9 @@ class ScriptController(
             return responseBuilder.badRequest().message(exception.message).build()
         } ?: return responseBuilder.notFound().build()
         val task = submitted.task
-        val rs = Response(requireNotNull(task.id).toString(), task.status.name, selections.map { it.assetType.name }, versionId, task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(), task.correlationId)
+        val promptSelections = (task.inputPayload["prompt_selections"] as? Collection<*>)?.mapNotNull { it as? Map<*, *> }
+            ?.map { entry -> entry.entries.associate { (key, value) -> key.toString() to value } } ?: emptyList()
+        val rs = Response(requireNotNull(task.id).toString(), task.status.name, selections.map { it.assetType.name }, versionId, task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(), promptSelections, task.correlationId)
         return responseBuilder.accepted().data(rs).build()
     }
 
@@ -197,6 +203,16 @@ class ScriptController(
             @param:JsonProperty("request_id") val requestId: String?,
             val count: Int,
             @param:JsonProperty("result_hash") val resultHash: String?,
+            @param:JsonProperty("prompt_key") val promptKey: String?,
+            @param:JsonProperty("prompt_category") val promptCategory: String?,
+            @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
+            @param:JsonProperty("template_hash") val templateHash: String?,
+            @param:JsonProperty("selection_source") val selectionSource: String?,
+            val progress: Int,
+            val stage: String?,
+            @param:JsonProperty("started_at") val startedAt: LocalDateTime?,
+            @param:JsonProperty("completed_at") val completedAt: LocalDateTime?,
+            @param:JsonProperty("latency_ms") val latencyMs: Long?,
             val error: ErrorData?,
         )
         data class Response(
@@ -212,6 +228,7 @@ class ScriptController(
             @param:JsonProperty("prompt_key") val promptKey: String?,
             @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
             @param:JsonProperty("template_hash") val templateHash: String?,
+            @param:JsonProperty("prompt_selections") val promptSelections: List<Map<String, Any?>>,
             @param:JsonProperty("adopted_types") val adoptedTypes: List<String>,
             val result: JsonNode?,
             val stats: Map<String, Int>,
@@ -252,6 +269,21 @@ class ScriptController(
                 typeResult?.get("items")?.takeIf { it.isArray }?.size() ?: 0,
                 typeResult?.get("resultHash")?.takeIf { it.isString }?.stringValue()
                     ?: typeResult?.get("result_hash")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("promptKey")?.takeIf { it.isString }?.stringValue()
+                    ?: typeResult?.get("prompt_key")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("promptCategory")?.takeIf { it.isString }?.stringValue()
+                    ?: typeResult?.get("prompt_category")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("promptVersionId")?.takeIf { it.isInt || it.isLong }?.longValue()?.takeIf { it > 0 }
+                    ?: typeResult?.get("prompt_version_id")?.takeIf { it.isInt || it.isLong }?.longValue()?.takeIf { it > 0 },
+                typeResult?.get("templateHash")?.takeIf { it.isString }?.stringValue()
+                    ?: typeResult?.get("template_hash")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("selectionSource")?.takeIf { it.isString }?.stringValue()
+                    ?: typeResult?.get("selection_source")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("progress")?.intValue() ?: 0,
+                typeResult?.get("stage")?.takeIf { it.isString }?.stringValue(),
+                typeResult?.get("startedAt")?.takeIf { it.isTextual }?.textValue()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() },
+                typeResult?.get("completedAt")?.takeIf { it.isTextual }?.textValue()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() },
+                typeResult?.get("latencyMs")?.takeIf { it.isIntegralNumber }?.longValue(),
                 error,
             )
         }
@@ -264,10 +296,12 @@ class ScriptController(
         val failedType = typeResults.firstOrNull { it.status == "FAILED" }
         val error = task.errorMessage?.let { ErrorData(it, task.errorCode, failedType?.provider, failedType?.requestId) }
             ?: failedType?.error
+        val promptSelections = (task.inputPayload["prompt_selections"] as? Collection<*>)?.mapNotNull { it as? Map<*, *> }
+            ?.map { entry -> entry.entries.associate { (key, value) -> key.toString() to value } } ?: emptyList()
         val rs = Response(
             requireNotNull(task.id).toString(), task.status.name, task.progress, task.stage, detail.resultStatus.name,
             assetTypes, typeResults, detail.result.scriptVersionId, detail.result.contentHash,
-            task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(),
+            task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(), promptSelections,
             detail.result.adoptedTypes.split(',').filter { it.isNotBlank() },
             result, stats, error, detail.result.adoptedAt, task.createdAt, task.completedAt,
         )

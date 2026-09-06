@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
 import top.foxball.video.entity.jdbc.PromptScopeType
+import top.foxball.video.entity.jdbc.PromptCategory
+import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.entity.jdbc.PromptVersionStatus
 import top.foxball.video.service.PromptCatalogService
 import top.foxball.video.service.PromptRenderer
@@ -42,6 +44,7 @@ class PromptController(
         @RequestParam("scope_type", required = false) scopeType: PromptScopeType?,
         @RequestParam("project_id", required = false) projectId: Long?,
         @RequestParam("status", required = false) status: PromptVersionStatus?,
+        @RequestParam("category", required = false) category: PromptCategory?,
     ): ResponseEntity<Response> {
         data class PromptData(
             val id: Long,
@@ -57,9 +60,11 @@ class PromptController(
             @param:JsonProperty("default_locale") val defaultLocale: String,
             val enabled: Boolean,
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+            val category: String,
+            @param:JsonProperty("category_default") val categoryDefault: Boolean,
         )
         data class Response(val list: List<PromptData>)
-        val definitions = catalog.list(userId, key, scopeType, projectId, status)
+        val definitions = catalog.list(userId, key, scopeType, projectId, status, category)
         val versionsByPromptId = catalog.versionsByDefinitionIds(definitions.mapNotNull { it.id })
         val prompts = definitions.map { definition ->
             val versions = versionsByPromptId[definition.id].orEmpty()
@@ -68,10 +73,80 @@ class PromptController(
                 versions.maxOfOrNull { it.versionNo }, versions.maxByOrNull { it.versionNo }?.id,
                 versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.versionNo,
                 versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.id,
-                definition.defaultLocale, definition.enabled, definition.updatedAt,
+                definition.defaultLocale, definition.enabled, definition.updatedAt, catalog.effectiveCategory(definition).name, definition.categoryDefault == true,
             )
         }
         return responseBuilder.ok().data(Response(prompts)).build()
+    }
+
+    @GetMapping("/api/ai/prompts/options")
+    fun options(
+        @AuthenticationPrincipal userId: Long?,
+        @RequestParam("project_id") @Min(1) projectId: Long,
+        @RequestParam("asset_type") assetType: EpisodeAssetType,
+        @RequestParam("locale", defaultValue = "zh-CN") @Size(max = 20) locale: String,
+    ): ResponseEntity<Response> {
+        data class OptionData(
+            @param:JsonProperty("prompt_id") val promptId: Long,
+            @param:JsonProperty("prompt_key") val promptKey: String,
+            @param:JsonProperty("display_name") val displayName: String,
+            val purpose: String,
+            @param:JsonProperty("scope_type") val scopeType: String,
+            @param:JsonProperty("project_id") val projectId: Long?,
+            @param:JsonProperty("version_id") val versionId: Long,
+            @param:JsonProperty("version_no") val versionNo: Int,
+            val status: String,
+            val category: String,
+            val locale: String,
+            @param:JsonProperty("content_hash") val contentHash: String,
+            @param:JsonProperty("output_schema_version") val outputSchemaVersion: String,
+            @param:JsonProperty("is_default") val isDefault: Boolean,
+            val fallback: Boolean,
+            @param:JsonProperty("fallback_reason") val fallbackReason: String?,
+            @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
+        )
+        data class Response(
+            @param:JsonProperty("asset_type") val assetType: String,
+            val category: String,
+            val locale: String,
+            @param:JsonProperty("default_version_id") val defaultVersionId: Long?,
+            val list: List<OptionData>,
+        )
+        val category = try {
+            catalog.categoryForAssetType(assetType)
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        }
+        val resolved = try {
+            catalog.scriptAssetPromptOptions(assetType, projectId, userId, locale).toMutableList()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        }
+        var fallback = false
+        if (resolved.isEmpty()) {
+            val legacy = runCatching { catalog.resolve("script_analysis", projectId, userId, locale) }.getOrNull()
+            if (legacy != null) {
+                resolved += legacy
+                fallback = true
+            }
+        }
+        val defaultVersionId = resolved.firstOrNull()?.version?.id
+        val rs = Response(
+            assetType.name,
+            category.name,
+            locale.trim().ifBlank { "zh-CN" },
+            defaultVersionId,
+            resolved.map { item ->
+                val version = item.version
+                OptionData(
+                    requireNotNull(item.definition.id), item.definition.key, item.definition.displayName, item.definition.purpose,
+                    item.definition.scopeType.name, item.definition.projectId, requireNotNull(version.id), version.versionNo,
+                    version.status.name, category.name, version.locale, version.contentHash, "${item.definition.key}.v${version.versionNo}",
+                    !fallback && requireNotNull(version.id) == defaultVersionId, fallback, if (fallback) "LEGACY_GENERAL_PROMPT" else null, version.updatedAt,
+                )
+            },
+        )
+        return responseBuilder.ok().data(rs).build()
     }
 
     @GetMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
@@ -88,6 +163,7 @@ class PromptController(
             @param:JsonProperty("version_no") val versionNo: Int,
             val locale: String,
             val status: String,
+            val category: String,
             val messages: Any,
             @param:JsonProperty("variables_schema") val variablesSchema: Any,
             @param:JsonProperty("output_schema") val outputSchema: Any,
@@ -101,7 +177,7 @@ class PromptController(
         val version = resolved.version
         val rs = Response(
             requireNotNull(version.id), promptId, resolved.definition.key, resolved.definition.displayName, version.versionNo, version.locale,
-            version.status.name, parseJson(version.messagesJson), parseJson(version.variablesSchemaJson), parseJson(version.outputSchemaJson),
+            version.status.name, catalog.effectiveCategory(resolved.definition).name, parseJson(version.messagesJson), parseJson(version.variablesSchemaJson), parseJson(version.outputSchemaJson),
             parseJson(version.generationPolicyJson), parseJson(version.compatibilityJson), version.contentHash, version.changeSummary, version.publishedAt,
         )
         return responseBuilder.ok().data(rs).build()
@@ -145,6 +221,7 @@ class PromptController(
         @RequestParam("generation_policy_json", defaultValue = "{}") @Size(max = 20_000) generationPolicyJson: String,
         @RequestParam("compatibility_json", defaultValue = "{}") @Size(max = 20_000) compatibilityJson: String,
         @RequestParam("change_summary", defaultValue = "") @Size(max = 1000) changeSummary: String,
+        @RequestParam("category", required = false) category: PromptCategory?,
     ): ResponseEntity<Response> {
         data class Response(
             val id: Long,
@@ -154,7 +231,7 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
         )
         val created = try {
-            catalog.createDraft(userId, key, displayName, purpose, scopeType, projectId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, changeSummary)
+            catalog.createDraft(userId, key, displayName, purpose, scopeType, projectId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, changeSummary, category ?: PromptCatalogService.CATEGORY_BY_KEY[key.trim().lowercase()] ?: PromptCategory.SCRIPT_GENERAL)
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         }

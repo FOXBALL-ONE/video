@@ -1,5 +1,7 @@
 server:
   port: "${SERVER_PORT:8080}"
+video:
+  script-asset-parallel-extraction: "${SCRIPT_ASSET_PARALLEL_EXTRACTION:true}"
 spring:
   application:
     name: video

@@ -198,8 +198,8 @@
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
-          <n-button :disabled="analysisAdopting" @click="analysisSummaryVisible = false">暂不采纳</n-button>
-          <n-button type="primary" color="#6654ee" :loading="analysisAdopting" :disabled="!analysisAdoptionTypes.length || analysisAdoptionStatus === 'ADOPTED'" @click="adoptAnalysisResult">采纳并写入资产库</n-button>
+          <n-button :loading="analysisDiscarding" :disabled="analysisAdopting" @click="discardAnalysisResult">暂不采纳</n-button>
+          <n-button type="primary" color="#6654ee" :loading="analysisAdopting" :disabled="!analysisAdoptionTypes.length || analysisAdoptionStatus === 'ADOPTED' || analysisDiscarding" @click="adoptAnalysisResult">采纳并写入资产库</n-button>
         </div>
       </template>
     </n-modal>
@@ -223,6 +223,8 @@
               <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <n-select v-model:value="job.providerId" :options="providerOptions" :disabled="!providerOptions.length" size="small" placeholder="选择模型提供商" @update:value="onAnalysisProviderChange(job, $event)" />
                 <n-select v-model:value="job.model" :options="modelOptionsFor(job)" :disabled="!job.providerId" filterable size="small" placeholder="选择模型" />
+                <n-select v-model:value="job.promptVersionId" :options="job.promptOptions" :disabled="!job.promptOptions.length" size="small" placeholder="提示词版本（默认）" />
+                <n-button text size="tiny" type="primary" class="justify-self-start" @click="navigateTo('/prompts')">管理提示词</n-button>
               </div>
             </div>
           </div>
@@ -239,6 +241,13 @@
         <p v-if="analysisTaskStage && analysisTaskStatus !== 'SUCCEEDED'" class="mt-1.5 mb-0 truncate text-[11px] text-[#62919b]">{{ analysisTaskStage }}</p>
       </div>
       <div v-if="analysisTaskError" class="mt-3 rounded-[9px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d]" role="alert">{{ analysisTaskError }}</div>
+      <div v-if="analysisTypeResults.length" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="资产提取子任务状态">
+        <div v-for="typeResult in analysisTypeResults" :key="typeResult.type" class="rounded-[8px] border border-[#e5e8ef] bg-white px-3 py-2 text-xs">
+          <div class="flex items-center justify-between gap-2"><span class="font-medium text-[#4f596d]">{{ assetTypeLabel(typeResult.type) }}</span><span class="text-[#8994a8]">{{ typeResult.status === 'SUCCEEDED' ? '已完成' : typeResult.status === 'FAILED' ? '失败' : typeResult.status === 'CANCELLED' ? '已取消' : '解析中' }}</span></div>
+          <div v-if="typeResult.prompt_key" class="mt-1 truncate text-[10px] text-[#9aa3b4]">{{ typeResult.prompt_key }} · v{{ typeResult.prompt_version_id || '-' }}</div>
+          <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-[#ececf4]"><div class="h-full rounded-full bg-[#6654ee] transition-[width]" :style="{ width: `${typeResult.progress ?? (typeResult.status === 'SUCCEEDED' || typeResult.status === 'FAILED' || typeResult.status === 'CANCELLED' ? 100 : 10)}%` }"></div></div>
+        </div>
+      </div>
       <template #footer>
         <div class="flex justify-end gap-2">
           <n-button v-if="analysisTaskId && ['QUEUED', 'RUNNING', 'CANCEL_REQUESTED'].includes(analysisTaskStatus)" type="warning" secondary :disabled="analysisSubmitting || analysisAdopting || analysisTaskStatus === 'CANCEL_REQUESTED'" @click="cancelAnalysisTask">取消任务</n-button>
@@ -335,7 +344,7 @@ interface ScriptAnalysisItem {
 interface ScriptAnalysis { title?: string; genre?: string; overall_summary?: string; characters?: ScriptAnalysisItem[]; scenes?: ScriptAnalysisItem[]; props?: ScriptAnalysisItem[]; costumes?: ScriptAnalysisItem[] }
 interface AnalysisSummaryItem { key: string; name: string; description: string }
 interface AnalysisTaskError { message: string; error_code?: string | null; provider?: string | null; request_id?: string | null }
-interface AnalysisTypeResult { type: AnalysisJob['type']; status: string; provider_config_id: number | null; model: string | null; provider: string | null; request_id: string | null; count: number; result_hash?: string | null; error?: AnalysisTaskError | null }
+interface AnalysisTypeResult { type: AnalysisJob['type']; status: string; provider_config_id: number | null; model: string | null; provider: string | null; request_id: string | null; count: number; result_hash?: string | null; prompt_key?: string | null; prompt_category?: string | null; prompt_version_id?: number | null; template_hash?: string | null; selection_source?: string | null; progress?: number; stage?: string | null; started_at?: string | null; completed_at?: string | null; latency_ms?: number | null; error?: AnalysisTaskError | null }
 interface AnalysisTaskResponse {
   task_id: string
   status: string
@@ -348,6 +357,7 @@ interface AnalysisTaskResponse {
   content_hash: string
   adopted_types: AnalysisJob['type'][]
   result: ScriptAnalysis | null
+  prompt_selections?: Array<Record<string, unknown>>
   stats: { character_count: number; scene_count: number; prop_count: number }
   error?: AnalysisTaskError | null
 }
@@ -387,6 +397,8 @@ interface AnalysisJob {
   enabled: boolean
   providerId: number | null
   model: string
+  promptVersionId: number | null
+  promptOptions: Array<{ label: string; value: number; prompt_key?: string; category?: string; content_hash?: string; fallback?: boolean }>
 }
 
 const styles = ['古风', '悬疑', '甜宠', '科幻', '都市', '奇幻']
@@ -424,6 +436,7 @@ const analysisAdoptedTypeNames = ref<AnalysisJob['type'][]>([])
 const analysisAdoptionStatus = ref('')
 const analysisDetailsVisible = ref(false)
 const analysisAdopting = ref(false)
+const analysisDiscarding = ref(false)
 const analysisSubmissionKey = ref('')
 const analysisSubmissionFingerprint = ref('')
 const analysisStream = ref(true)
@@ -434,9 +447,9 @@ const analysisContentHash = ref('')
 let analysisPollToken = 0
 let analysisPollTimer: number | null = null
 const analysisJobs = ref<AnalysisJob[]>([
-  { type: 'SCENE_BACKGROUND', label: '场景提取', description: '提取地点、时间、天气、光线、氛围和视觉风格。', enabled: true, providerId: null, model: '' },
-  { type: 'CHARACTER', label: '角色提取', description: '提取身份、外貌、性格、关系和出场要求。', enabled: true, providerId: null, model: '' },
-  { type: 'PROP', label: '道具提取', description: '提取关键道具、持有人、剧情功能和连续性要求。', enabled: true, providerId: null, model: '' },
+  { type: 'SCENE_BACKGROUND', label: '场景提取', description: '提取地点、时间、天气、光线、氛围和视觉风格。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
+  { type: 'CHARACTER', label: '角色提取', description: '提取身份、外貌、性格、关系和出场要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
+  { type: 'PROP', label: '道具提取', description: '提取关键道具、持有人、剧情功能和连续性要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
 ])
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -453,7 +466,7 @@ const episodeQuery = computed(() => {
 const wordCount = computed(() => scriptText.value.length)
 const providerOptions = computed(() => providerConfigs.value.map((config) => ({ label: config.provider, value: config.id })))
 const selectedAnalysisCount = computed(() => analysisJobs.value.filter((job) => job.enabled).length)
-const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model))
+const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model && job.promptVersionId && job.promptOptions.some((option) => option.value === job.promptVersionId)))
 const analysisAdoptedTypes = computed(() => new Set(analysisAdoptedTypeNames.value))
 const adoptableTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'SUCCEEDED' && item.count > 0 && !analysisAdoptedTypes.value.has(item.type) && !['DISCARDED', 'SUPERSEDED'].includes(analysisAdoptionStatus.value)))
 const failedTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'FAILED'))
@@ -553,6 +566,39 @@ async function loadProviderConfigs() {
   }
 }
 
+async function loadAnalysisPromptOptions() {
+  const project = Number(projectId.value)
+  if (!Number.isInteger(project) || project <= 0) {
+    analysisJobs.value.forEach((job) => {
+      job.promptOptions = []
+      job.promptVersionId = null
+    })
+    return
+  }
+  await Promise.all(analysisJobs.value.map(async (job) => {
+    try {
+      const response = await http.get<{
+        default_version_id?: number | null
+        list: Array<{ prompt_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
+      }>('/ai/prompts/options', {
+        project_id: project,
+        asset_type: job.type,
+        locale: 'zh-CN',
+      })
+      job.promptOptions = (response.list || []).map((option) => ({
+        label: `${option.display_name} · v${option.version_no}${option.fallback ? ' · 通用兼容' : ''}`,
+        value: option.version_id,
+        prompt_key: option.prompt_key,
+        fallback: option.fallback,
+      }))
+      job.promptVersionId = response.default_version_id || job.promptOptions[0]?.value || null
+    } catch {
+      job.promptOptions = []
+      job.promptVersionId = null
+    }
+  }))
+}
+
 function modelOptionsFor(job: AnalysisJob) {
   const configured = providerConfigs.value.find((config) => config.id === job.providerId)
   const options = (job.providerId && providerModelOptions.value[job.providerId]) || []
@@ -623,7 +669,7 @@ async function parseScript() {
 async function startAnalysisTask() {
   const jobs = analysisJobs.value.filter((job) => job.enabled)
   if (!jobs.length || !analysisJobsValid.value || !episodeQuery.value?.episode_id || !currentVersionId.value) {
-    message.warning('请至少选择一种资产，并为每种资产选择提供商和模型')
+    message.warning('请至少选择一种资产，并为每种资产选择提示词、提供商和模型')
     return
   }
   analysisSubmitting.value = true
@@ -636,7 +682,7 @@ async function startAnalysisTask() {
     const submittedContentHash = await contentHash(scriptText.value)
     payload.append('content_hash', submittedContentHash)
     payload.append('stream', String(analysisStream.value))
-    const submissionFingerprint = `${analysisStream.value ? 'stream' : 'batch'}|${jobs.map((job) => `${job.type}:${job.providerId}:${job.model}`).sort().join(',')}`
+    const submissionFingerprint = `${analysisStream.value ? 'stream' : 'batch'}|${jobs.map((job) => `${job.type}:${job.providerId}:${job.model}:${job.promptVersionId || ''}`).sort().join(',')}`
     if (analysisSubmissionFingerprint.value !== submissionFingerprint) {
       analysisSubmissionFingerprint.value = submissionFingerprint
       analysisSubmissionKey.value = requestKey()
@@ -645,14 +691,17 @@ async function startAnalysisTask() {
       if (job.type === 'CHARACTER') {
         payload.append('character_provider_config_id', String(job.providerId))
         payload.append('character_model', job.model)
+        if (job.promptVersionId) payload.append('character_prompt_version_id', String(job.promptVersionId))
       }
       if (job.type === 'SCENE_BACKGROUND') {
         payload.append('scene_background_provider_config_id', String(job.providerId))
         payload.append('scene_background_model', job.model)
+        if (job.promptVersionId) payload.append('scene_background_prompt_version_id', String(job.promptVersionId))
       }
       if (job.type === 'PROP') {
         payload.append('prop_provider_config_id', String(job.providerId))
         payload.append('prop_model', job.model)
+        if (job.promptVersionId) payload.append('prop_prompt_version_id', String(job.promptVersionId))
       }
     })
     const response = await http.post<{ task_id: string; status: string }, FormData>(`/projects/${id}/script/analysis-tasks`, payload, {
@@ -762,12 +811,33 @@ async function adoptAnalysisResult() {
     analysisAdoptedTypeNames.value = [...new Set([...analysisAdoptedTypeNames.value, ...response.selected_asset_types])]
     analysisAdoptionTypes.value = adoptableTypeResults.value.map((item) => item.type)
     await Promise.all([loadEpisodes(projectId.value), loadLibrary(projectId.value)])
+    analysisSummaryVisible.value = false
     message.success(`已录入 ${response.created_count} 项资产${response.skipped_count ? `，跳过 ${response.skipped_count} 项` : ''}`)
     if (response.adoption_status === 'ADOPTED') clearTaskReference()
   } catch (error) {
     message.error(error instanceof Error ? error.message : '采纳解析结果失败')
   } finally {
     analysisAdopting.value = false
+  }
+}
+
+async function discardAnalysisResult() {
+  const id = Number(projectId.value)
+  // 已采纳或无任务引用时没有可放弃的结果，直接关闭即可。
+  if (!Number.isInteger(id) || id <= 0 || !analysisTaskId.value || analysisAdoptionStatus.value === 'ADOPTED') {
+    analysisSummaryVisible.value = false
+    return
+  }
+  analysisDiscarding.value = true
+  try {
+    await http.post(`/projects/${id}/script/analysis-tasks/${analysisTaskId.value}/discard`)
+    analysisAdoptionStatus.value = 'DISCARDED'
+    clearTaskReference()
+    analysisSummaryVisible.value = false
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '放弃解析结果失败')
+  } finally {
+    analysisDiscarding.value = false
   }
 }
 
@@ -885,7 +955,7 @@ onMounted(async () => {
   } catch {
     // Keep the local project cache available when the API is unavailable.
   }
-  await Promise.all([loadScript(), loadProviderConfigs()])
+  await Promise.all([loadScript(), loadProviderConfigs(), loadAnalysisPromptOptions()])
   await restoreAnalysisTask()
 })
 
@@ -896,7 +966,10 @@ onBeforeUnmount(() => {
 })
 
 watch(() => activeProject.value?.id, (next, previous) => {
-  if (next && next !== previous) loadScript()
+  if (next && next !== previous) {
+    loadScript()
+    void loadAnalysisPromptOptions()
+  }
 })
 
 watch(episodeId, (next, previous) => {

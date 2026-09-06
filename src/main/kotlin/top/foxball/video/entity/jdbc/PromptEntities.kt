@@ -30,6 +30,14 @@ class PromptDefinition(
     @Column(nullable = false, length = 1000)
     var purpose: String = "",
 
+    /** 受控业务分类，用于将提示词限制在对应的资产提取场景。 */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 40)
+    var category: PromptCategory? = null,
+
+    @Column(name = "is_category_default")
+    var categoryDefault: Boolean? = false,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "scope_type", nullable = false, length = 20)
     var scopeType: PromptScopeType = PromptScopeType.GLOBAL,
@@ -63,6 +71,15 @@ class PromptDefinition(
 
 /** 提示词定义的作用域。 */
 enum class PromptScopeType { GLOBAL, PROJECT, USER }
+
+/** 提示词业务分类；分类决定可用于哪些剧本资产类型。 */
+enum class PromptCategory {
+    SCRIPT_GENERAL,
+    SCRIPT_CHARACTER,
+    SCRIPT_SCENE,
+    SCRIPT_PROP,
+    CHARACTER_ENRICHMENT,
+}
 
 /** 不可变的提示词内容版本。只有 DRAFT 可以覆盖保存。 */
 @Entity

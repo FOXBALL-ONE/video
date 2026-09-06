@@ -428,10 +428,10 @@ POST /api/projects/{project_id}/script/analysis-tasks/{task_id}/discard
 3. 前端切换到命名的类型参数，增加进度恢复、部分成功和结果确认小窗；旧数组参数在一个发布周期后移除。
 4. 以第 12 节验收项覆盖端到端测试、并发采纳测试和权限测试后，再将任务入口对所有项目成员开放。
 
-## 14. 与当前代码的落地差异
+## 14. 当前实现状态
 
-当前 ScriptAnalysisTaskService.execute 先调用 ScriptService.analyze，再调用 AssetService.extractEpisodeAssets；前者会更新剧本结构化数据并同步资产，后者会直接保存 EpisodeAsset。要满足本文目标，两条调用都必须从 Worker 中移除，改为纯解析、按类型暂存结果，并新增采纳命令服务/控制器入口。
+`ScriptAnalysisTaskService` 的 Worker 已不再调用会写入业务表的 `ScriptService.analyze` 或 `AssetService.extractEpisodeAssets`。父任务会将角色、场景和可选道具投递到有界子任务线程池；每类结果通过 `ScriptAnalysisResultWriter` 串行写入类型结果 JSON，全部子任务终态后再聚合。只有采纳接口会写入 `EpisodeAsset`。
 
-当前前端提交时使用并行数组参数、轮询上限后报超时，并在任务完成后直接打开“解析结果概览”。应改为命名类型参数、可恢复的单轮询器和带“采纳并写入资产库/暂不采纳”的确认小窗；loadLibrary 和剧集资产列表刷新应放在采纳成功之后，同时保留结果查看能力。
+提交接口支持按类型命名的提供商、模型和提示词版本参数，并保留旧数组参数的单次兼容转换；新旧参数不得混用。角色、场景和道具分别使用 `script_character_extraction`、`script_scene_extraction` 和 `script_prop_extraction` 提示词，任务输入冻结版本 ID、模板哈希和变量哈希。
 
-当前任务查询接口返回的兼容状态包含 COMPLETED，而任务中心实体使用 SUCCEEDED。建议统一线上任务状态为 SUCCEEDED，仅在旧接口适配层转换，避免前端状态判断分裂。
+前端解析弹窗按资产类型展示提供商、模型和已发布提示词版本，并列显示子任务进度；任务完成后打开带“采纳并写入资产库/暂不采纳”的确认窗口。采纳成功后才刷新剧集资产列表，结果仍可通过任务详情查看。线上异步任务状态统一使用 `SUCCEEDED`、`FAILED`、`CANCELLED` 等 `ProductionTaskStatus` 值。

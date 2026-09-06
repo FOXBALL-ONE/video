@@ -15,6 +15,8 @@ import top.foxball.video.ai.AiUpstreamException
 import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.repository.AiModelProviderConfigRepository
 import java.util.UUID
+import java.time.Duration
+import java.util.concurrent.TimeoutException
 
 /** 仅调用 AI 并规范化结果的剧本资产解析服务；不写入剧本或资产表。 */
 @Service
@@ -32,6 +34,7 @@ class ScriptAssetAnalysisService(
         const val MAX_ITEMS_PER_TYPE = 50
         const val MAX_FIELD_TEXT_LENGTH = 10_000
         const val MAX_RESULT_BYTES = 2_000_000
+        const val AI_TIMEOUT_SECONDS = 120L
     }
 
     data class TypeResult(
@@ -67,6 +70,8 @@ class ScriptAssetAnalysisService(
         taskId: Long? = null,
         attempt: Int = 1,
         stream: Boolean = true,
+        promptKey: String? = null,
+        promptCategory: String? = null,
     ): TypeResult {
         val requestId = UUID.randomUUID().toString()
         val provider = providerConfigRepository.findById(providerConfigId).orElse(null)?.provider?.trim().orEmpty().ifBlank { "unknown" }
@@ -75,30 +80,37 @@ class ScriptAssetAnalysisService(
         val startedAt = System.nanoTime()
         return try {
             val prompt = promptVersionId?.let { promptCatalog.resolveExecutableVersion(it) }
-                ?: promptCatalog.resolve("script_analysis", null, null)
+                ?: promptCatalog.resolve(promptKey ?: "script_analysis", null, null)
+            require(promptKey.isNullOrBlank() || prompt.definition.key == promptKey) { "提示词版本与任务快照不匹配" }
+            val expectedCategory = promptCatalog.categoryForAssetType(assetType)
+            require(prompt.definition.key == "script_analysis" || promptCatalog.effectiveCategory(prompt.definition).name == (promptCategory ?: expectedCategory.name)) { "提示词版本与资产类型不匹配" }
             resolvedPrompt = prompt
             require(promptHash.isNullOrBlank() || promptHash.equals(prompt.version.contentHash, ignoreCase = true)) { "提示词版本内容已变化" }
+            val variables = linkedMapOf<String, Any?>(
+                "script_content" to sourceContent,
+                "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to assetType.name)),
+                "output_language" to "zh-CN",
+                "detail_level" to "STANDARD",
+            )
+            if (prompt.definition.key == "script_analysis") variables["asset_type"] = assetType.name
             rendered = promptRenderer.render(
                 prompt,
-                mapOf(
-                    "script_content" to sourceContent,
-                    "asset_type" to assetType.name,
-                    "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to assetType.name)),
-                    "output_language" to "zh-CN",
-                    "detail_level" to "STANDARD",
-                ),
+                variables,
             )
             val command = promptInvocationBuilder.build(prompt, rendered, providerConfigId, model, requestId)
             var completion: AiChatCompletionResult? = null
             val raw = if (stream) {
                 aiInvocationService.streamChatCompletion(command)
+                    .timeout(Duration.ofSeconds(AI_TIMEOUT_SECONDS))
                     .mapNotNull { it.content }
                     .collectList()
                     .block()
                     ?.joinToString("")
                     .orEmpty()
             } else {
-                completion = aiInvocationService.createChatCompletion(command).block()
+                completion = aiInvocationService.createChatCompletion(command)
+                    .timeout(Duration.ofSeconds(AI_TIMEOUT_SECONDS))
+                    .block()
                     ?: throw IllegalStateException("模型服务未返回结果")
                 completion.primaryChoice?.message?.content.orEmpty()
             }
@@ -123,13 +135,23 @@ class ScriptAssetAnalysisService(
                 "AI_RATE_LIMITED" -> "模型服务请求过于频繁，请稍后重试"
                 else -> "模型服务暂时不可用，请稍后重试"
             })
+        } catch (_: TimeoutException) {
+            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, "AI_TIMEOUT")
+            TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = "AI_TIMEOUT", errorMessage = "模型服务响应超时，请稍后重试")
         } catch (exception: Exception) {
             val code = when (exception) {
                 is InvalidAiJsonException -> "INVALID_AI_JSON"
                 is ResultTooLargeException -> "RESULT_TOO_LARGE"
                 is PromptSchemaValidator.SchemaViolationException -> "INVALID_OUTPUT_SCHEMA"
                 is PromptCatalogService.NotFoundException -> "PROMPT_VERSION_NOT_FOUND"
-                else -> "AI_ANALYSIS_FAILED"
+                is TimeoutException -> "AI_TIMEOUT"
+                else -> when {
+                    exception.cause is TimeoutException -> "AI_TIMEOUT"
+                    exception.message?.contains("提示词版本内容已变化") == true -> "PROMPT_VERSION_CHANGED"
+                    exception.message?.contains("提示词版本与资产类型不匹配") == true -> "PROMPT_CATEGORY_MISMATCH"
+                    exception.message?.contains("提示词版本与任务快照不匹配") == true -> "PROMPT_VERSION_CHANGED"
+                    else -> "AI_ANALYSIS_FAILED"
+                }
             }
             recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, code)
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = code, errorMessage = when (code) {
@@ -137,6 +159,9 @@ class ScriptAssetAnalysisService(
                 "RESULT_TOO_LARGE" -> "模型返回结果超过大小限制"
                 "INVALID_OUTPUT_SCHEMA" -> "模型返回结果不符合输出契约：${exception.message ?: "结构不匹配"}"
                 "PROMPT_VERSION_NOT_FOUND" -> "提示词版本不存在"
+                "PROMPT_VERSION_CHANGED" -> "提示词版本已变化，请重新提交解析任务"
+                "PROMPT_CATEGORY_MISMATCH" -> "提示词分类与资产类型不匹配"
+                "AI_TIMEOUT" -> "模型服务响应超时，请稍后重试"
                 else -> "剧本资产解析失败"
             })
         }

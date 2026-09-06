@@ -20,7 +20,10 @@
               <h2 class="m-0 text-sm font-semibold text-[#303b51]">已登记场景</h2>
               <p class="mt-1 text-[11px] text-[#929bad]">{{ prompts.length }} 个提示词定义</p>
             </div>
-            <n-select v-model:value="statusFilter" size="small" class="!w-[130px]" :options="statusOptions" clearable placeholder="全部状态" @update:value="loadPrompts" />
+            <div class="flex items-center gap-2">
+              <n-select v-model:value="categoryFilter" size="small" class="!w-[140px]" :options="categoryOptions" clearable placeholder="全部分类" @update:value="loadPrompts" />
+              <n-select v-model:value="statusFilter" size="small" class="!w-[130px]" :options="statusOptions" clearable placeholder="全部状态" @update:value="loadPrompts" />
+            </div>
           </div>
           <div v-if="loading && !prompts.length" class="p-10 text-center text-xs text-[#8994a8]">正在加载提示词目录...</div>
           <div v-else-if="!prompts.length" class="p-10 text-center text-xs text-[#8994a8]">暂无可见的提示词定义，点击右上角“新建提示词”创建。</div>
@@ -36,6 +39,7 @@
                 <div class="min-w-0">
                   <strong class="block truncate text-sm font-semibold text-[#303b51]">{{ prompt.display_name }}</strong>
                   <span class="mt-1 block font-mono text-[11px] text-[#687388]">{{ prompt.key }}</span>
+                  <n-tag size="tiny" :bordered="false" type="info" class="mt-2">{{ categoryLabel(prompt.category) }}</n-tag>
                   <span class="mt-2 block text-[11px] text-[#9aa3b4]">{{ scopeLabel(prompt.scope_type) }} · 更新于 {{ formatDate(prompt.updated_at) }}</span>
                 </div>
                 <div class="shrink-0 text-right">
@@ -71,6 +75,7 @@
                   <div class="mt-2 flex items-center gap-2">
                     <n-tag size="small" :bordered="false" :type="selected.enabled ? 'success' : 'error'">{{ selected.enabled ? '已启用' : '已停用' }}</n-tag>
                     <n-tag size="small" :bordered="false">默认语言 {{ selected.default_locale || 'zh-CN' }}</n-tag>
+                    <n-tag size="small" :bordered="false" type="info">{{ categoryLabel(selected.category) }}</n-tag>
                   </div>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
@@ -218,7 +223,10 @@
       <n-form label-placement="top">
         <div class="grid gap-x-4 lg:grid-cols-2">
           <n-form-item label="提示词 key" required>
-            <n-select v-model:value="createForm.key" :options="registeredKeyOptions" filterable tag placeholder="选择或输入已注册的 key" :disabled="createSaving" />
+            <n-select v-model:value="createForm.key" :options="registeredKeyOptions" filterable tag placeholder="选择或输入已注册的 key" :disabled="createSaving" @update:value="syncCreateCategory" />
+          </n-form-item>
+          <n-form-item label="提示词分类" required>
+            <n-select v-model:value="createForm.category" :options="categoryOptions" :disabled="createSaving" />
           </n-form-item>
           <n-form-item label="显示名称" required>
             <n-input v-model:value="createForm.display_name" maxlength="200" placeholder="例如：剧本资产解析" />
@@ -282,6 +290,8 @@ interface PromptItem {
   default_locale?: string
   enabled: boolean
   updated_at?: string | null
+  category?: string
+  category_default?: boolean
 }
 
 interface PromptDetail {
@@ -292,6 +302,7 @@ interface PromptDetail {
   version_no: number
   locale: string
   status: string
+  category?: string
   messages: Array<{role: string; content: string}>
   variables_schema: Record<string, unknown>
   output_schema: Record<string, unknown>
@@ -335,6 +346,7 @@ const actionLoading = ref(false)
 const editorVisible = ref(false)
 const editorForm = ref({messages_json: '', variables_schema_json: '', output_schema_json: '', generation_policy_json: '{}', compatibility_json: '{}', change_summary: ''})
 const statusFilter = ref<string | null>(null)
+const categoryFilter = ref<string | null>(null)
 
 const metaVisible = ref(false)
 const metaSaving = ref(false)
@@ -345,6 +357,7 @@ const createVisible = ref(false)
 const createSaving = ref(false)
 const createForm = reactive({
   key: '',
+  category: 'SCRIPT_GENERAL',
   display_name: '',
   purpose: '',
   scope_type: 'PROJECT',
@@ -369,10 +382,34 @@ const scopeOptions = [
   {label: '项目', value: 'PROJECT'},
   {label: '个人', value: 'USER'},
 ]
+const categoryOptions = [
+  {label: '剧本通用分析', value: 'SCRIPT_GENERAL'},
+  {label: '角色提取', value: 'SCRIPT_CHARACTER'},
+  {label: '场景提取', value: 'SCRIPT_SCENE'},
+  {label: '道具提取', value: 'SCRIPT_PROP'},
+  {label: '角色内容丰富', value: 'CHARACTER_ENRICHMENT'},
+]
+const keyCategoryMap: Record<string, string> = {
+  script_analysis: 'SCRIPT_GENERAL',
+  script_character_extraction: 'SCRIPT_CHARACTER',
+  script_scene_extraction: 'SCRIPT_SCENE',
+  script_prop_extraction: 'SCRIPT_PROP',
+  character_enrichment: 'CHARACTER_ENRICHMENT',
+}
 const registeredKeyOptions = [
   {label: 'script_analysis · 剧本资产解析', value: 'script_analysis'},
+  {label: 'script_character_extraction · 剧本角色提取', value: 'script_character_extraction'},
+  {label: 'script_scene_extraction · 剧本场景提取', value: 'script_scene_extraction'},
+  {label: 'script_prop_extraction · 剧本道具提取', value: 'script_prop_extraction'},
   {label: 'character_enrichment · 角色内容丰富', value: 'character_enrichment'},
 ]
+const categoryLabel = (category?: string) => ({
+  SCRIPT_GENERAL: '剧本通用分析',
+  SCRIPT_CHARACTER: '角色提取',
+  SCRIPT_SCENE: '场景提取',
+  SCRIPT_PROP: '道具提取',
+  CHARACTER_ENRICHMENT: '角色内容丰富',
+} as Record<string, string>)[category || ''] || category || '未分类'
 
 const variableCount = computed(() => {
   const properties = detail.value?.variables_schema?.properties
@@ -390,6 +427,7 @@ async function loadPrompts() {
   try {
     const params: Record<string, unknown> = {}
     if (statusFilter.value) params.status = statusFilter.value
+    if (categoryFilter.value) params.category = categoryFilter.value
     const response = await http.get<{list: PromptItem[]}>('/ai/prompts', params)
     prompts.value = response.list || []
     if (selected.value) {
@@ -604,6 +642,7 @@ async function removeVersion(version: PromptVersionItem) {
 function openCreate() {
   Object.assign(createForm, {
     key: '',
+    category: 'SCRIPT_GENERAL',
     display_name: '',
     purpose: '',
     scope_type: 'PROJECT',
@@ -616,6 +655,11 @@ function openCreate() {
     change_summary: '初始版本',
   })
   createVisible.value = true
+}
+
+function syncCreateCategory(value: string) {
+  const category = keyCategoryMap[value]
+  if (category) createForm.category = category
 }
 
 function validJson(value: string): boolean {
@@ -656,6 +700,7 @@ async function createPrompt() {
   try {
     const form = new FormData()
     form.append('key', createForm.key.trim().toLowerCase())
+    form.append('category', createForm.category)
     form.append('display_name', createForm.display_name.trim())
     form.append('purpose', createForm.purpose.trim())
     form.append('scope_type', createForm.scope_type)
