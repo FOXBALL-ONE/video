@@ -1,5 +1,10 @@
 # ShopMall Project Instructions
 
+## Application Roles
+
+- `admin` is the administration frontend.
+- `frontend` is the user-facing client frontend.
+
 ## Git Commit Conventions
 
 - Write Git commit subjects and body descriptions in Simplified Chinese. Conventional Commit type and
@@ -49,3 +54,7 @@ Follow `docs/CONTROLLER_CONVENTIONS.md` and the established style in `UserContro
 
 - Frontend source code must use TypeScript. New or modified Vue, composable, store, type, and utility
   files must use `.ts` or Vue SFCs with TypeScript; do not add new `.js` files.
+
+## Build Verification Convention
+
+- For Gradle build and build-test verification, prefer the IntelliJ IDEA MCP `build_project` interface first. Use the Gradle Wrapper directly only when the IDEA MCP build is unavailable or insufficient for the requested verification.

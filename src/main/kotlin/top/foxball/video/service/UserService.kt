@@ -1,6 +1,7 @@
 package top.foxball.video.service
 
 import org.springframework.stereotype.Service
+import org.springframework.data.domain.Sort
 import top.foxball.video.entity.jdbc.User
 import top.foxball.video.repository.UserRepository
 
@@ -14,6 +15,9 @@ class UserService(
     fun findById(id: Long): User?{
         return userRepository.findUserById(id)
     }
+
+    /** 查询管理端用户列表，按最近创建的用户优先。 */
+    fun findAll(): List<User> = userRepository.findAll(Sort.by(Sort.Direction.DESC, "id"))
     
     /** 保存新用户或更新已有用户。 */
     fun save(user: User): User {
