@@ -83,13 +83,14 @@ class ScriptAssetAnalysisService(
                 ?: promptCatalog.resolve(promptKey ?: "script_analysis", null, null)
             require(promptKey.isNullOrBlank() || prompt.definition.key == promptKey) { "提示词版本与任务快照不匹配" }
             val expectedCategory = promptCatalog.categoryForAssetType(assetType)
+            require(prompt.definition.enabled) { "提示词已停用" }
             require(prompt.definition.key == "script_analysis" || promptCatalog.effectiveCategory(prompt.definition).name == (promptCategory ?: expectedCategory.name)) { "提示词版本与资产类型不匹配" }
             resolvedPrompt = prompt
             require(promptHash.isNullOrBlank() || promptHash.equals(prompt.version.contentHash, ignoreCase = true)) { "提示词版本内容已变化" }
             val variables = linkedMapOf<String, Any?>(
                 "script_content" to sourceContent,
                 "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to assetType.name)),
-                "output_language" to "zh-CN",
+                "output_language" to prompt.version.locale,
                 "detail_level" to "STANDARD",
             )
             if (prompt.definition.key == "script_analysis") variables["asset_type"] = assetType.name
@@ -150,6 +151,7 @@ class ScriptAssetAnalysisService(
                     exception.message?.contains("提示词版本内容已变化") == true -> "PROMPT_VERSION_CHANGED"
                     exception.message?.contains("提示词版本与资产类型不匹配") == true -> "PROMPT_CATEGORY_MISMATCH"
                     exception.message?.contains("提示词版本与任务快照不匹配") == true -> "PROMPT_VERSION_CHANGED"
+                    exception.message?.contains("提示词已停用") == true -> "PROMPT_VERSION_DISABLED"
                     else -> "AI_ANALYSIS_FAILED"
                 }
             }
@@ -161,6 +163,7 @@ class ScriptAssetAnalysisService(
                 "PROMPT_VERSION_NOT_FOUND" -> "提示词版本不存在"
                 "PROMPT_VERSION_CHANGED" -> "提示词版本已变化，请重新提交解析任务"
                 "PROMPT_CATEGORY_MISMATCH" -> "提示词分类与资产类型不匹配"
+                "PROMPT_VERSION_DISABLED" -> "提示词已停用，请重新选择当前版本"
                 "AI_TIMEOUT" -> "模型服务响应超时，请稍后重试"
                 else -> "剧本资产解析失败"
             })

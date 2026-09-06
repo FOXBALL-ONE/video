@@ -54,6 +54,13 @@ class ScriptAnalysisResultWriter(
         if (current in TERMINAL_STATUSES) return false
         val next = values.toMutableMap()
         val requestedStatus = next["status"]?.toString()
+        val allowedStatuses = when (current) {
+            null, "", "PENDING" -> setOf("PENDING", "QUEUED", "RUNNING", "FAILED", "CANCELLED")
+            "QUEUED" -> setOf("QUEUED", "RUNNING", "FAILED", "CANCELLED")
+            "RUNNING" -> setOf("RUNNING", "SUCCEEDED", "FAILED", "CANCELLED")
+            else -> emptySet()
+        }
+        if (requestedStatus != null && requestedStatus !in allowedStatuses) return false
         val merged = if (root.path(assetType).isObject) {
             (root.path(assetType) as ObjectNode).deepCopy()
         } else {
@@ -65,7 +72,7 @@ class ScriptAnalysisResultWriter(
             next["progress"] = 100
             next["errorCode"] = "TASK_CANCELLED"
             next["errorMessage"] = "任务已取消"
-            next["completedAt"] = LocalDateTime.now()
+            next["completedAt"] = LocalDateTime.now().toString()
         }
         next.forEach { (key, value) -> merged.set(key, objectMapper.valueToTree(value)) }
         root.set(assetType, merged)

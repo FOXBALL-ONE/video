@@ -223,9 +223,10 @@
               <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <n-select v-model:value="job.providerId" :options="providerOptions" :disabled="!providerOptions.length" size="small" placeholder="选择模型提供商" @update:value="onAnalysisProviderChange(job, $event)" />
                 <n-select v-model:value="job.model" :options="modelOptionsFor(job)" :disabled="!job.providerId" filterable size="small" placeholder="选择模型" />
-                <n-select v-model:value="job.promptVersionId" :options="job.promptOptions" :disabled="!job.promptOptions.length" size="small" placeholder="提示词版本（默认）" />
+                <n-select v-model:value="job.promptVersionId" :options="job.promptOptions" :loading="job.promptLoading" :disabled="job.promptLoading || !job.promptOptions.length" size="small" placeholder="提示词版本（默认）" />
                 <n-button text size="tiny" type="primary" class="justify-self-start" @click="navigateTo('/prompts')">管理提示词</n-button>
               </div>
+              <p v-if="job.promptError" class="mt-2 mb-0 flex items-center gap-2 text-[11px] text-[#a34d4d]">提示词选项加载失败。<button type="button" class="text-[#6654ee] underline" @click="loadAnalysisPromptOptionsFor(job)">重试</button></p>
             </div>
           </div>
         </div>
@@ -399,6 +400,8 @@ interface AnalysisJob {
   model: string
   promptVersionId: number | null
   promptOptions: Array<{ label: string; value: number; prompt_key?: string; category?: string; content_hash?: string; fallback?: boolean }>
+  promptLoading: boolean
+  promptError: boolean
 }
 
 const styles = ['古风', '悬疑', '甜宠', '科幻', '都市', '奇幻']
@@ -447,9 +450,9 @@ const analysisContentHash = ref('')
 let analysisPollToken = 0
 let analysisPollTimer: number | null = null
 const analysisJobs = ref<AnalysisJob[]>([
-  { type: 'SCENE_BACKGROUND', label: '场景提取', description: '提取地点、时间、天气、光线、氛围和视觉风格。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
-  { type: 'CHARACTER', label: '角色提取', description: '提取身份、外貌、性格、关系和出场要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
-  { type: 'PROP', label: '道具提取', description: '提取关键道具、持有人、剧情功能和连续性要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [] },
+  { type: 'SCENE_BACKGROUND', label: '场景提取', description: '提取地点、时间、天气、光线、氛围和视觉风格。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [], promptLoading: false, promptError: false },
+  { type: 'CHARACTER', label: '角色提取', description: '提取身份、外貌、性格、关系和出场要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [], promptLoading: false, promptError: false },
+  { type: 'PROP', label: '道具提取', description: '提取关键道具、持有人、剧情功能和连续性要求。', enabled: true, providerId: null, model: '', promptVersionId: null, promptOptions: [], promptLoading: false, promptError: false },
 ])
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -466,7 +469,7 @@ const episodeQuery = computed(() => {
 const wordCount = computed(() => scriptText.value.length)
 const providerOptions = computed(() => providerConfigs.value.map((config) => ({ label: config.provider, value: config.id })))
 const selectedAnalysisCount = computed(() => analysisJobs.value.filter((job) => job.enabled).length)
-const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model && job.promptVersionId && job.promptOptions.some((option) => option.value === job.promptVersionId)))
+const analysisJobsValid = computed(() => analysisJobs.value.filter((job) => job.enabled).every((job) => job.providerId && job.model && !job.promptLoading && !job.promptError && job.promptVersionId && job.promptOptions.some((option) => option.value === job.promptVersionId)))
 const analysisAdoptedTypes = computed(() => new Set(analysisAdoptedTypeNames.value))
 const adoptableTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'SUCCEEDED' && item.count > 0 && !analysisAdoptedTypes.value.has(item.type) && !['DISCARDED', 'SUPERSEDED'].includes(analysisAdoptionStatus.value)))
 const failedTypeResults = computed(() => analysisTypeResults.value.filter((item) => item.status === 'FAILED'))
@@ -572,10 +575,14 @@ async function loadAnalysisPromptOptions() {
     analysisJobs.value.forEach((job) => {
       job.promptOptions = []
       job.promptVersionId = null
+      job.promptLoading = false
+      job.promptError = false
     })
     return
   }
   await Promise.all(analysisJobs.value.map(async (job) => {
+    job.promptLoading = true
+    job.promptError = false
     try {
       const response = await http.get<{
         default_version_id?: number | null
@@ -595,8 +602,32 @@ async function loadAnalysisPromptOptions() {
     } catch {
       job.promptOptions = []
       job.promptVersionId = null
+      job.promptError = true
+    } finally {
+      job.promptLoading = false
     }
   }))
+}
+
+async function loadAnalysisPromptOptionsFor(job: AnalysisJob) {
+  const project = Number(projectId.value)
+  if (!Number.isInteger(project) || project <= 0) return
+  job.promptLoading = true
+  job.promptError = false
+  try {
+    const response = await http.get<{
+      default_version_id?: number | null
+      list: Array<{ prompt_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
+    }>('/ai/prompts/options', { project_id: project, asset_type: job.type, locale: 'zh-CN' })
+    job.promptOptions = (response.list || []).map((option) => ({ label: `${option.display_name} · v${option.version_no}${option.fallback ? ' · 通用兼容' : ''}`, value: option.version_id, prompt_key: option.prompt_key, fallback: option.fallback }))
+    job.promptVersionId = response.default_version_id || job.promptOptions[0]?.value || null
+  } catch {
+    job.promptOptions = []
+    job.promptVersionId = null
+    job.promptError = true
+  } finally {
+    job.promptLoading = false
+  }
 }
 
 function modelOptionsFor(job: AnalysisJob) {
@@ -616,6 +647,8 @@ function openAnalysisModal() {
   analysisTaskStatus.value = ''
   analysisTaskProgress.value = 0
   analysisTaskStage.value = ''
+  analysisTypeResults.value = []
+  analysisAdoptionStatus.value = ''
   analysisSubmissionKey.value = ''
   analysisSubmissionFingerprint.value = ''
   analysisJobs.value.forEach((job) => {
@@ -721,6 +754,7 @@ async function startAnalysisTask() {
     void pollAnalysisTask(id)
   } catch (error) {
     analysisTaskError.value = error instanceof Error ? error.message : '解析任务提交失败'
+    if (Number((error as { statusCode?: number })?.statusCode) === 400) void loadAnalysisPromptOptions()
   } finally {
     analysisSubmitting.value = false
   }
@@ -976,6 +1010,9 @@ watch(episodeId, (next, previous) => {
   if (next && next !== previous) {
     analysisPollToken += 1
     analysisTaskId.value = ''
+    analysisTaskStatus.value = ''
+    analysisTaskError.value = ''
+    analysisAdoptionStatus.value = ''
     analysisTypeResults.value = []
     analysisAdoptionTypes.value = []
     loadScript()

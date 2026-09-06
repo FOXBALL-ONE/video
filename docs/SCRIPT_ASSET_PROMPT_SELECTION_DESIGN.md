@@ -462,7 +462,7 @@ Worker 从任务创建时保存的 `selectionsJson` 读取每类选择项，不�
 2. 允许 `PUBLISHED` 或已被任务引用后归档的版本；其他状态拒绝执行。
 3. 比较保存的 `template_hash` 与当前版本 hash；不一致则失败并记录 `PROMPT_VERSION_CHANGED`。
 4. 使用该类型对应的变量集合渲染消息。
-5. 通过 `PromptInvocationBuilder` 构造调用，仍由 `AiInvocationService` 负责供应商、密钥、超时、重试和限流。
+5. 通过 `PromptInvocationBuilder` 构造调用；`AiInvocationService`/`AiInvocationGuard` 负责供应商、密钥、断路器和提供商并发限制，剧本资产解析服务为单次调用设置 120 秒硬超时。
 6. 对输出执行该分类的 schema 校验和当前资产类型字段白名单规范化。
 
 ### 10.2 `ScriptAssetAnalysisService` 接口
@@ -610,7 +610,7 @@ PROP             -> result.props
 - 任务列表和普通任务详情只显示提示词 key、分类、版本号和 hash 摘要；完整模板正文走提示词权限接口。
 - 日志和审计增加 `asset_type`、`prompt_key`、`prompt_category`、`prompt_version_id`、`template_hash`，禁止记录完整剧本或渲染后的消息。
 - 监控指标按提示词分类、版本、模型和资产类型统计成功率、schema 失败率、P95 延迟、token 和成本。
-- 版本归档不影响已经创建的任务；Worker 允许执行被任务引用的归档版本，但仍要求 hash 匹配。
+- 新任务选项只返回当前已发布版本；版本归档不影响已经创建的任务，Worker 允许执行被任务引用的归档版本，但仍要求 hash 匹配。
 
 ## 15. 实施拆分
 

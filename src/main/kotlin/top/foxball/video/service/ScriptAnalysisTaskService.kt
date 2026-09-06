@@ -27,6 +27,8 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import java.util.concurrent.TimeUnit
@@ -127,15 +129,9 @@ class ScriptAnalysisTaskService(
         Executors.defaultThreadFactory(),
         ThreadPoolExecutor.AbortPolicy(),
     )
-    private val aggregationExecutor: ExecutorService = ThreadPoolExecutor(
-        1,
-        1,
-        0L,
-        MILLISECONDS,
-        ArrayBlockingQueue(32),
-        Executors.defaultThreadFactory(),
-        ThreadPoolExecutor.AbortPolicy(),
-    )
+    private val aggregationExecutor: ScheduledExecutorService = ScheduledThreadPoolExecutor(1).also {
+        it.setRemoveOnCancelPolicy(true)
+    }
 
     /** 应用重启后恢复尚未产生暂存结果的解析任务。 */
     @EventListener(ApplicationReadyEvent::class)
@@ -199,7 +195,7 @@ class ScriptAnalysisTaskService(
             val variables = linkedMapOf<String, Any?>(
                 "script_content" to snapshot.version.content,
                 "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to selection.assetType.name)),
-                "output_language" to "zh-CN",
+                "output_language" to prompt.version.locale,
                 "detail_level" to "STANDARD",
             )
             if (prompt.definition.key == "script_analysis") variables["asset_type"] = selection.assetType.name
@@ -419,7 +415,15 @@ class ScriptAnalysisTaskService(
 
     private fun execute(taskId: Long) {
         val started = runCatching { taskCenterService.markRunning(taskId) }.getOrNull() ?: return
-        if (started.status != ProductionTaskStatus.RUNNING) return
+        if (started.status != ProductionTaskStatus.RUNNING) {
+            if (started.status == ProductionTaskStatus.CANCELLED) {
+                val assetTypes = (started.inputPayload["asset_types"] as? Collection<*>)
+                    ?.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+                    .orEmpty()
+                if (assetTypes.isNotEmpty()) resultWriter.cancelUnfinished(taskId, assetTypes)
+            }
+            return
+        }
         val result = resultRepository.findByTaskId(taskId) ?: run {
             taskCenterService.markFailed(taskId, "MISSING_ANALYSIS_RESULT", "解析结果记录不存在")
             return
@@ -428,8 +432,9 @@ class ScriptAnalysisTaskService(
             taskCenterService.markFailed(taskId, "SCRIPT_VERSION_SUPERSEDED", "剧本版本已更新，请重新提交解析任务")
             return
         }
-        val selections = runCatching { executionSelections(result, started) }.getOrElse {
-            taskCenterService.markFailed(taskId, "INVALID_SELECTION_SNAPSHOT", "解析任务配置快照无效")
+        val selections = runCatching { executionSelections(result, started) }.getOrElse { exception ->
+            val reason = exception.message?.trim()?.takeIf { it.isNotBlank() }?.take(200)
+            taskCenterService.markFailed(taskId, "INVALID_SELECTION_SNAPSHOT", reason?.let { "解析任务配置快照无效：$it" } ?: "解析任务配置快照无效")
             return
         }
         if (selections.isEmpty()) {
@@ -452,7 +457,12 @@ class ScriptAnalysisTaskService(
                 "stage" to "PENDING",
             )
         }
-        resultWriter.initialize(taskId, initial)
+        if (!resultWriter.initialize(taskId, initial)) {
+            if (taskCenterService.isCancellationRequested(taskId)) {
+                resultWriter.cancelUnfinished(taskId, selections.map { it.assetType })
+            }
+            return
+        }
         val currentTypeResults = runCatching { objectMapper.readTree(result.typeResultsJson) }.getOrNull()
         val pendingSelections = selections.filter { selection ->
             currentTypeResults?.path(selection.assetType)?.path("status")?.textValue() !in setOf("SUCCEEDED", "FAILED", "CANCELLED")
@@ -464,6 +474,10 @@ class ScriptAnalysisTaskService(
             return
         }
         pendingSelections.forEach { selection ->
+            if (!resultWriter.updateTypeResult(taskId, selection.assetType, mapOf("status" to "QUEUED", "stage" to "QUEUED", "progress" to 0))) {
+                if (remaining.decrementAndGet() == 0 && aggregateOnce.compareAndSet(false, true)) scheduleAggregation(taskId, selections.map { it.assetType })
+                return@forEach
+            }
             try {
                 CompletableFuture.runAsync({ runChildSafely(taskId, started, result, selection) }, childExecutor)
                     .whenComplete { _, _ ->
@@ -482,7 +496,7 @@ class ScriptAnalysisTaskService(
             return
         }
         val startedAt = LocalDateTime.now()
-        resultWriter.updateTypeResult(taskId, selection.assetType, mapOf("status" to "RUNNING", "stage" to "CALL_PROVIDER", "progress" to 10, "startedAt" to startedAt.toString()))
+        if (!resultWriter.updateTypeResult(taskId, selection.assetType, mapOf("status" to "RUNNING", "stage" to "CALL_PROVIDER", "progress" to 10, "startedAt" to startedAt.toString()))) return
         if (taskCenterService.isCancellationRequested(taskId)) {
             resultWriter.updateTypeResult(taskId, selection.assetType, failureValues(selection, "TASK_CANCELLED", "任务已取消", cancelled = true))
             return
@@ -550,21 +564,23 @@ class ScriptAnalysisTaskService(
             runChild(taskId, parent, result, selection)
         } catch (_: Exception) {
             resultWriter.updateTypeResult(taskId, selection.assetType, failureValues(selection, "AI_ANALYSIS_FAILED", "剧本资产解析失败"))
+        } finally {
+            updateParentProgress(taskId, parent.id, result.selectionsJson)
         }
     }
 
-    private fun scheduleAggregation(taskId: Long, assetTypes: List<String>) {
+    private fun scheduleAggregation(taskId: Long, assetTypes: List<String>, delayMs: Long = 0L) {
         try {
-            aggregationExecutor.execute {
+            aggregationExecutor.schedule({
                 val aggregation = resultWriter.aggregate(taskId, assetTypes)
                 when (aggregation.status) {
                     ScriptAnalysisResultWriter.Aggregation.Status.SUCCEEDED -> taskCenterService.markSucceeded(taskId, aggregation.stage)
                     ScriptAnalysisResultWriter.Aggregation.Status.FAILED -> taskCenterService.markFailed(taskId, aggregation.errorCode, aggregation.errorMessage)
                     ScriptAnalysisResultWriter.Aggregation.Status.CANCELLED -> taskCenterService.markCancelledByWorker(taskId)
-                    ScriptAnalysisResultWriter.Aggregation.Status.PENDING -> scheduleAggregation(taskId, assetTypes)
+                    ScriptAnalysisResultWriter.Aggregation.Status.PENDING -> scheduleAggregation(taskId, assetTypes, 50L)
                     ScriptAnalysisResultWriter.Aggregation.Status.TERMINAL -> Unit
                 }
-            }
+            }, delayMs, MILLISECONDS)
         } catch (_: RejectedExecutionException) {
             taskCenterService.markFailed(taskId, "TASK_QUEUE_FULL", "解析结果汇聚队列已满，请稍后重试")
         }
@@ -597,26 +613,35 @@ class ScriptAnalysisTaskService(
         resultWriter.progress(taskId, types)?.let { taskCenterService.updateProgress(parentTaskId, it, "ANALYZING_ASSETS", indeterminate = false) }
     }
 
-    private fun parseStoredSelections(json: String): List<StoredSelection> = objectMapper.readTree(json).toList().map { node ->
-        val typeName = node.path("assetType").textValue() ?: node.path("asset_type").textValue()
-        val type = runCatching { EpisodeAssetType.valueOf(typeName) }.getOrElse { throw IllegalStateException("解析资产类型不正确") }
-        val providerConfigId = (node.path("providerConfigId").longValue().takeIf { it > 0 }
-            ?: node.path("provider_config_id").longValue())
-        val model = (node.path("model").textValue() ?: node.path("model_name").textValue())?.trim().orEmpty()
-        require(providerConfigId > 0 && model.isNotBlank()) { "解析模型配置不正确" }
-        StoredSelection(
-            assetType = type.name,
-            providerConfigId = providerConfigId,
-            model = model,
-            promptKey = node.path("promptKey").textValue() ?: node.path("prompt_key").textValue().orEmpty(),
-            promptCategory = node.path("promptCategory").textValue() ?: node.path("prompt_category").textValue().orEmpty(),
-            promptVersionId = node.path("promptVersionId").longValue().takeIf { it > 0 }
-                ?: node.path("prompt_version_id").longValue(),
-            templateHash = node.path("templateHash").textValue() ?: node.path("template_hash").textValue().orEmpty(),
-            variablesHash = node.path("variablesHash").textValue() ?: node.path("variables_hash").textValue().orEmpty(),
-            outputSchemaVersion = node.path("outputSchemaVersion").textValue() ?: node.path("output_schema_version").textValue().orEmpty(),
-            selectionSource = node.path("selectionSource").textValue() ?: node.path("selection_source").textValue().ifBlank { "DEFAULT" },
-        )
+    private fun parseStoredSelections(json: String): List<StoredSelection> {
+        val root = runCatching { objectMapper.readTree(json) }.getOrElse { throw IllegalStateException("解析任务配置快照不是合法 JSON") }
+        require(root.isArray) { "解析任务配置快照必须是数组" }
+        return root.toList().map { node ->
+            val typeName = (node.path("assetType").textValue() ?: node.path("asset_type").textValue())
+                ?.trim()?.takeIf { it.isNotBlank() }
+                ?: throw IllegalStateException("解析任务资产类型缺失")
+            val type = runCatching { EpisodeAssetType.valueOf(typeName.uppercase()) }.getOrElse { throw IllegalStateException("解析资产类型不正确") }
+            val providerConfigId = (node.path("providerConfigId").longValue().takeIf { it > 0 }
+                ?: node.path("provider_config_id").longValue())
+            val model = (node.path("model").textValue() ?: node.path("model_name").textValue())?.trim().orEmpty()
+            require(providerConfigId > 0 && model.isNotBlank()) { "解析模型配置不正确" }
+            StoredSelection(
+                assetType = type.name,
+                providerConfigId = providerConfigId,
+                model = model,
+                promptKey = node.path("promptKey").textValue() ?: node.path("prompt_key").textValue().orEmpty(),
+                promptCategory = node.path("promptCategory").textValue() ?: node.path("prompt_category").textValue().orEmpty(),
+                promptVersionId = node.path("promptVersionId").longValue().takeIf { it > 0 }
+                    ?: node.path("prompt_version_id").longValue(),
+                templateHash = node.path("templateHash").textValue() ?: node.path("template_hash").textValue().orEmpty(),
+                variablesHash = node.path("variablesHash").textValue() ?: node.path("variables_hash").textValue().orEmpty(),
+                outputSchemaVersion = node.path("outputSchemaVersion").textValue() ?: node.path("output_schema_version").textValue().orEmpty(),
+                selectionSource = (
+                    node.path("selectionSource").textValue()
+                        ?: node.path("selection_source").textValue()
+                )?.trim()?.takeIf { it.isNotBlank() } ?: "DEFAULT",
+            )
+        }
     }
 
     private fun successfulTypeItems(result: ScriptAnalysisResult): Map<EpisodeAssetType, List<JsonNode>> {
@@ -662,12 +687,17 @@ class ScriptAnalysisTaskService(
     private fun executionSelections(result: ScriptAnalysisResult, task: ProductionTask): List<StoredSelection> {
         val legacyVersion = (task.inputPayload["prompt_version_id"] as? Number)?.toLong()
         val legacyHash = task.inputPayload["template_hash"]?.toString()
-        return parseStoredSelections(result.selectionsJson).map { selection ->
+        val legacyKey = task.inputPayload["prompt_key"]?.toString()?.trim().takeIf { !it.isNullOrBlank() } ?: "script_analysis"
+        val legacyCategory = task.inputPayload["prompt_category"]?.toString()?.trim().takeIf { !it.isNullOrBlank() }
+            ?: PromptCategory.SCRIPT_GENERAL.name
+        val parsed = parseStoredSelections(result.selectionsJson)
+        require(parsed.isNotEmpty()) { "解析任务没有资产类型" }
+        return parsed.map { selection ->
             if (selection.promptVersionId > 0 && selection.promptKey.isNotBlank() && selection.templateHash.isNotBlank()) return@map selection
             require(legacyVersion != null && legacyVersion > 0 && !legacyHash.isNullOrBlank()) { "历史任务缺少提示词快照" }
             selection.copy(
-                promptKey = "script_analysis",
-                promptCategory = PromptCategory.SCRIPT_GENERAL.name,
+                promptKey = legacyKey,
+                promptCategory = legacyCategory,
                 promptVersionId = legacyVersion,
                 templateHash = legacyHash,
                 outputSchemaVersion = "script_analysis.legacy",

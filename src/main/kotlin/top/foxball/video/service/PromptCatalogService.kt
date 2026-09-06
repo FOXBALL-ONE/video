@@ -404,6 +404,10 @@ class PromptCatalogService(
         require(resolved.definition.enabled) { "提示词已停用" }
         require(resolved.version.status == PromptVersionStatus.PUBLISHED) { "只有已发布提示词版本可以用于新任务" }
         require(
+            resolved.version.locale.equals("zh-CN", true) ||
+                resolved.version.locale.equals(resolved.definition.defaultLocale, true),
+        ) { "提示词版本语言与剧本解析不匹配" }
+        require(
             resolved.definition.scopeType == PromptScopeType.GLOBAL ||
                 (resolved.definition.projectId == projectId && canRead(resolved.definition, userId)),
         ) { "无权使用该提示词" }
