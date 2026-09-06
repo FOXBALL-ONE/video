@@ -190,16 +190,7 @@ class TaskCenterService(
     fun markSucceeded(taskId: Long, stagedStage: String? = null): ProductionTask? {
         val task = taskRepository.findWithLockById(taskId) ?: return null
         if (task.status == ProductionTaskStatus.CANCEL_REQUESTED) {
-            val previous = task.status
-            task.status = ProductionTaskStatus.SUCCEEDED
-            task.progress = 100
-            task.stage = stagedStage?.take(80) ?: "COMPLETED"
-            task.completedAt = LocalDateTime.now()
-            task.errorCode = null
-            task.errorMessage = null
-            cancellationRegistry.clear(taskId)
-            saveEvent(task, "SUCCEEDED", previous, task.status, null, "TASK_SUCCEEDED_AFTER_CANCEL_RACE")
-            return taskRepository.save(task)
+            return markCancelledByWorker(taskId)
         }
         if (task.status != ProductionTaskStatus.RUNNING) return task
         val previous = task.status
