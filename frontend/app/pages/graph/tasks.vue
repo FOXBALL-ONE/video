@@ -68,6 +68,27 @@
           <div class="space-y-4 px-5 py-5">
             <div class="rounded-[11px] bg-[#f7f7fb] px-3 py-3"><span class="text-[11px] text-[#929bad]">当前上下文</span><strong class="mt-2 block text-[13px] font-semibold text-[#273148]">{{ selectedEpisode?.title || '未选择剧集' }}</strong><div class="mt-2 flex flex-wrap gap-1.5"><span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] text-[#6157e9]">任务约束</span><span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] text-[#6157e9]">历史版本</span></div></div>
             <div class="flex gap-2.5 rounded-[11px] bg-[#f5f6f8] px-3 py-3"><span class="shrink-0 text-[#5e52ee]" aria-hidden="true">✦</span><p class="m-0 text-xs leading-[1.65] text-[#687388]">先明确本集目标，再补充必须包含和禁止改动。锁定后，这些约束会传递给分镜规划。</p></div>
+            <section class="rounded-[12px] border border-[#dedaff] bg-[#fbfaff] p-3.5" aria-labelledby="task-ai-title">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id="task-ai-title" class="m-0 text-xs font-semibold text-[#353d55]">AI 生成任务卡</h3>
+                  <p class="mt-1.5 text-[11px] leading-5 text-[#858da1]">读取当前集已保存剧本，生成可编辑的任务约束。</p>
+                </div>
+                <span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] font-medium text-[#5d52ec]">剧本输入</span>
+              </div>
+              <div class="mt-3 rounded-[9px] border border-[#e8e5fb] bg-white px-3 py-2.5">
+                <div class="flex items-center justify-between gap-2 text-[11px]">
+                  <span class="text-[#8c94a6]">输入来源</span>
+                  <strong :class="scriptContent ? 'text-[#278d68]' : 'text-[#c27e35]'">{{ scriptLoading ? '读取中...' : scriptContent ? `${scriptContent.length.toLocaleString()} 字` : '暂无剧本' }}</strong>
+                </div>
+                <p v-if="scriptError" class="mt-1.5 mb-0 text-[10px] leading-4 text-[#b45d64]">{{ scriptError }}</p>
+                <p v-else class="mt-1.5 mb-0 text-[10px] leading-4 text-[#a0a7b5]">{{ scriptContent ? '将以当前集最新保存版本作为上下文。' : '请先在上一步导入并保存本集剧本。' }}</p>
+              </div>
+              <label class="mt-3 block"><span class="mb-1.5 block text-[11px] text-[#737c90]">生成模型</span><select v-model="selectedProviderId" class="h-9 w-full rounded-[8px] border border-[#dfe2e8] bg-white px-2.5 text-xs text-[#4b566b] outline-none focus:border-[#9b91f5] focus:ring-2 focus:ring-[#eeecff]" :disabled="!chatProviders.length || generating"><option :value="null">{{ chatProviders.length ? '选择对话模型' : '暂无可用对话模型' }}</option><option v-for="provider in chatProviders" :key="provider.id" :value="provider.id">{{ provider.provider }} · {{ provider.model_id }}</option></select></label>
+              <label class="mt-3 block"><span class="mb-1.5 block text-[11px] text-[#737c90]">补充要求 <span class="text-[#a3a9b6]">（可选）</span></span><textarea v-model="generationInstruction" rows="2" class="block w-full resize-y rounded-[8px] border border-[#dfe2e8] bg-white px-2.5 py-2 text-xs leading-5 text-[#4b566b] outline-none placeholder:text-[#a1a8b5] focus:border-[#9b91f5] focus:ring-2 focus:ring-[#eeecff]" :disabled="generating" placeholder="如：强化本集结尾悬念，保留人物关系"></textarea></label>
+              <button type="button" class="mt-3 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[8px] bg-[#6654ee] px-3 text-xs font-medium text-white transition-colors hover:bg-[#5848d6] disabled:cursor-not-allowed disabled:opacity-50" :disabled="isLocked || !scriptContent || !selectedProvider || generating" @click="generateTaskCard"><span aria-hidden="true">✦</span>{{ generating ? '正在生成任务卡...' : '从剧本生成任务卡' }}</button>
+              <p v-if="generatedNotice" class="mt-2 mb-0 text-[10px] leading-4 text-[#687388]" role="status">{{ generatedNotice }}</p>
+            </section>
             <div class="border-t border-[#e8eaf0] pt-4"><span class="text-[11px] text-[#8994a8]">任务卡状态</span><div class="mt-3 flex items-center justify-between text-xs"><span class="text-[#687388]">当前状态</span><strong :class="isLocked ? 'text-[#278d68]' : card ? 'text-[#d08a2d]' : 'text-[#929bad]'">{{ isLocked ? '已锁定' : card ? '编辑中' : '待创建' }}</strong></div><div class="mt-3 h-1.5 overflow-hidden rounded-full bg-[#ececf4]"><div class="h-full rounded-full bg-[#6654ee] transition-all" :style="{ width: `${card?.completion || 0}%` }"></div></div></div>
             <div class="border-t border-[#e8eaf0] pt-4"><span class="text-[11px] text-[#8994a8]">任务概览</span><div class="mt-3 space-y-2"><div class="flex items-center justify-between rounded-[9px] bg-[#fafafe] px-3 py-2.5 text-xs"><span class="text-[#687388]">已创建任务卡</span><strong class="text-[#5d52ec]">{{ createdCount }} / {{ episodes.length }}</strong></div><div class="flex items-center justify-between rounded-[9px] bg-[#fafafe] px-3 py-2.5 text-xs"><span class="text-[#687388]">已锁定任务卡</span><strong class="text-[#278d68]">{{ lockedCount }}</strong></div></div></div>
           </div>
@@ -114,6 +135,19 @@ interface SummaryItem {
   updated_at: string | null
 }
 
+interface ScriptResponse {
+  content: string
+  version?: { id: number; version_no: number }
+}
+
+interface ChatProvider {
+  id: number
+  provider: string
+  api_type?: string
+  model_id: string
+  enabled: boolean
+}
+
 const http = useHttp()
 const message = useMessage()
 const route = useRoute()
@@ -127,9 +161,18 @@ const summaryItems = ref<SummaryItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const showHistory = ref(false)
+const scriptContent = ref('')
+const scriptLoading = ref(false)
+const scriptError = ref('')
+const chatProviders = ref<ChatProvider[]>([])
+const selectedProviderId = ref<number | null>(null)
+const generationInstruction = ref('')
+const generatedNotice = ref('')
+const generating = ref(false)
 const form = reactive({ primaryGoal: '', mustInclude: [''], prohibitions: [''], previousSummary: '', nextGoal: '', endingHook: '' })
 const isLocked = computed(() => card.value?.status === 'LOCKED')
 const selectedEpisode = computed(() => episodes.value.find((episode) => episode.id === selectedEpisodeId.value) || activeEpisode.value)
+const selectedProvider = computed(() => chatProviders.value.find((provider) => provider.id === selectedProviderId.value) || null)
 const createdCount = computed(() => summaryItems.value.filter((item) => item.id > 0).length)
 const lockedCount = computed(() => summaryItems.value.filter((item) => item.status === 'LOCKED').length)
 const averageCompletion = computed(() => summaryItems.value.length ? Math.round(summaryItems.value.reduce((total, item) => total + item.completion, 0) / summaryItems.value.length) : 0)
@@ -145,6 +188,87 @@ function episodeBase(stage = 'tasks') {
 
 function openStep(stage: string) {
   navigateTo(episodeBase(stage))
+}
+
+async function loadScript() {
+  const id = Number(projectId.value)
+  const episode = Number(selectedEpisodeId.value)
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(episode) || episode <= 0) {
+    scriptContent.value = ''
+    scriptError.value = ''
+    return
+  }
+  scriptLoading.value = true
+  scriptError.value = ''
+  try {
+    const response = await http.get<ScriptResponse>(`/projects/${id}/script`, { episode_id: episode })
+    scriptContent.value = response.content || ''
+    if (!scriptContent.value.trim()) scriptError.value = '当前集剧本为空，请先回到剧本页导入内容。'
+  } catch (error) {
+    scriptContent.value = ''
+    scriptError.value = error instanceof Error ? error.message : '当前集剧本读取失败'
+  } finally {
+    scriptLoading.value = false
+  }
+}
+
+async function loadChatProviders() {
+  try {
+    const response = await http.get<{ list: ChatProvider[] }>('/ai/model-providers')
+    chatProviders.value = (response.list || []).filter((provider) => provider.enabled && (!provider.api_type || provider.api_type === 'CHAT'))
+    if (!selectedProvider.value) selectedProviderId.value = chatProviders.value[0]?.id || null
+  } catch {
+    chatProviders.value = []
+    selectedProviderId.value = null
+  }
+}
+
+async function generateTaskCard() {
+  if (isLocked.value || generating.value || !scriptContent.value.trim() || !selectedProvider.value) return
+  generating.value = true
+  generatedNotice.value = ''
+  const script = scriptContent.value.slice(0, 180000)
+  const prompt = [
+    '你是影视制作工作流编辑。请根据下面的剧本，为当前集生成一张可执行的任务卡。',
+    '只返回 JSON 对象，不要 Markdown、解释或额外文字。字段必须完整：',
+    '{"primary_goal":"本集主目标","must_include":["必须出现的剧情或信息"],"prohibitions":["不可改变的事实或连续性约束"],"previous_summary":"前集摘要；若无则写首集","next_goal":"下集铺垫目标","ending_hook":"结尾悬念"}',
+    '要求：内容具体、可用于分镜规划；不得凭空改变剧本已经确定的人物关系、世界观和事件顺序。',
+    generationInstruction.value.trim() ? `补充要求：${generationInstruction.value.trim()}` : '',
+    `当前剧集：${selectedEpisode.value?.title || '未命名剧集'}`,
+    '<script_content>',
+    script,
+    scriptContent.value.length > script.length ? '（剧本过长，以上为前 180000 字）' : '',
+    '</script_content>',
+  ].filter(Boolean).join('\n')
+  try {
+    const response = await http.post<{ content: string }>('/ai/chat/completions', {
+      provider_config_id: selectedProvider.value.id,
+      model: selectedProvider.value.model_id,
+      prompt,
+      stream: false,
+    })
+    const raw = response.content?.trim() || ''
+    const start = raw.indexOf('{')
+    const end = raw.lastIndexOf('}')
+    if (start < 0 || end <= start) throw new Error('AI 未返回可识别的任务卡 JSON')
+    const result = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>
+    if (typeof result.primary_goal !== 'string' || !result.primary_goal.trim()) throw new Error('AI 返回的任务卡缺少主目标')
+    form.primaryGoal = result.primary_goal.trim()
+    if (Array.isArray(result.must_include)) form.mustInclude = result.must_include.map((item) => String(item).trim()).filter(Boolean)
+    if (Array.isArray(result.prohibitions)) form.prohibitions = result.prohibitions.map((item) => String(item).trim()).filter(Boolean)
+    if (typeof result.previous_summary === 'string') form.previousSummary = result.previous_summary.trim()
+    if (typeof result.next_goal === 'string') form.nextGoal = result.next_goal.trim()
+    if (typeof result.ending_hook === 'string') form.endingHook = result.ending_hook.trim()
+    if (!form.mustInclude.length) form.mustInclude = ['']
+    if (!form.prohibitions.length) form.prohibitions = ['']
+    generatedNotice.value = '已根据当前剧本回填任务卡草稿，请检查后保存。'
+    message.success('AI 任务卡已生成')
+  } catch (error) {
+    generatedNotice.value = ''
+    message.error(error instanceof Error ? error.message : 'AI 任务卡生成失败')
+  } finally {
+    generating.value = false
+  }
 }
 
 function applyCard(next: TaskCard) {
@@ -227,8 +351,8 @@ async function selectEpisode(id: string) {
   selectedEpisodeId.value = id
   switchEpisode(id)
   await navigateTo(episodeBase())
-  await loadCard()
-  await loadSummary()
+  generatedNotice.value = ''
+  await Promise.all([loadCard(), loadSummary(), loadScript()])
 }
 
 function addItem(items: string[]) { items.push('') }
@@ -326,14 +450,14 @@ onMounted(async () => {
   try { await loadEpisodes(projectId.value) } catch { /* local fallback */ }
   if (!selectedEpisodeId.value && episodes.value[0]) selectedEpisodeId.value = episodes.value[0].id
   if (selectedEpisodeId.value && !episodes.value.some((episode) => episode.id === selectedEpisodeId.value)) selectedEpisodeId.value = episodes.value[0]?.id || ''
-  await loadCard()
-  await loadSummary()
+  await Promise.all([loadCard(), loadSummary(), loadScript(), loadChatProviders()])
 })
 
 watch(() => route.params.episodeId, (next) => {
   if (next && String(next) !== selectedEpisodeId.value) {
     selectedEpisodeId.value = String(next)
-    loadCard().then(loadSummary)
+    generatedNotice.value = ''
+    Promise.all([loadCard(), loadSummary(), loadScript()])
   }
 })
 
@@ -342,7 +466,7 @@ watch(() => activeProject.value?.id, (next, previous) => {
     selectedEpisodeId.value = ''
     loadEpisodes(String(next)).then(() => {
       selectedEpisodeId.value = episodes.value[0]?.id || ''
-      return loadCard().then(loadSummary)
+      return Promise.all([loadCard(), loadSummary(), loadScript()])
     }).catch(() => undefined)
   }
 })
