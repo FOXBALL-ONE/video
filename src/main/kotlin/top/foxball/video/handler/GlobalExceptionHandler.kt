@@ -132,6 +132,7 @@ class GlobalExceptionHandler {
     /** 业务代码或方法级安全校验抛出的认证异常统一转换为 401。 */
     @ExceptionHandler(AuthenticationException::class)
     fun onAuthenticationException(ex: AuthenticationException): ResponseEntity<Response> {
+        log.error("认证异常导致接口返回401：exceptionType={} message={}", ex.javaClass.name, ex.message, ex)
         return builder.unauthorized()
             .message(ex.message ?: "未授权")
             .build()

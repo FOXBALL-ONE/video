@@ -835,19 +835,66 @@ class OpenAiCompatibleClient(
         }
     }
 
-    /** 解析图像接口的 data 数组，支持 URL 和 base64 两种返回形式。 */
+    /** 解析 OpenAI 及中转服务常见的图像响应结构，支持 URL、base64 和嵌套结果。 */
     private fun parseImages(response: JsonNode): AiImageGenerationResult {
-        val data = response.path("data")
-        if (!data.isArray) throw AiProtocolException("模型服务响应不包含图像数据")
+        val images = mutableListOf<AiGeneratedImage>()
+        collectImageNodes(response, images, 0)
+        if (images.isEmpty()) {
+            log.warn("图像响应未识别到图片：顶层字段={} 响应类型={}", responseFieldNames(response), response.nodeType)
+            throw AiProtocolException("模型服务响应不包含图像数据")
+        }
         return AiImageGenerationResult(
             createdAtEpochSeconds = response.fieldLong("created"),
-            images = data.mapNotNull { item ->
-                val url = item.fieldString("url")
-                val base64 = item.fieldString("b64_json")
-                if (url == null && base64 == null) null else AiGeneratedImage(url, base64, item.fieldString("revised_prompt"))
-            },
+            images = images,
         )
     }
+
+    /** 在有限深度内查找图片容器，避免把提示词或错误文本误识别成图片。 */
+    private fun collectImageNodes(node: JsonNode, output: MutableList<AiGeneratedImage>, depth: Int) {
+        if (depth > MAX_IMAGE_RESPONSE_DEPTH || node.isMissingNode || node.isNull) return
+        if (node.isArray) {
+            node.forEach { item -> collectImageNodes(item, output, depth + 1) }
+            return
+        }
+        if (node.isString) {
+            val value = node.stringValue().trim()
+            when {
+                value.startsWith("http://") || value.startsWith("https://") -> output += AiGeneratedImage(url = value)
+                value.startsWith("data:image/", ignoreCase = true) -> output += AiGeneratedImage(base64Data = value)
+            }
+            return
+        }
+        if (!node.isObject) return
+
+        parseImageNode(node)?.let {
+            output += it
+            return
+        }
+        IMAGE_RESPONSE_CONTAINER_FIELDS.forEach { field ->
+            val child = node.path(field)
+            if (!child.isMissingNode && !child.isNull) collectImageNodes(child, output, depth + 1)
+        }
+    }
+
+    /** 从单个条目读取 url、image_url、b64_json 及常见 base64 字段。 */
+    private fun parseImageNode(node: JsonNode): AiGeneratedImage? {
+        val nestedUrl = node.path("image_url").fieldString("url")
+            ?: node.path("image").fieldString("url")
+        val url = node.fieldString("url") ?: nestedUrl
+        val base64 = listOf("b64_json", "base64", "base64_data", "image_base64", "data")
+            .asSequence()
+            .mapNotNull { field -> node.fieldString(field) }
+            .firstOrNull { value -> !value.startsWith("http://") && !value.startsWith("https://") }
+            ?: node.fieldString("image")?.takeIf { value -> value.startsWith("data:image/", ignoreCase = true) }
+        if (url == null && base64 == null) return null
+        return AiGeneratedImage(url, base64, node.fieldString("revised_prompt"))
+    }
+
+    private fun responseFieldNames(node: JsonNode): List<String> =
+        IMAGE_RESPONSE_CONTAINER_FIELDS.filter { field ->
+            val child = node.path(field)
+            !child.isMissingNode && !child.isNull
+        }
 
     /** 解析视频任务响应并兼容不同供应商的状态、时间和错误字段命名。 */
     private fun parseVideo(response: JsonNode): AiVideoGenerationResult {
@@ -958,12 +1005,16 @@ class OpenAiCompatibleClient(
         val SSE_TYPE = object : ParameterizedTypeReference<ServerSentEvent<String>>() {}
         const val MAX_IMAGE_BYTES = 20 * 1024 * 1024
         const val MAX_TOTAL_EDIT_IMAGE_BYTES = 50L * 1024 * 1024
+        const val MAX_IMAGE_RESPONSE_DEPTH = 4
         const val MAX_IMAGE_OPTION_CHARS = 30
         const val MAX_CHAT_CONTENT_CHARS = 2_000_000
         const val MAX_ERROR_RESPONSE_CHARS = 8_000
         const val MAX_REQUEST_ID_CHARS = 128
         const val MAX_LOG_FIELD_CHARS = 256
         val VIDEO_VARIANTS = setOf("video", "thumbnail", "spritesheet")
+        val IMAGE_RESPONSE_CONTAINER_FIELDS = listOf(
+            "data", "images", "output", "result", "results", "response", "content", "message"
+        )
         val IMAGE_DIMENSION_PATTERN = Regex("^[1-9][0-9]{2,4}x[1-9][0-9]{2,4}$")
     }
 }

@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
+import org.slf4j.LoggerFactory
+import jakarta.servlet.DispatcherType
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import top.foxball.video.service.AccessControlService
@@ -27,8 +29,27 @@ class JwtAuthenticationFilter(
     private val accessControl: AccessControlService,
     private val testAdmin: TestAdminProperties,
 ) : OncePerRequestFilter() {
+    private val log = LoggerFactory.getLogger(JwtAuthenticationFilter::class.java)
+
+    /**
+     * 图片和视频接口以 Mono/DeferredResult 异步完成，Spring MVC 完成异步处理后会再次分派请求。
+     * 重新分派时必须再次解析 Authorization，否则受保护 API 会因认证上下文为空返回 401。
+     */
+    override fun shouldNotFilterAsyncDispatch(): Boolean = false
+
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val header = request.getHeader("Authorization")
+        val isApiRequest = request.requestURI.startsWith("/api/")
+        val isAsyncDispatch = request.dispatcherType != DispatcherType.REQUEST
+        if (isApiRequest && isAsyncDispatch) {
+            log.info(
+                "异步请求重新分派进入JWT过滤器：method={} uri={} dispatcher={} authorizationHeader={}",
+                request.method,
+                request.requestURI,
+                request.dispatcherType,
+                if (header.isNullOrBlank()) "未提供" else "已提供",
+            )
+        }
         if (testAdmin.enabled && header?.startsWith("Bearer ") == true &&
             java.security.MessageDigest.isEqual(
                 header.removePrefix("Bearer ").toByteArray(),
@@ -44,27 +65,43 @@ class JwtAuthenticationFilter(
                 val auth = UsernamePasswordAuthenticationToken(testUserId, null, authorities)
                 auth.details = AuthenticatedUser(testUserId, testUser.username, testUser.email, current.roles, current.permissions)
                 SecurityContextHolder.getContext().authentication = auth
+                if (isAsyncDispatch || request.requestURI.contains("/images/")) {
+                    log.info("测试管理员JWT认证成功：method={} uri={} dispatcher={} userId={}", request.method, request.requestURI, request.dispatcherType, testUserId)
+                }
             }
             chain.doFilter(request, response)
             return
         }
         if (header?.startsWith("Bearer ") == true) {
-            tokens.parse(header.removePrefix("Bearer "))?.let { session ->
-                val user = users.findById(session.userId)
-                if (user == null || !user.enabled) return@let
+            val token = header.removePrefix("Bearer ")
+            val session = tokens.parse(token)
+            if (session == null) {
+                log.warn("JWT令牌解析失败：method={} uri={} dispatcher={}", request.method, request.requestURI, request.dispatcherType)
+            }
+            session?.let { sessionData ->
+                val user = users.findById(sessionData.userId)
+                if (user == null || !user.enabled) {
+                    log.warn("JWT用户不存在或已停用：method={} uri={} dispatcher={} userId={}", request.method, request.requestURI, request.dispatcherType, sessionData.userId)
+                    return@let
+                }
                 val current = accessControl.authoritiesOf(user)
                 val authorities = current.roles.map { SimpleGrantedAuthority("ROLE_$it") } +
                     current.permissions.map(::SimpleGrantedAuthority)
-                val auth = UsernamePasswordAuthenticationToken(session.userId, null, authorities)
+                val auth = UsernamePasswordAuthenticationToken(sessionData.userId, null, authorities)
                 auth.details = AuthenticatedUser(
-                    id = session.userId,
+                    id = sessionData.userId,
                     username = user.username,
                     email = user.email,
                     roles = current.roles,
                     permissions = current.permissions,
                 )
                 SecurityContextHolder.getContext().authentication = auth
+                if (isAsyncDispatch || request.requestURI.contains("/images/")) {
+                    log.info("JWT认证成功：method={} uri={} dispatcher={} userId={}", request.method, request.requestURI, request.dispatcherType, sessionData.userId)
+                }
             }
+        } else if (isApiRequest && isAsyncDispatch) {
+            log.warn("异步API请求未携带JWT：method={} uri={} dispatcher={}", request.method, request.requestURI, request.dispatcherType)
         }
         chain.doFilter(request, response)
     }

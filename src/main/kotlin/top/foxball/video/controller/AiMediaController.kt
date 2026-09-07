@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import top.foxball.video.service.AiMediaGenerationService
 import top.foxball.video.shared.Response
@@ -29,6 +30,8 @@ class AiMediaController(
     private val service: AiMediaGenerationService,
     private val responseBuilder: ResponseBuilder,
 ) {
+    private val log = LoggerFactory.getLogger(AiMediaController::class.java)
+
     @PostMapping("/api/ai/images/generations")
     fun generateImage(
         @AuthenticationPrincipal userId: Long,
@@ -39,6 +42,7 @@ class AiMediaController(
         @RequestParam("size", required = false) @Size(max = 30) size: String?,
         @RequestParam("quality", required = false) @Size(max = 30) quality: String?,
     ): Mono<ResponseEntity<Response>> {
+        log.info("收到图片生成请求：userId={} providerConfigId={} model={} count={} size={}", userId, providerConfigId, model, count ?: 1, size ?: "默认")
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -67,6 +71,7 @@ class AiMediaController(
         @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
         @RequestParam("size", required = false) @Size(max = 30) size: String?,
     ): Mono<ResponseEntity<Response>> {
+        log.info("收到图片编辑请求：userId={} providerConfigId={} model={} images={} count={} size={}", userId, providerConfigId, model, images.size, count ?: 1, size ?: "默认")
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -96,6 +101,10 @@ class AiMediaController(
         @RequestParam("count", required = false) @Min(1) @Max(10) count: Int?,
         @RequestParam("size", defaultValue = "2K") @Size(max = 30) size: String,
     ): Mono<ResponseEntity<Response>> {
+        log.info(
+            "收到资产图片生成请求：userId={} projectId={} episodeId={} assetId={} providerConfigId={} model={} target={} count={} size={}",
+            userId, projectId, episodeId, assetId, providerConfigId, model, target, count ?: 1, size,
+        )
         data class FileData(
             val id: java.util.UUID,
             @param:JsonProperty("file_name") val fileName: String,
@@ -106,12 +115,18 @@ class AiMediaController(
         )
         data class ResponseData(val list: List<FileData>)
         return service.generateAssetImage(userId, projectId, episodeId, assetId, providerConfigId, model, target, count, size)
+            .doOnSubscribe { log.info("开始处理资产图片生成：projectId={} episodeId={} assetId={} target={}", projectId, episodeId, assetId, target) }
             .map { files ->
+                log.info("资产图片生成处理完成，准备返回响应：projectId={} episodeId={} assetId={} target={} fileCount={} fileIds={}", projectId, episodeId, assetId, target, files.size, files.map { it.file.id })
                 val rs = ResponseData(files.map { details ->
                     FileData(details.file.id, details.file.originalFilename, details.file.contentType, details.file.sizeBytes, details.signedDownloadUrl, details.downloadExpiresAt)
                 })
                 responseBuilder.created().data(rs).build()
             }
+            .doOnError { exception ->
+                log.error("资产图片生成处理失败：projectId={} episodeId={} assetId={} target={} exceptionType={} message={}", projectId, episodeId, assetId, target, exception.javaClass.name, exception.message, exception)
+            }
+            .doFinally { signal -> log.info("资产图片生成请求结束：projectId={} episodeId={} assetId={} target={} signal={}", projectId, episodeId, assetId, target, signal) }
     }
 
     @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/{asset_id}/images/edits")

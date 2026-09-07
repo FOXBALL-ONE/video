@@ -267,7 +267,7 @@
                 <div :aria-label="`${view.label}视图，点击上传或选择`" :class="{ 'is-busy': uploading && uploadSlot === view.key }" class="image-slot"
                      role="button" tabindex="0" @click="triggerImageUpload(view.key)"
                      @keydown.enter.prevent="triggerImageUpload(view.key)" @keydown.space.prevent="triggerImageUpload(view.key)">
-                  <img v-if="characterImages[view.key]?.url" :src="characterImages[view.key]?.url || ''"
+                  <img v-if="characterImages[view.key]?.url" :src="resolveImageUrl(characterImages[view.key]?.url) || ''"
                        :alt="`${characterForm.name || characterName} ${view.label}视图`" class="h-full w-full object-cover">
                   <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
                     <svg fill="none" height="26" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" viewBox="0 0 24 24"
@@ -291,7 +291,7 @@
             <div aria-label="合并三视图，点击上传或选择" :class="{ 'is-busy': uploading && uploadSlot === 'merged' }" class="image-slot image-slot--wide mt-3"
                  role="button" tabindex="0" @click="triggerImageUpload('merged')"
                  @keydown.enter.prevent="triggerImageUpload('merged')" @keydown.space.prevent="triggerImageUpload('merged')">
-              <img v-if="characterImages.merged?.url" :src="characterImages.merged.url"
+              <img v-if="characterImages.merged?.url" :src="resolveImageUrl(characterImages.merged.url) || ''"
                    :alt="`${characterForm.name || characterName} 合并三视图`" class="h-full w-full object-contain">
               <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
                 <svg fill="none" height="26" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" viewBox="0 0 24 24"
@@ -319,7 +319,7 @@
             </div>
             <div v-else class="mt-3 flex flex-wrap gap-3"><div v-for="(item, index) in characterImages.expressions"
                                                                :key="item.file_id || index" class="relative">
-              <img :src="item.url || ''" :alt="`${characterForm.name || characterName} 表情参考图 ${index + 1}`" class="image-slot !h-[96px] !w-[96px] cursor-default">
+              <img :src="resolveImageUrl(item.url) || ''" :alt="`${characterForm.name || characterName} 表情参考图 ${index + 1}`" class="image-slot !h-[96px] !w-[96px] cursor-default">
               <button :aria-label="`移除表情参考图 ${index + 1}`" class="slot-remove" type="button" @click="clearExpressionImage(index)">×</button>
             </div></div>
           </section>
@@ -415,7 +415,7 @@
           <section>
             <div :class="{ 'is-busy': uploading && uploadSlot === 'main' }" class="image-slot image-slot--hero"
                  @click="triggerImageUpload('main')">
-              <img v-if="sceneImages.main?.url" :src="sceneImages.main.url" alt="" class="h-full w-full object-cover">
+              <img v-if="sceneImages.main?.url" :src="resolveImageUrl(sceneImages.main.url) || ''" alt="" class="h-full w-full object-cover">
               <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2 text-[#c3c9d6]">
                 <svg fill="none" height="30" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
                      viewBox="0 0 24 24" width="30">
@@ -441,7 +441,7 @@
               <div v-for="view in sceneViewSlots" :key="view.key" class="flex flex-col items-center gap-1.5">
                 <div :class="{ 'is-busy': uploading && uploadSlot === view.key }" class="image-slot image-slot--scene"
                      @click="triggerImageUpload(view.key)">
-                  <img v-if="sceneImages[view.key]?.url" :src="sceneImages[view.key]?.url || ''"
+                  <img v-if="sceneImages[view.key]?.url" :src="resolveImageUrl(sceneImages[view.key]?.url) || ''"
                        alt="" class="h-full w-full object-cover">
                   <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
                     <svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
@@ -471,7 +471,7 @@
               <div v-for="angle in sceneAngleSlots" :key="angle.key" class="flex flex-col items-center gap-1.5">
                 <div :class="{ 'is-busy': uploading && uploadSlot === angle.key }" class="image-slot image-slot--scene"
                      @click="triggerImageUpload(angle.key)">
-                  <img v-if="sceneImages[angle.key]?.url" :src="sceneImages[angle.key]?.url || ''"
+                  <img v-if="sceneImages[angle.key]?.url" :src="resolveImageUrl(sceneImages[angle.key]?.url) || ''"
                        alt="" class="h-full w-full object-cover">
                   <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
                     <svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
@@ -501,7 +501,7 @@
               <div v-for="light in sceneLightSlots" :key="light.key" class="flex flex-col items-center gap-1.5">
                 <div :class="{ 'is-busy': uploading && uploadSlot === light.key }" class="image-slot image-slot--scene"
                      @click="triggerImageUpload(light.key)">
-                  <img v-if="sceneImages[light.key]?.url" :src="sceneImages[light.key]?.url || ''"
+                  <img v-if="sceneImages[light.key]?.url" :src="resolveImageUrl(sceneImages[light.key]?.url) || ''"
                        alt="" class="h-full w-full object-cover">
                   <div v-else class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-[#c3c9d6]">
                     <svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
@@ -564,7 +564,7 @@
             <div class="mt-3 flex justify-center">
               <div :class="{ 'is-busy': uploading && uploadSlot === 'concept' }" class="image-slot image-slot--concept"
                    @click="triggerImageUpload('concept')">
-                <img v-if="propImages.concept?.url" :src="propImages.concept.url" alt=""
+                <img v-if="propImages.concept?.url" :src="resolveImageUrl(propImages.concept.url) || ''" alt=""
                      class="h-full w-full object-cover">
                 <div v-else class="flex h-full w-full flex-col items-center justify-center gap-2 text-[#c3c9d6]">
                   <svg fill="none" height="34" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -732,6 +732,7 @@ type ProfileImageSlot = CharacterImageSlot | SceneImageSlot | PropImageSlot
 type GenerationSlot = ProfileImageSlot | 'expression'
 const message = useMessage();
 const http = useHttp();
+const runtimeConfig = useRuntimeConfig();
 const route = useRoute();
 const {activeProject, loadProjects} = useProjectWorkspace();
 const {activeEpisode, loadEpisodes, loadLibrary} = useEpisodeWorkspace()
@@ -961,6 +962,36 @@ const imageProviders = computed(() => providers.value.filter((item) => (item.api
 const imageModelOptions = computed<ModelOption[]>(() => imageProviders.value
     .filter((provider) => provider.model_id?.trim())
     .map((provider) => ({label: `${provider.provider} · ${provider.model_id}`, value: `${provider.id}::${provider.model_id}`})))
+
+const imageApiOrigin = (() => {
+  const apiBase = String(runtimeConfig.public.apiBase || '').trim()
+  if (!apiBase) return ''
+  try {
+    return new URL(apiBase, import.meta.client ? window.location.origin : 'http://localhost').origin
+  } catch {
+    return ''
+  }
+})()
+
+/**
+ * File links are signed by the backend and may contain a stale FILE_BASE_URL
+ * (for example localhost:8080 while the API is running on 4410). Keep the
+ * signed path and query intact, but load API-owned files from the configured API.
+ */
+function resolveImageUrl(url: string | null | undefined): string | null {
+  const value = url?.trim()
+  if (!value) return null
+  try {
+    const parsed = new URL(value, import.meta.client ? window.location.origin : 'http://localhost')
+    if (imageApiOrigin && parsed.pathname.startsWith('/api/files/')) {
+      parsed.protocol = new URL(imageApiOrigin).protocol
+      parsed.host = new URL(imageApiOrigin).host
+    }
+    return parsed.toString()
+  } catch {
+    return value
+  }
+}
 
 async function loadAssets() {
   if (!Number.isInteger(projectId.value) || projectId.value <= 0) return;
@@ -1365,7 +1396,7 @@ async function onImageChosen(event: Event) {
     }, FormData>('/files', formData)
     const uploaded = response.list?.[0]
     if (uploaded) {
-      const image = {file_id: uploaded.id, url: uploaded.signed_download_url};
+      const image = {file_id: uploaded.id, url: resolveImageUrl(uploaded.signed_download_url)};
       if (isSceneSlot(slot)) sceneImages[slot] = image; else if (slot === 'concept') propImages.concept = image; else characterImages[slot] = image
     }
   } catch (error) {
@@ -1571,7 +1602,7 @@ async function confirmImageGeneration() {
       const file = response.list?.[0]
       if (!file) throw new Error('图片模型未返回结果')
       generatedFiles.push(file)
-      generatedImages.push({slot, image: {file_id: file.id, url: file.signed_download_url}})
+      generatedImages.push({slot, image: {file_id: file.id, url: resolveImageUrl(file.signed_download_url)}})
     }
     if (characterVisible.value) {
       generatedImages.forEach(({slot, image}) => {

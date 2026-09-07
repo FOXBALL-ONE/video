@@ -5,6 +5,10 @@ video:
 spring:
   application:
     name: video
+  mvc:
+    # AI 图片/视频接口以 Mono 异步返回，等待上游响应时不能使用 Spring MVC 默认短超时。
+    async:
+      request-timeout: "${AI_ASYNC_REQUEST_TIMEOUT:120s}"
   datasource:
     url: "${DB_URL:jdbc:postgresql://localhost:5432/shopmall}"
     username: "${DB_USERNAME:postgres}"

@@ -2,6 +2,7 @@ package top.foxball.video.service
 
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
+import org.slf4j.LoggerFactory
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
@@ -30,6 +31,8 @@ class AiMediaGenerationService(
     private val assetService: AssetService,
     private val taskCenterService: TaskCenterService,
 ) {
+    private val log = LoggerFactory.getLogger(AiMediaGenerationService::class.java)
+
     fun generateImage(
         ownerId: Long,
         providerConfigId: Long,
@@ -117,11 +120,20 @@ class AiMediaGenerationService(
         count: Int?,
         size: String?,
     ): Mono<List<FileDetails>> =
-        requireProjectWriteAccess(projectId, ownerId).flatMap {
+        requireProjectWriteAccess(projectId, ownerId).doOnSuccess {
+            log.info("资产图片生成权限校验通过：userId={} projectId={} episodeId={} assetId={} target={}", ownerId, projectId, episodeId, assetId, target)
+        }.doOnError { exception ->
+            log.error("资产图片生成权限校验失败：userId={} projectId={} episodeId={} assetId={} target={} exceptionType={} message={}", ownerId, projectId, episodeId, assetId, target, exception.javaClass.name, exception.message, exception)
+        }.flatMap {
         Mono.fromCallable {
-            buildAssetImageRequest(projectId, episodeId, assetId, target)
+            buildAssetImageRequest(projectId, episodeId, assetId, target).also { request ->
+                log.info("资产图片提示词构造完成：projectId={} episodeId={} assetId={} target={} normalizedTarget={} referenceCount={}", projectId, episodeId, assetId, target, request.target, request.referenceFileIds.size)
+            }
         }.subscribeOn(Schedulers.boundedElastic()).flatMap { request ->
+            log.info("开始调用图片模型：userId={} providerConfigId={} model={} projectId={} episodeId={} assetId={} target={} count={} size={}", ownerId, providerConfigId, model, projectId, episodeId, assetId, request.target, count ?: 1, size ?: DEFAULT_IMAGE_SIZE)
             generateImage(ownerId, providerConfigId, model, request.prompt, count, size?.ifBlank { DEFAULT_IMAGE_SIZE } ?: DEFAULT_IMAGE_SIZE, null)
+                .doOnSuccess { files -> files?.let { value -> log.info("图片模型及文件保存完成：projectId={} episodeId={} assetId={} target={} fileCount={} fileIds={}", projectId, episodeId, assetId, request.target, value.size, value.map { it.file.id }) } }
+                .doOnError { exception -> log.error("图片模型或文件保存失败：projectId={} episodeId={} assetId={} target={} exceptionType={} message={}", projectId, episodeId, assetId, request.target, exception.javaClass.name, exception.message, exception) }
         }
         }
 
@@ -207,8 +219,10 @@ class AiMediaGenerationService(
             .concatMap { indexed ->
                 val index = indexed.t1
                 val image = indexed.t2
+                log.info("开始处理模型图片结果：providerConfigId={} index={} hasBase64={} hasUrl={}", providerConfigId, index, !image.base64Data.isNullOrBlank(), !image.url.isNullOrBlank())
                 downloadImage(providerConfigId, image)
                     .flatMap { downloaded ->
+                        log.info("模型图片解析完成：providerConfigId={} index={} contentType={} bytes={}", providerConfigId, index, downloaded.contentType, downloaded.bytes.size)
                         val extension = extensionFor(downloaded.contentType)
                         Mono.fromCallable {
                             fileService.storeGenerated(
@@ -217,12 +231,16 @@ class AiMediaGenerationService(
                                 downloaded.contentType,
                                 downloaded.bytes,
                             )
-                        }.subscribeOn(Schedulers.boundedElastic())
+                        }.subscribeOn(Schedulers.boundedElastic()).doOnSuccess { details ->
+                            details?.let { value -> log.info("模型图片已保存到文件库：providerConfigId={} index={} fileId={} filename={} bytes={}", providerConfigId, index, value.file.id, value.file.originalFilename, value.file.sizeBytes) }
+                        }
                     }
                     .doOnNext(stored::add)
             }
             .collectList()
+            .doOnSuccess { files -> files?.let { value -> log.info("模型图片批量处理完成：providerConfigId={} fileCount={} fileIds={}", providerConfigId, value.size, value.map { it.file.id }) } }
             .onErrorResume { exception ->
+                log.error("模型图片处理流程异常，开始清理已保存文件：providerConfigId={} storedFileIds={} exceptionType={} message={}", providerConfigId, stored.map { it.file.id }, exception.javaClass.name, exception.message, exception)
                 cleanupStoredFiles(ownerId, stored).then(Mono.error(exception))
             }
     }
