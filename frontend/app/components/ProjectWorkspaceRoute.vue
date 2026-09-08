@@ -10,6 +10,7 @@ import AssetsPage from '~/pages/graph/assets.vue'
 import ScriptPage from '~/pages/graph/script.vue'
 import TasksPage from '~/pages/graph/tasks.vue'
 import ShotsPage from '~/pages/graph/shots.vue'
+import StoryboardPage from '~/pages/graph/storyboard.vue'
 import VideoPage from '~/pages/graph/video.vue'
 
 const props = defineProps<{ mode: 'overview' | 'canvas' | 'workflow' }>()
@@ -20,7 +21,7 @@ const { loadEpisodes, switchEpisode } = useEpisodeWorkspace()
 const page = computed(() => {
   if (props.mode === 'canvas') return CanvasPage
   if (props.mode === 'workflow') {
-    return ({ script: ScriptPage, tasks: TasksPage, assets: AssetsPage, shots: ShotsPage, video: VideoPage } as Record<string, typeof ScriptPage>)[String(route.params.stage)] || ScriptPage
+    return ({ script: ScriptPage, tasks: TasksPage, assets: AssetsPage, shots: ShotsPage, storyboard: StoryboardPage, video: VideoPage } as Record<string, typeof ScriptPage>)[String(route.params.stage)] || ScriptPage
   }
   return OverviewPage
 })

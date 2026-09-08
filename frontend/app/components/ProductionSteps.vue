@@ -58,7 +58,7 @@ const routes = computed(() => ({
   tasks: `${episodePrefix.value}/tasks`,
   assets: `${episodePrefix.value}/assets`,
   shots: `${episodePrefix.value}/shots`,
-  storyboard: `${episodePrefix.value}/shots`,
+  storyboard: `${episodePrefix.value}/storyboard`,
   video: `${episodePrefix.value}/video`,
   export: `${episodePrefix.value}/video`
 }))

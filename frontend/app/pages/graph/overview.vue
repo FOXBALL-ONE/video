@@ -171,7 +171,7 @@ const steps = computed(() => {
     { id: 'tasks', stage: 0, route: `${workflowBase.value}/tasks`, title: '每集任务卡', caption: '每集主目标、剧情边界与前后集衔接', icon: '▣' },
     { id: 'assets', stage: 1, route: `${workflowBase.value}/assets`, title: '资产管理', caption: '角色、场景背景、道具与服饰', icon: '◇' },
     { id: 'shots', stage: 2, route: `${workflowBase.value}/shots`, title: '分镜规划', caption: '拆解镜头，记录画面、调度与声音', icon: '▦' },
-    { id: 'storyboard', stage: 2, route: `${workflowBase.value}/shots`, title: '分镜图生成', caption: '生成并确认每个镜头的画面', icon: '▨' },
+    { id: 'storyboard', stage: 2, route: `${workflowBase.value}/storyboard`, title: '分镜图生成', caption: '生成并确认每个镜头的画面', icon: '▨' },
     { id: 'video', stage: 3, route: `${workflowBase.value}/video`, title: '画面视频', caption: '画面、配音、音效与合成', icon: '▶' },
     { id: 'export', stage: 3, route: `${workflowBase.value}/video`, title: '合成导出', caption: '成片质检与导出交付', icon: '↧' }
   ]

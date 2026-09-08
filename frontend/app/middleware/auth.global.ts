@@ -30,7 +30,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
         const {activeProjectId} = useWorkspaceStore();
         return navigateTo(activeProjectId.value ? `/projects/${activeProjectId.value}/canvas` : "/projects");
     }
-    const legacyStage = {script: "script", tasks: "tasks", assets: "assets", shots: "shots", video: "video"}[to.path.slice("/graph/".length)];
+    const legacyStage = {script: "script", tasks: "tasks", assets: "assets", shots: "shots", storyboard: "storyboard", video: "video"}[to.path.slice("/graph/".length)];
     if (legacyStage) {
         const {activeProjectId} = useWorkspaceStore();
         return navigateTo(activeProjectId.value ? `/projects/${activeProjectId.value}/workflow/${legacyStage}` : "/projects");
