@@ -79,6 +79,7 @@ enum class PromptCategory {
     SCRIPT_SCENE,
     SCRIPT_PROP,
     CHARACTER_ENRICHMENT,
+    CHARACTER_EXPRESSION_IMAGE,
 }
 
 /** 不可变的提示词内容版本。只有 DRAFT 可以覆盖保存。 */

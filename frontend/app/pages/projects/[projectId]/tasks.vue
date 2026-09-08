@@ -71,7 +71,7 @@
                 </td>
                 <td class="max-w-[130px] truncate px-3 py-4 text-[#69758b]">{{ task.model_name || '--' }}</td>
                 <td class="whitespace-nowrap px-3 py-4 text-[#8994a8]">{{ formatDate(task.created_at) }}</td>
-                <td class="px-5 py-4 text-right"><div class="flex justify-end gap-1.5"><n-button size="small" quaternary @click="openDetail(task)">详情</n-button><n-button v-if="task.can_cancel" size="small" quaternary type="error" @click="cancelTask(task)">取消</n-button></div></td>
+                <td class="px-5 py-4 text-right"><div class="flex justify-end gap-1.5"><n-button size="small" quaternary @click="openDetail(task)">详情</n-button><n-button v-if="task.task_type === 'SCRIPT_ANALYSIS' && task.status === 'FAILED'" size="small" quaternary type="warning" :loading="retryingTaskId === task.id" @click="retryTask(task)">重试</n-button><n-button v-if="task.can_cancel" size="small" quaternary type="error" @click="cancelTask(task)">取消</n-button></div></td>
               </tr>
             </tbody>
           </table>
@@ -98,6 +98,7 @@
           <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-xs"><div><dt class="text-[#9aa3b3]">任务类型</dt><dd class="mt-1 text-[#4c5870]">{{ typeLabel(selectedTask.task_type) }}</dd></div><div><dt class="text-[#9aa3b3]">执行范围</dt><dd class="mt-1 text-[#4c5870]">{{ selectedTask.episode_id ? `第 ${selectedTask.episode_id} 集` : '项目级' }}</dd></div><div><dt class="text-[#9aa3b3]">模型</dt><dd class="mt-1 truncate text-[#4c5870]">{{ selectedTask.model_name || '--' }}</dd></div><div><dt class="text-[#9aa3b3]">尝试次数</dt><dd class="mt-1 text-[#4c5870]">{{ selectedTask.attempt }} / {{ selectedTask.max_attempts }}</dd></div><div><dt class="text-[#9aa3b3]">创建时间</dt><dd class="mt-1 text-[#4c5870]">{{ formatDate(selectedTask.created_at) }}</dd></div><div><dt class="text-[#9aa3b3]">开始时间</dt><dd class="mt-1 text-[#4c5870]">{{ formatDate(selectedTask.started_at) }}</dd></div></dl>
           <div v-if="selectedTask.error_message" class="rounded-[10px] border border-[#f2dddd] bg-[#fffafa] p-3"><span class="text-[11px] text-[#b45d64]">{{ selectedTask.error_code || '任务错误' }}</span><p class="mt-1.5 m-0 text-xs leading-5 text-[#8c5d63]">{{ selectedTask.error_message }}</p></div>
           <div><h3 class="m-0 text-xs font-semibold text-[#4c5870]">执行时间线</h3><ol v-if="selectedTask.events?.length" class="mt-3 space-y-3 border-l border-[#e3e6ee] pl-4"><li v-for="event in selectedTask.events || []" :key="event.id" class="relative"><span class="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-[#7166e9] ring-4 ring-white" aria-hidden="true"></span><div class="flex items-center justify-between gap-2"><strong class="text-xs font-medium text-[#58647a]">{{ eventLabel(event.event_type) }}</strong><time class="text-[10px] text-[#9aa3b3]">{{ formatDate(event.created_at) }}</time></div><p v-if="event.message_code" class="mt-1 m-0 text-[11px] text-[#8b95a8]">{{ event.message_code }}</p></li></ol><p v-else class="mt-3 text-xs text-[#9aa3b3]">暂无事件记录</p></div>
+          <n-button v-if="selectedTask.task_type === 'SCRIPT_ANALYSIS' && selectedTask.status === 'FAILED'" type="warning" secondary block :loading="retryingTaskId === selectedTask.id" @click="retryTask(selectedTask)">发起重试</n-button>
           <n-button v-if="selectedTask.can_cancel" type="error" secondary block @click="cancelTask(selectedTask)">取消任务</n-button>
         </div>
       </n-drawer-content>
@@ -122,6 +123,7 @@ const selectedTask = ref<TaskItem | null>(null)
 const detailVisible = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
+const retryingTaskId = ref<number | null>(null)
 const drawerWidth = ref(470)
 const total = ref(0)
 const page = ref(0)
@@ -198,6 +200,24 @@ async function cancelTask(task: TaskItem) {
     await loadTasks()
   } catch (error) {
     message.error(error instanceof Error ? error.message : '任务取消失败')
+  }
+}
+
+async function retryTask(task: TaskItem) {
+  if (task.task_type !== 'SCRIPT_ANALYSIS' || task.status !== 'FAILED' || retryingTaskId.value !== null) return
+  retryingTaskId.value = task.id
+  try {
+    const response = await http.post<{ task_id: string; status: string }>(`/projects/${Number(projectId.value)}/script/analysis-tasks/${task.id}/retry`)
+    const nextTaskId = Number(response.task_id)
+    if (Number.isInteger(nextTaskId) && nextTaskId > 0) {
+      selectedTask.value = await http.get<TaskItem>(`/projects/${Number(projectId.value)}/tasks/${nextTaskId}`)
+    }
+    message.success('已发起重试')
+    await loadTasks()
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '发起重试失败')
+  } finally {
+    retryingTaskId.value = null
   }
 }
 

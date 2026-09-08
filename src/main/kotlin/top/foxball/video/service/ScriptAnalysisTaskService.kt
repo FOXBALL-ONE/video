@@ -292,6 +292,37 @@ class ScriptAnalysisTaskService(
         return Submission(task, result, false)
     }
 
+    @Transactional
+    fun retry(projectId: Long, userId: Long?, taskId: Long): Submission? {
+        if (!taskCenterService.canWriteProject(projectId, userId)) return null
+        val task = taskRepository.findByIdAndProjectId(taskId, projectId) ?: return null
+        require(task.taskType == ProductionTaskType.SCRIPT_ANALYSIS) { "该任务不支持剧本解析重试" }
+        require(task.status == ProductionTaskStatus.FAILED) { "只有失败的剧本解析任务可以重试" }
+        val result = resultRepository.findByTaskId(taskId) ?: throw IllegalStateException("解析结果记录不存在")
+        val selections = executionSelections(result, task).map { selection ->
+            ModelSelection(
+                assetType = EpisodeAssetType.valueOf(selection.assetType),
+                providerConfigId = selection.providerConfigId,
+                model = selection.model,
+                promptVersionId = selection.promptVersionId.takeIf { it > 0 },
+            )
+        }
+        val stream = when (val value = task.inputPayload["stream"]) {
+            is Boolean -> value
+            else -> value?.toString()?.toBooleanStrictOrNull() ?: true
+        }
+        return submit(
+            projectId = projectId,
+            userId = userId,
+            episodeId = result.episodeId,
+            versionId = result.scriptVersionId,
+            contentHash = result.contentHash,
+            selections = selections,
+            idempotencyKey = "script-analysis-retry-$taskId-${UUID.randomUUID()}",
+            stream = stream,
+        )
+    }
+
     fun detail(projectId: Long, userId: Long?, taskId: Long): Detail? {
         if (!taskCenterService.canReadProject(projectId, userId)) return null
         val task = taskRepository.findByIdAndProjectId(taskId, projectId) ?: return null
@@ -404,7 +435,7 @@ class ScriptAnalysisTaskService(
     private fun existingAdoption(result: ScriptAnalysisResult, idempotencyKey: String): RecordedAdoption? {
         val records = runCatching { objectMapper.readTree(result.adoptionRecordsJson) }.getOrNull()
             ?.takeIf { it.isArray }?.toList().orEmpty()
-        val record = records.firstOrNull { it.path("idempotencyKey").textValue() == idempotencyKey } ?: return null
+        val record = records.firstOrNull { it.get("idempotencyKey")?.takeIf { value -> value.isString }?.stringValue() == idempotencyKey } ?: return null
         return RecordedAdoption(
             assetTypes = record.path("assetTypes").takeIf { it.isArray }?.toList()?.mapNotNull { it.textValue() }.orEmpty(),
             assetIds = record.path("assetIds").takeIf { it.isArray }?.toList()?.mapNotNull { it.longValue().takeIf { value -> value > 0 } }.orEmpty(),
@@ -465,7 +496,7 @@ class ScriptAnalysisTaskService(
         }
         val currentTypeResults = runCatching { objectMapper.readTree(result.typeResultsJson) }.getOrNull()
         val pendingSelections = selections.filter { selection ->
-            currentTypeResults?.path(selection.assetType)?.path("status")?.textValue() !in setOf("SUCCEEDED", "FAILED", "CANCELLED")
+            currentTypeResults?.get(selection.assetType)?.get("status")?.takeIf { it.isString }?.stringValue() !in setOf("SUCCEEDED", "FAILED", "CANCELLED")
         }
         val remaining = java.util.concurrent.atomic.AtomicInteger(pendingSelections.size)
         val aggregateOnce = AtomicBoolean(false)
@@ -617,28 +648,37 @@ class ScriptAnalysisTaskService(
         val root = runCatching { objectMapper.readTree(json) }.getOrElse { throw IllegalStateException("解析任务配置快照不是合法 JSON") }
         require(root.isArray) { "解析任务配置快照必须是数组" }
         return root.toList().map { node ->
-            val typeName = (node.path("assetType").textValue() ?: node.path("asset_type").textValue())
+            val typeName = (node.get("assetType")?.takeIf { it.isString }?.stringValue()
+                ?: node.get("asset_type")?.takeIf { it.isString }?.stringValue())
                 ?.trim()?.takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("解析任务资产类型缺失")
             val type = runCatching { EpisodeAssetType.valueOf(typeName.uppercase()) }.getOrElse { throw IllegalStateException("解析资产类型不正确") }
-            val providerConfigId = (node.path("providerConfigId").longValue().takeIf { it > 0 }
-                ?: node.path("provider_config_id").longValue())
-            val model = (node.path("model").textValue() ?: node.path("model_name").textValue())?.trim().orEmpty()
+            val providerConfigId = (node.get("providerConfigId")?.takeIf { it.isIntegralNumber }?.longValue()?.takeIf { it > 0 }
+                ?: node.get("provider_config_id")?.takeIf { it.isIntegralNumber }?.longValue()
+                ?: 0L)
+            val model = (node.get("model")?.takeIf { it.isString }?.stringValue()
+                ?: node.get("model_name")?.takeIf { it.isString }?.stringValue())?.trim().orEmpty()
             require(providerConfigId > 0 && model.isNotBlank()) { "解析模型配置不正确" }
             StoredSelection(
                 assetType = type.name,
                 providerConfigId = providerConfigId,
                 model = model,
-                promptKey = node.path("promptKey").textValue() ?: node.path("prompt_key").textValue().orEmpty(),
-                promptCategory = node.path("promptCategory").textValue() ?: node.path("prompt_category").textValue().orEmpty(),
-                promptVersionId = node.path("promptVersionId").longValue().takeIf { it > 0 }
-                    ?: node.path("prompt_version_id").longValue(),
-                templateHash = node.path("templateHash").textValue() ?: node.path("template_hash").textValue().orEmpty(),
-                variablesHash = node.path("variablesHash").textValue() ?: node.path("variables_hash").textValue().orEmpty(),
-                outputSchemaVersion = node.path("outputSchemaVersion").textValue() ?: node.path("output_schema_version").textValue().orEmpty(),
+                promptKey = node.get("promptKey")?.takeIf { it.isString }?.stringValue()
+                    ?: node.get("prompt_key")?.takeIf { it.isString }?.stringValue().orEmpty(),
+                promptCategory = node.get("promptCategory")?.takeIf { it.isString }?.stringValue()
+                    ?: node.get("prompt_category")?.takeIf { it.isString }?.stringValue().orEmpty(),
+                promptVersionId = node.get("promptVersionId")?.takeIf { it.isIntegralNumber }?.longValue()?.takeIf { it > 0 }
+                    ?: node.get("prompt_version_id")?.takeIf { it.isIntegralNumber }?.longValue()
+                    ?: 0L,
+                templateHash = node.get("templateHash")?.takeIf { it.isString }?.stringValue()
+                    ?: node.get("template_hash")?.takeIf { it.isString }?.stringValue().orEmpty(),
+                variablesHash = node.get("variablesHash")?.takeIf { it.isString }?.stringValue()
+                    ?: node.get("variables_hash")?.takeIf { it.isString }?.stringValue().orEmpty(),
+                outputSchemaVersion = node.get("outputSchemaVersion")?.takeIf { it.isString }?.stringValue()
+                    ?: node.get("output_schema_version")?.takeIf { it.isString }?.stringValue().orEmpty(),
                 selectionSource = (
-                    node.path("selectionSource").textValue()
-                        ?: node.path("selection_source").textValue()
+                    node.get("selectionSource")?.takeIf { it.isString }?.stringValue()
+                        ?: node.get("selection_source")?.takeIf { it.isString }?.stringValue()
                 )?.trim()?.takeIf { it.isNotBlank() } ?: "DEFAULT",
             )
         }
@@ -649,7 +689,7 @@ class ScriptAnalysisTaskService(
         val selectedTypes = parseStoredSelections(result.selectionsJson).map { EpisodeAssetType.valueOf(it.assetType) }.toSet()
         return selectedTypes.mapNotNull { type ->
             val typeResult = root.path(type.name)
-            if (typeResult.path("status").textValue() != "SUCCEEDED") return@mapNotNull null
+            if (typeResult.get("status")?.takeIf { it.isString }?.stringValue() != "SUCCEEDED") return@mapNotNull null
             val items = typeResult.path("items").takeIf { it.isArray }?.toList().orEmpty()
             type to items
         }.toMap()

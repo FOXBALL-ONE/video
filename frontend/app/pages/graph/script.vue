@@ -251,6 +251,7 @@
       </div>
       <template #footer>
         <div class="flex justify-end gap-2">
+          <n-button v-if="analysisTaskId && analysisTaskStatus === 'FAILED'" type="warning" secondary :loading="analysisRetrying" :disabled="analysisSubmitting || analysisAdopting || analysisDiscarding" @click="retryAnalysisTask">发起重试</n-button>
           <n-button v-if="analysisTaskId && ['QUEUED', 'RUNNING', 'CANCEL_REQUESTED'].includes(analysisTaskStatus)" type="warning" secondary :disabled="analysisSubmitting || analysisAdopting || analysisTaskStatus === 'CANCEL_REQUESTED'" @click="cancelAnalysisTask">取消任务</n-button>
           <n-button :disabled="analysisSubmitting" @click="analysisModalVisible = false">取消</n-button>
           <n-button type="primary" color="#6654ee" :loading="analysisSubmitting" :disabled="!selectedAnalysisCount || !analysisJobsValid" @click="startAnalysisTask">开始提取</n-button>
@@ -440,6 +441,7 @@ const analysisAdoptionStatus = ref('')
 const analysisDetailsVisible = ref(false)
 const analysisAdopting = ref(false)
 const analysisDiscarding = ref(false)
+const analysisRetrying = ref(false)
 const analysisSubmissionKey = ref('')
 const analysisSubmissionFingerprint = ref('')
 const analysisStream = ref(true)
@@ -820,6 +822,34 @@ async function cancelAnalysisTask() {
     if (response.status === 'CANCELLED') analysisTaskError.value = '解析任务已取消'
   } catch (error) {
     message.error(error instanceof Error ? error.message : '取消解析任务失败')
+  }
+}
+
+async function retryAnalysisTask() {
+  const id = Number(projectId.value)
+  if (!Number.isInteger(id) || id <= 0 || !analysisTaskId.value || analysisTaskStatus.value !== 'FAILED') return
+  analysisRetrying.value = true
+  try {
+    const response = await http.post<{ task_id: string; status: string }>(`/projects/${id}/script/analysis-tasks/${analysisTaskId.value}/retry`)
+    analysisPollToken += 1
+    if (analysisPollTimer !== null) window.clearTimeout(analysisPollTimer)
+    analysisPollTimer = null
+    analysisTaskId.value = response.task_id
+    analysisTaskStatus.value = response.status
+    analysisTaskError.value = ''
+    analysisTaskProgress.value = 0
+    analysisTaskStage.value = 'QUEUED'
+    analysisTypeResults.value = []
+    analysisAdoptionTypes.value = []
+    analysisAdoptedTypeNames.value = []
+    analysisAdoptionStatus.value = ''
+    saveTaskReference()
+    void pollAnalysisTask(id)
+    message.success('已发起重试')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '发起重试失败')
+  } finally {
+    analysisRetrying.value = false
   }
 }
 

@@ -172,6 +172,8 @@ class ScriptController(
             return responseBuilder.tooManyRequests().retryAfter(2).message("解析任务队列已满，请稍后重试").build()
         } catch (_: ScriptAnalysisTaskService.ContentConflictException) {
             return responseBuilder.status(HttpStatus.CONFLICT).message("剧本内容已变化，请重新解析当前版本").build()
+        } catch (exception: IllegalStateException) {
+            return responseBuilder.badRequest().message(exception.message).build()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         } ?: return responseBuilder.notFound().build()
@@ -180,6 +182,48 @@ class ScriptController(
             ?.map { entry -> entry.entries.associate { (key, value) -> key.toString() to value } } ?: emptyList()
         val rs = Response(requireNotNull(task.id).toString(), task.status.name, selections.map { it.assetType.name }, versionId, task.inputPayload["prompt_key"]?.toString(), (task.inputPayload["prompt_version_id"] as? Number)?.toLong(), task.inputPayload["template_hash"]?.toString(), promptSelections, task.correlationId)
         return responseBuilder.accepted().data(rs).build()
+    }
+
+    @PostMapping("/api/projects/{project_id}/script/analysis-tasks/{task_id}/retry")
+    fun retryAnalysisTask(
+        @PathVariable("project_id") projectId: Long,
+        @AuthenticationPrincipal userId: Long?,
+        @PathVariable("task_id") taskId: Long,
+    ): ResponseEntity<Response> {
+        data class Response(
+            @param:JsonProperty("task_id") val taskId: String,
+            val status: String,
+            @param:JsonProperty("asset_types") val assetTypes: List<String>,
+            @param:JsonProperty("version_id") val versionId: Long,
+            @param:JsonProperty("prompt_key") val promptKey: String?,
+            @param:JsonProperty("prompt_version_id") val promptVersionId: Long?,
+            @param:JsonProperty("template_hash") val templateHash: String?,
+            @param:JsonProperty("prompt_selections") val promptSelections: List<Map<String, Any?>>,
+            @param:JsonProperty("correlation_id") val correlationId: String?,
+        )
+        val submitted = try {
+            scriptAnalysisTaskService.retry(projectId, userId, taskId)
+        } catch (_: ScriptAnalysisTaskService.QueueFullException) {
+            return responseBuilder.tooManyRequests().retryAfter(2).message("解析任务队列已满，请稍后重试").build()
+        } catch (_: ScriptAnalysisTaskService.ContentConflictException) {
+            return responseBuilder.status(HttpStatus.CONFLICT).message("剧本内容已变化，请重新解析当前版本").build()
+        } catch (exception: IllegalStateException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } catch (exception: IllegalArgumentException) {
+            return responseBuilder.badRequest().message(exception.message).build()
+        } ?: return responseBuilder.notFound().build()
+        val task = submitted.task
+        val promptSelections = (task.inputPayload["prompt_selections"] as? Collection<*>)?.mapNotNull { it as? Map<*, *> }
+            ?.map { entry -> entry.entries.associate { (key, value) -> key.toString() to value } } ?: emptyList()
+        val response = Response(
+            requireNotNull(task.id).toString(), task.status.name,
+            (task.inputPayload["asset_types"] as? Collection<*>)?.mapNotNull { it?.toString() }.orEmpty(),
+            (task.inputPayload["version_id"] as? Number)?.toLong() ?: 0L,
+            task.inputPayload["prompt_key"]?.toString(),
+            (task.inputPayload["prompt_version_id"] as? Number)?.toLong(),
+            task.inputPayload["template_hash"]?.toString(), promptSelections, task.correlationId,
+        )
+        return responseBuilder.accepted().data(response).build()
     }
 
     @GetMapping("/api/projects/{project_id}/script/analysis-tasks/{task_id}")

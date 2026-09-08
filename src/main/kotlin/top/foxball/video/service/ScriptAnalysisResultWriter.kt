@@ -50,7 +50,7 @@ class ScriptAnalysisResultWriter(
         val task = taskRepository.findWithLockById(taskId) ?: return false
         val result = resultRepository.findWithLockByTaskId(taskId) ?: return false
         val root = readObject(result.typeResultsJson)
-        val current = root.path(assetType).path("status").textValue()
+        val current = root.get(assetType)?.get("status")?.takeIf { it.isString }?.stringValue()
         if (current in TERMINAL_STATUSES) return false
         val next = values.toMutableMap()
         val requestedStatus = next["status"]?.toString()
@@ -88,7 +88,7 @@ class ScriptAnalysisResultWriter(
         var changed = false
         assetTypes.forEach { assetType ->
             val item = root.path(assetType)
-            val status = item.path("status").textValue()
+            val status = item.get("status")?.takeIf { it.isString }?.stringValue()
             if (status !in TERMINAL_STATUSES) {
                 val cancelled = if (item.isObject) (item as ObjectNode).deepCopy() else objectMapper.createObjectNode()
                 cancelled.put("status", "CANCELLED")
@@ -112,7 +112,9 @@ class ScriptAnalysisResultWriter(
         val result = resultRepository.findByTaskId(taskId) ?: return null
         if (assetTypes.isEmpty()) return 0
         val root = readObject(result.typeResultsJson)
-        return assetTypes.sumOf { root.path(it).path("progress").intValue().coerceIn(0, 100) } / assetTypes.size
+        return assetTypes.sumOf {
+            root.get(it)?.get("progress")?.takeIf { value -> value.isIntegralNumber }?.intValue()?.coerceIn(0, 100) ?: 0
+        } / assetTypes.size
     }
 
     /**
@@ -129,17 +131,26 @@ class ScriptAnalysisResultWriter(
         if (task.status in setOf(ProductionTaskStatus.SUCCEEDED, ProductionTaskStatus.FAILED)) return Aggregation(Aggregation.Status.TERMINAL)
 
         val root = readObject(result.typeResultsJson)
-        val statuses = assetTypes.associateWith { root.path(it).path("status").textValue() ?: "PENDING" }
+        val statuses = assetTypes.associateWith {
+            root.get(it)?.get("status")?.takeIf { value -> value.isString }?.stringValue() ?: "PENDING"
+        }
         if (statuses.values.any { it !in TERMINAL_STATUSES }) return Aggregation(Aggregation.Status.PENDING)
 
         val successful = assetTypes.filter { statuses[it] == "SUCCEEDED" }
         if (successful.isEmpty()) {
             val failure = assetTypes.asSequence().map { root.path(it) }
-                .firstOrNull { it.path("errorCode").textValue() != null || it.path("error_code").textValue() != null }
+                .firstOrNull {
+                    it.get("errorCode")?.takeIf { value -> value.isString } != null ||
+                        it.get("error_code")?.takeIf { value -> value.isString } != null
+                }
             return Aggregation(
                 Aggregation.Status.FAILED,
-                errorCode = failure?.path("errorCode")?.textValue() ?: failure?.path("error_code")?.textValue() ?: "SCRIPT_ANALYSIS_FAILED",
-                errorMessage = failure?.path("errorMessage")?.textValue() ?: failure?.path("error_message")?.textValue() ?: "所有资产类型解析失败",
+                errorCode = failure?.get("errorCode")?.takeIf { it.isString }?.stringValue()
+                    ?: failure?.get("error_code")?.takeIf { it.isString }?.stringValue()
+                    ?: "SCRIPT_ANALYSIS_FAILED",
+                errorMessage = failure?.get("errorMessage")?.takeIf { it.isString }?.stringValue()
+                    ?: failure?.get("error_message")?.takeIf { it.isString }?.stringValue()
+                    ?: "所有资产类型解析失败",
             )
         }
 
@@ -164,7 +175,7 @@ class ScriptAnalysisResultWriter(
         var changed = false
         assetTypes.forEach { assetType ->
             val item = root.path(assetType)
-            if (item.path("status").textValue() !in TERMINAL_STATUSES) {
+            if (item.get("status")?.takeIf { it.isString }?.stringValue() !in TERMINAL_STATUSES) {
                 val cancelled = if (item.isObject) (item as ObjectNode).deepCopy() else objectMapper.createObjectNode()
                 cancelled.put("status", "CANCELLED")
                 cancelled.put("stage", "CANCELLED")

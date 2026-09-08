@@ -388,6 +388,7 @@ const categoryOptions = [
   {label: '场景提取', value: 'SCRIPT_SCENE'},
   {label: '道具提取', value: 'SCRIPT_PROP'},
   {label: '角色内容丰富', value: 'CHARACTER_ENRICHMENT'},
+  {label: '角色表情图提示词', value: 'CHARACTER_EXPRESSION_IMAGE'},
 ]
 const keyCategoryMap: Record<string, string> = {
   script_analysis: 'SCRIPT_GENERAL',
@@ -395,6 +396,8 @@ const keyCategoryMap: Record<string, string> = {
   script_scene_extraction: 'SCRIPT_SCENE',
   script_prop_extraction: 'SCRIPT_PROP',
   character_enrichment: 'CHARACTER_ENRICHMENT',
+  character_expression_image_prompt: 'CHARACTER_EXPRESSION_IMAGE',
+  character_three_view_merge: 'CHARACTER_ENRICHMENT',
 }
 const registeredKeyOptions = [
   {label: 'script_analysis · 剧本资产解析', value: 'script_analysis'},
@@ -402,6 +405,8 @@ const registeredKeyOptions = [
   {label: 'script_scene_extraction · 剧本场景提取', value: 'script_scene_extraction'},
   {label: 'script_prop_extraction · 剧本道具提取', value: 'script_prop_extraction'},
   {label: 'character_enrichment · 角色内容丰富', value: 'character_enrichment'},
+  {label: 'character_expression_image_prompt · 角色表情图提示词', value: 'character_expression_image_prompt'},
+  {label: 'character_three_view_merge · 角色三视图合成单视图', value: 'character_three_view_merge'},
 ]
 const categoryLabel = (category?: string) => ({
   SCRIPT_GENERAL: '剧本通用分析',
@@ -409,6 +414,7 @@ const categoryLabel = (category?: string) => ({
   SCRIPT_SCENE: '场景提取',
   SCRIPT_PROP: '道具提取',
   CHARACTER_ENRICHMENT: '角色内容丰富',
+  CHARACTER_EXPRESSION_IMAGE: '角色表情图提示词',
 } as Record<string, string>)[category || ''] || category || '未分类'
 
 const variableCount = computed(() => {

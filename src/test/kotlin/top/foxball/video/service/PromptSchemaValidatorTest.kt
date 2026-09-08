@@ -104,4 +104,24 @@ class PromptSchemaValidatorTest {
         val rendered = renderer.render(prompt, mapOf("required_text" to "输入"))
         assertTrue(rendered.messages.last().content?.contains("默认值") == true)
     }
+
+    @Test
+    fun `preview supplies integer sample values`() {
+        val prompt = PromptCatalogService.ResolvedPrompt(
+            PromptDefinition(id = 1, key = "character_expression_image_prompt"),
+            PromptVersion(
+                id = 2,
+                promptDefinitionId = 1,
+                messagesJson = """[{"role":"user","content":"数量={{expression_count}}"}]""",
+                variablesSchemaJson = """{"type":"object","properties":{"role_description":{"type":"string"},"expression_count":{"type":"integer"}},"required":["role_description","expression_count"]}""",
+                outputSchemaJson = """{"type":"object"}""",
+                generationPolicyJson = "{}",
+                contentHash = "sha256:test",
+            ),
+        )
+
+        val rendered = renderer.preview(prompt, "sample")
+
+        assertTrue(rendered.messages.single().content?.contains("数量=4") == true)
+    }
 }

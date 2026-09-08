@@ -11,6 +11,8 @@ class ScriptAssetPromptContractTest {
         assertEquals(PromptCategory.SCRIPT_CHARACTER, PromptCatalogService.CATEGORY_BY_KEY["script_character_extraction"])
         assertEquals(PromptCategory.SCRIPT_SCENE, PromptCatalogService.CATEGORY_BY_KEY["script_scene_extraction"])
         assertEquals(PromptCategory.SCRIPT_PROP, PromptCatalogService.CATEGORY_BY_KEY["script_prop_extraction"])
+        assertEquals(PromptCategory.CHARACTER_EXPRESSION_IMAGE, PromptCatalogService.CATEGORY_BY_KEY["character_expression_image_prompt"])
+        assertEquals(PromptCategory.CHARACTER_ENRICHMENT, PromptCatalogService.CATEGORY_BY_KEY["character_three_view_merge"])
     }
 
     @Test
@@ -18,6 +20,8 @@ class ScriptAssetPromptContractTest {
         assertTrue("script_character_extraction" in PromptCatalogService.REGISTERED_KEYS)
         assertTrue("script_scene_extraction" in PromptCatalogService.REGISTERED_KEYS)
         assertTrue("script_prop_extraction" in PromptCatalogService.REGISTERED_KEYS)
-        assertEquals(5, PromptCatalogService.CATEGORY_BY_KEY.size)
+        assertTrue("character_expression_image_prompt" in PromptCatalogService.REGISTERED_KEYS)
+        assertTrue("character_three_view_merge" in PromptCatalogService.REGISTERED_KEYS)
+        assertEquals(7, PromptCatalogService.CATEGORY_BY_KEY.size)
     }
 }
