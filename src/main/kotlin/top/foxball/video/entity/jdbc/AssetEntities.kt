@@ -100,6 +100,9 @@ class EpisodeAsset(
     var description: String? = null,
     @Column(name = "reference_url", length = 1000)
     var referenceUrl: String? = null,
+    @Column(name = "audio_file_id", length = 64)
+    /** 用户上传的声线音频在文件库中的主键。 */
+    var audioFileId: String? = null,
     @Column(columnDefinition = "text")
     var notes: String? = null,
     @Enumerated(EnumType.STRING)

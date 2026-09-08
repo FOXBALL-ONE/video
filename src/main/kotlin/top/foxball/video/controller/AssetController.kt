@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.springframework.http.ResponseEntity
+import org.springframework.http.MediaType
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
@@ -13,7 +15,9 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.multipart.MultipartFile
 import top.foxball.video.entity.jdbc.AssetStatus
 import top.foxball.video.entity.jdbc.AssetType
 import top.foxball.video.entity.jdbc.EpisodeAssetType
@@ -344,14 +348,57 @@ class AssetController(
     }
 
     @GetMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")
-    fun listEpisodeAssets(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long): ResponseEntity<Response> {
-        data class AssetData(val id: Long, val name: String, val type: String, val description: String?, @param:JsonProperty("reference_url") val referenceUrl: String?, val notes: String?, val status: String, @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?)
+    fun listEpisodeAssets(@PathVariable("project_id") projectId: Long, @PathVariable("episode_id") episodeId: Long, @AuthenticationPrincipal userId: Long?): ResponseEntity<Response> {
+        data class AssetData(val id: Long, val name: String, val type: String, val description: String?, @param:JsonProperty("reference_url") val referenceUrl: String?, @param:JsonProperty("audio_file_id") val audioFileId: String?, @param:JsonProperty("audio_url") val audioUrl: String?, val notes: String?, val status: String, @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?)
         data class Response(val list: List<AssetData>, val completeness: Int)
         val assets = assetService.loadEpisode(projectId, episodeId) ?: return responseBuilder.notFound().build()
-        val list = assets.map { AssetData(requireNotNull(it.id), it.name, it.type.name, it.description, it.referenceUrl, it.notes, it.status.name, it.updatedAt) }
+        val list = assets.map { asset ->
+            val audioUrl = asset.audioFileId
+                ?.let { fileId -> runCatching { UUID.fromString(fileId) }.getOrNull() }
+                ?.let { fileId -> userId?.let { ownerId -> runCatching { fileService.createDownloadLinks(ownerId, listOf(fileId)).single().signedDownloadUrl }.getOrNull() } }
+            AssetData(requireNotNull(asset.id), asset.name, asset.type.name, asset.description, asset.referenceUrl, asset.audioFileId, audioUrl, asset.notes, asset.status.name, asset.updatedAt)
+        }
         val complete = if (list.isEmpty()) 0 else list.count { it.status == AssetStatus.LOCKED.name || it.status == AssetStatus.READY.name } * 100 / list.size
         val rs = Response(list, complete)
         return responseBuilder.ok().data(rs).build()
+    }
+
+    @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets/voices", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    @PreAuthorize("hasAuthority('file:write')")
+    fun uploadEpisodeVoiceAsset(
+        @PathVariable("project_id") projectId: Long,
+        @PathVariable("episode_id") episodeId: Long,
+        @AuthenticationPrincipal userId: Long,
+        @RequestPart("file") file: MultipartFile,
+        @RequestParam("name", required = false) @Size(max = 100) name: String?,
+    ): ResponseEntity<Response> {
+        data class Response(
+            val id: Long,
+            val name: String,
+            val type: String,
+            val status: String,
+            @param:JsonProperty("audio_file_id") val audioFileId: String,
+            @param:JsonProperty("audio_file_name") val audioFileName: String,
+            @param:JsonProperty("audio_content_type") val audioContentType: String?,
+            @param:JsonProperty("audio_size_bytes") val audioSizeBytes: Long,
+            @param:JsonProperty("audio_url") val audioUrl: String,
+        )
+
+        val upload = assetService.uploadEpisodeVoiceAsset(projectId, episodeId, userId, name, file) ?: return responseBuilder.notFound().build()
+        val asset = upload.asset
+        val storedFile = upload.file.file
+        val rs = Response(
+            id = requireNotNull(asset.id),
+            name = asset.name,
+            type = asset.type.name,
+            status = asset.status.name,
+            audioFileId = storedFile.id.toString(),
+            audioFileName = storedFile.originalFilename,
+            audioContentType = storedFile.contentType,
+            audioSizeBytes = storedFile.sizeBytes,
+            audioUrl = upload.file.signedDownloadUrl,
+        )
+        return responseBuilder.created().data(rs).build()
     }
 
     @PostMapping("/api/projects/{project_id}/episodes/{episode_id}/assets")

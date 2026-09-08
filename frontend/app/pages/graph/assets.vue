@@ -337,13 +337,20 @@
           <section>
             <h3 class="m-0 text-[13px] font-medium text-[#20283b]">配音绑定</h3>
             <div
-                class="mt-3 flex items-center justify-between rounded-[10px] border border-[#e8eaf0] bg-white px-3.5 py-2">
-              <span :class="characterForm.voice_asset_id ? 'text-[#20283b]' : 'text-[#b6bdcc]'" class="text-[13px]">{{
-                  voiceBindingLabel
-                }}</span>
-              <n-popselect v-model:value="characterForm.voice_asset_id" :options="voiceOptions" trigger="click">
-                <n-button class="!text-[#5a4ef0]" quaternary size="tiny">选择声线</n-button>
-              </n-popselect>
+                class="mt-3 flex flex-col gap-2.5 rounded-[10px] border border-[#e8eaf0] bg-white px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <span :class="characterForm.voice_asset_id ? 'text-[#20283b]' : 'text-[#b6bdcc]'" class="block truncate text-[13px]">{{
+                    voiceBindingLabel
+                  }}</span>
+                <audio v-if="selectedVoiceAsset?.audio_url" :src="resolveMediaUrl(selectedVoiceAsset.audio_url) || undefined"
+                       class="mt-2 h-8 max-w-full" controls preload="metadata"/>
+              </div>
+              <div class="flex shrink-0 items-center gap-1">
+                <n-popselect v-model:value="characterForm.voice_asset_id" :options="voiceOptions" trigger="click">
+                  <n-button class="!text-[#5a4ef0]" quaternary size="tiny">选择声线</n-button>
+                </n-popselect>
+                <n-button :loading="voiceUploading" class="!text-[#e87517]" quaternary size="tiny" @click="triggerVoiceUpload">上传音频</n-button>
+              </div>
             </div>
           </section>
         </div>
@@ -584,6 +591,7 @@
         </div>
       </n-modal>
       <input ref="fileInputRef" accept="image/*" class="hidden" type="file" @change="onImageChosen">
+      <input ref="voiceFileInputRef" :accept="acceptedAudioExtensions" class="hidden" type="file" @change="onVoiceFileChosen">
     </div>
   </main>
 </template>
@@ -597,6 +605,8 @@ interface AssetItem {
   type: string;
   description: string | null;
   reference_url: string | null;
+  audio_file_id: string | null;
+  audio_url: string | null;
   notes: string | null;
   status: string;
   updated_at: string | null
@@ -852,6 +862,11 @@ const uploadSlot = ref<ProfileImageSlot | ''>('');
 const uploading = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const maxImageUploadBytes = 20 * 1024 * 1024
+const voiceFileInputRef = ref<HTMLInputElement | null>(null)
+const voiceUploading = ref(false)
+const acceptedAudioExtensions = '.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac,.wma,.aiff,.aif,.amr,.webm'
+const supportedAudioExtensions = new Set(acceptedAudioExtensions.split(',').map((extension) => extension.slice(1)))
+const maxAudioUploadBytes = 100 * 1024 * 1024
 const threeViewSlots: { key: CharacterImageSlot; label: string }[] = [{key: 'front', label: '正面'}, {
   key: 'side',
   label: '侧面'
@@ -900,7 +915,8 @@ const elementFields = [{key: 'hairstyle', label: '发型'}, {key: 'costume_ref',
 const voiceOptions = computed(() => [{
   label: '未绑定',
   value: 0
-}, ...assets.value.filter((item) => item.type === 'VOICE').map((item) => ({label: item.name, value: item.id}))])
+}, ...assets.value.filter((item) => item.type === 'VOICE' && item.audio_file_id).map((item) => ({label: item.name, value: item.id}))])
+const selectedVoiceAsset = computed(() => assets.value.find((item) => item.id === characterForm.voice_asset_id && item.type === 'VOICE') || null)
 const characterName = computed(() => assets.value.find((item) => item.id === characterAssetId.value)?.name || '')
 const sceneName = computed(() => assets.value.find((item) => item.id === sceneAssetId.value)?.name || '')
 const propName = computed(() => assets.value.find((item) => item.id === propAssetId.value)?.name || '')
@@ -978,7 +994,7 @@ const imageApiOrigin = (() => {
  * (for example localhost:8080 while the API is running on 4410). Keep the
  * signed path and query intact, but load API-owned files from the configured API.
  */
-function resolveImageUrl(url: string | null | undefined): string | null {
+function resolveMediaUrl(url: string | null | undefined): string | null {
   const value = url?.trim()
   if (!value) return null
   try {
@@ -991,6 +1007,10 @@ function resolveImageUrl(url: string | null | undefined): string | null {
   } catch {
     return value
   }
+}
+
+function resolveImageUrl(url: string | null | undefined): string | null {
+  return resolveMediaUrl(url)
 }
 
 async function loadAssets() {
@@ -1371,6 +1391,56 @@ function triggerImageUpload(slot: ProfileImageSlot) {
   if (input) {
     input.value = '';
     input.click()
+  }
+}
+
+function triggerVoiceUpload() {
+  if (!hasEpisode.value || !characterAssetId.value) {
+    message.warning('请先选择具体剧集和角色')
+    return
+  }
+  const input = voiceFileInputRef.value
+  if (!input) return
+  input.value = ''
+  input.click()
+}
+
+async function onVoiceFileChosen(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (!extension || !supportedAudioExtensions.has(extension)) {
+    message.warning('仅支持 MP3、WAV、M4A、AAC、OGG、OPUS、FLAC、WMA、AIFF、AMR 或 WEBM 音频文件')
+    return
+  }
+  if (file.size > maxAudioUploadBytes) {
+    message.warning('音频大小不能超过 100MB')
+    return
+  }
+  voiceUploading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const uploaded = await http.post<{
+      id: number;
+      name: string;
+      type: string;
+      status: string;
+      audio_file_id: string;
+      audio_url: string
+    }, FormData>(`${episodePath.value}/voices`, formData)
+    characterForm.voice_asset_id = uploaded.id
+    await loadAssets()
+    if (!await saveCharacterProfile()) {
+      message.warning('音频已入库，请点击保存角色详情完成绑定')
+      return
+    }
+    message.success('声线已上传并绑定')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '声线上传失败')
+  } finally {
+    voiceUploading.value = false
   }
 }
 

@@ -2,6 +2,7 @@ package top.foxball.video.service
 
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.multipart.MultipartFile
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import top.foxball.video.ai.AiAnalysisException
@@ -33,6 +34,7 @@ import top.foxball.video.repository.SceneProfileRepository
 import top.foxball.video.repository.PropProfileRepository
 import top.foxball.video.repository.AiModelProviderConfigRepository
 import top.foxball.video.repository.ProjectRepository
+import top.foxball.video.handler.ParamErrorException
 import java.time.LocalDateTime
 import java.util.Locale
 import java.util.UUID
@@ -53,6 +55,7 @@ class AssetService(
     private val aiInvocationService: AiInvocationService,
     private val objectMapper: ObjectMapper,
     private val providerConfigRepository: AiModelProviderConfigRepository,
+    private val fileService: FileService,
 ) {
     data class Snapshot(val assets: List<Asset>, val issues: List<AssetIssue>)
     data class ExtractionResult(val assets: List<EpisodeAsset>, val provider: String, val model: String, val requestId: String)
@@ -61,6 +64,8 @@ class AssetService(
         val conflictCount: Int,
         val missingNameCount: Int,
     )
+
+    data class EpisodeVoiceUpload(val asset: EpisodeAsset, val file: FileDetails)
 
     data class CharacterProfileView(
         val asset: EpisodeAsset,
@@ -176,6 +181,37 @@ class AssetService(
         return episodeAssetRepository.save(EpisodeAsset(projectId = projectId, episodeId = episodeId, name = name, type = type, description = description, referenceUrl = referenceUrl, notes = notes, status = status))
     }
 
+    /** 上传用户提供的声线样本，并在当前剧集登记为可绑定的声音资产。 */
+    @Transactional
+    fun uploadEpisodeVoiceAsset(projectId: Long, episodeId: Long, ownerId: Long, name: String?, file: MultipartFile): EpisodeVoiceUpload? {
+        if (!projectRepository.existsById(projectId) || episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
+        if (file.isEmpty) throw ParamErrorException("音频文件不能为空")
+        val originalFilename = file.originalFilename
+            ?.substringAfterLast('/')
+            ?.substringAfterLast('\\')
+            ?.trim()
+            .orEmpty()
+        val extension = originalFilename.substringAfterLast('.', "").lowercase(Locale.ROOT)
+        if (extension !in setOf("mp3", "wav", "m4a", "aac", "ogg", "opus", "flac", "wma", "aiff", "aif", "amr", "webm")) {
+            throw ParamErrorException("仅支持 MP3、WAV、M4A、AAC、OGG、OPUS、FLAC、WMA、AIFF、AMR 或 WEBM 音频文件")
+        }
+        val assetName = name?.trim()?.takeIf { it.isNotBlank() }
+            ?: originalFilename.substringBeforeLast('.', originalFilename).trim()
+        if (assetName.isBlank()) throw ParamErrorException("请提供声线名称")
+        val uploaded = fileService.upload(ownerId, listOf(file)).single()
+        val asset = episodeAssetRepository.save(
+            EpisodeAsset(
+                projectId = projectId,
+                episodeId = episodeId,
+                name = assetName.take(100),
+                type = EpisodeAssetType.VOICE,
+                audioFileId = uploaded.file.id.toString(),
+                status = AssetStatus.READY,
+            ),
+        )
+        return EpisodeVoiceUpload(asset, uploaded)
+    }
+
     @Transactional
     fun updateEpisodeAsset(projectId: Long, episodeId: Long, assetId: Long, name: String, type: EpisodeAssetType, description: String?, referenceUrl: String?, notes: String?, status: AssetStatus): EpisodeAsset? {
         val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
@@ -238,7 +274,10 @@ class AssetService(
         profile.voiceAssetId = command.voiceAssetId
             ?.takeIf {
                 it > 0 && episodeAssetRepository.findById(it).orElse(null)?.let { voice ->
-                    voice.projectId == projectId && voice.episodeId == episodeId && voice.type == EpisodeAssetType.VOICE
+                    voice.projectId == projectId
+                        && voice.episodeId == episodeId
+                        && voice.type == EpisodeAssetType.VOICE
+                        && !voice.audioFileId.isNullOrBlank()
                 } == true
             }
         episodeAssetRepository.save(asset)
