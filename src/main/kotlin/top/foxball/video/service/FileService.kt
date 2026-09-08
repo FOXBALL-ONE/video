@@ -73,6 +73,9 @@ interface FileService {
     /** 读取当前用户拥有的文件内容，供服务端媒体处理使用。 */
     fun readOwned(ownerId: Long, fileId: UUID): StoredFileContent
 
+    /** 在领域服务已完成资产授权后读取文件内容，不作为 HTTP 接口暴露。 */
+    fun readForInternalUse(fileId: UUID): StoredFileContent
+
     /** 删除一份属于当前用户的文件；存在但归属其他用户时拒绝访问。 */
     fun delete(ownerId: Long, fileId: UUID)
 

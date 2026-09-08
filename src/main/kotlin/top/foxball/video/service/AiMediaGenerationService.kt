@@ -21,6 +21,7 @@ import top.foxball.video.handler.ParamErrorException
 import top.foxball.video.handler.ForbiddenException
 import top.foxball.video.handler.ResourceNotFoundException
 import java.util.Base64
+import java.util.Locale
 import java.util.UUID
 
 /** 面向 HTTP 管理接口的图片/视频调用门面；生成结果统一落入现有文件服务存储。 */
@@ -105,6 +106,48 @@ class AiMediaGenerationService(
         ).flatMap { result ->
             if (result.images.isEmpty()) Mono.error(AiProtocolException("图片编辑服务未返回图片"))
             else storeImages(ownerId, providerConfigId, result.images, "ai-image-edit")
+        }
+    }
+
+    /** 使用已由领域资产授权的服务端文件执行图片编辑，结果归任务创建者所有。 */
+    fun editStoredImages(
+        ownerId: Long,
+        providerConfigId: Long,
+        model: String,
+        prompt: String,
+        imageFileIds: List<String>,
+        count: Int? = 1,
+        size: String? = DEFAULT_IMAGE_SIZE,
+        requestId: String? = null,
+    ): Mono<List<FileDetails>> = Mono.fromCallable {
+        require(imageFileIds.isNotEmpty()) { "图片编辑至少需要一张参考图" }
+        imageFileIds.mapIndexed { index, fileId ->
+            val uuid = runCatching { UUID.fromString(fileId) }
+                .getOrElse { throw ParamErrorException("第 ${index + 1} 张资产参考图文件 ID 不正确") }
+            val content = fileService.readForInternalUse(uuid)
+            val contentType = content.contentType?.substringBefore(';')?.trim()?.lowercase(Locale.ROOT)
+            require(contentType?.startsWith("image/") == true) { "第 ${index + 1} 张资产参考图不是图片文件" }
+            AiImageInput(
+                content.originalFilename.ifBlank { "asset-reference-${index + 1}.png" },
+                contentType,
+                content.bytes,
+            )
+        }
+    }.subscribeOn(Schedulers.boundedElastic()).flatMap { inputs ->
+        aiInvocationService.editImage(
+            AiImageEditCommand(
+                providerConfigId = providerConfigId,
+                model = model.trim(),
+                prompt = prompt,
+                images = inputs,
+                count = count,
+                size = size?.ifBlank { DEFAULT_IMAGE_SIZE } ?: DEFAULT_IMAGE_SIZE,
+                responseFormat = AiImageResponseFormat.B64_JSON,
+                requestId = requestId,
+            ),
+        ).flatMap { result ->
+            if (result.images.isEmpty()) Mono.error(AiProtocolException("图片编辑服务未返回图片"))
+            else storeImages(ownerId, providerConfigId, result.images, "character-three-view-merge")
         }
     }
 

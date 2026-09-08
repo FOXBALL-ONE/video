@@ -636,6 +636,19 @@ class PromptCatalogInitializer(private val catalog: PromptCatalogService) : org.
             category = PromptCategory.CHARACTER_EXPRESSION_IMAGE,
         )
         catalog.ensureBuiltin(
+            key = "character_three_view_merge",
+            displayName = "角色合并三视图",
+            purpose = "将角色正面、侧面、背面三张已保存参考图合成为一张横向三视图设定图",
+            messagesJson = """[
+              {"role":"system","content":"你是专业的角色三视图图像合成师。输入图片顺序固定为：第 1 张正面视图、第 2 张侧面视图、第 3 张背面视图。请严格依照参考图完成图像编辑，保留原角色设计，不创造新的角色身份或造型。"},
+              {"role":"user","content":"角色名称：{{character_name}}\n角色与造型资料：{{character_description}}\n项目视觉风格：{{visual_style}}\n\n将输入的三张同一角色参考图合成为一张横向角色三视图设定图。画布从左到右固定排列：正面全身视图、严格 90 度侧面全身视图、背面全身视图。三个人物保持相同身高、头身比、脸型、肤色、发型发色、体型、服装结构、面料、配色、鞋子、配饰与道具，脚底位于同一水平线，间距均匀，主体完整无遮挡。\n\n使用白色或浅灰色无缝背景与均匀中性棚拍光；延续参考图和项目视觉风格；画面清晰，可直接用于后续角色一致性参考。不要把三张图融合成单个人物，不要改变视角顺序，不要新增或删除服装、配饰和道具，不要文字、标签、水印、边框、分隔线、复杂场景、透视夸张、镜像分身、身份漂移、裁切、模糊、重复肢体、畸形手脚或额外人物。"}
+            ]""",
+            variablesSchemaJson = """{"type":"object","properties":{"character_name":{"type":"string","maxLength":200},"character_description":{"type":"string","maxLength":40000},"visual_style":{"type":"string","maxLength":5000}},"required":["character_name","character_description","visual_style"]}""",
+            outputSchemaJson = """{"type":"object","properties":{"file_id":{"type":"string","maxLength":64},"content_type":{"type":"string","maxLength":100}},"required":["file_id"],"additionalProperties":false}""",
+            generationPolicyJson = """{"max_completion_tokens":1000,"max_input_tokens":20000,"response_format":"text"}""",
+            category = PromptCategory.CHARACTER_ENRICHMENT,
+        )
+        catalog.ensureBuiltin(
             key = "script_character_extraction",
             displayName = "剧本角色提取",
             purpose = "从剧本文本中提取角色资产",

@@ -159,6 +159,15 @@ class FileServiceImpl(
 
     override fun readOwned(ownerId: Long, fileId: UUID): StoredFileContent {
         val stored = fileRepository.findByIdAndOwnerId(fileId, ownerId) ?: throw fileNotFound()
+        return readStoredContent(stored)
+    }
+
+    override fun readForInternalUse(fileId: UUID): StoredFileContent {
+        val stored = fileRepository.findById(fileId).orElseThrow(::fileNotFound)
+        return readStoredContent(stored)
+    }
+
+    private fun readStoredContent(stored: StoredFile): StoredFileContent {
         if (stored.storage != LOCAL_STORAGE) throw fileNotFound()
         val path = resolveStoredPath(stored.relativePath)
         if (!Files.isRegularFile(path)) throw fileNotFound()

@@ -53,6 +53,13 @@ interface ProductionTaskRepository : JpaRepository<ProductionTask, Long> {
 
     fun findByIdAndProjectId(id: Long, projectId: Long): ProductionTask?
 
+    fun findFirstByProjectIdAndEpisodeIdAndTaskTypeAndIdempotencyKey(
+        projectId: Long,
+        episodeId: Long,
+        taskType: ProductionTaskType,
+        idempotencyKey: String,
+    ): ProductionTask?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     fun findWithLockById(id: Long): ProductionTask?
 }

@@ -286,6 +286,30 @@ class AssetService(
         return CharacterProfileView(asset, saved, voiceAssetName, parseExpressionFileIds(saved.expressionFileIds))
     }
 
+    /** 仅在三张来源图仍与任务快照一致时回填合并三视图。 */
+    @Transactional
+    fun saveMergedCharacterThreeView(
+        projectId: Long,
+        episodeId: Long,
+        assetId: Long,
+        expectedSourceFileIds: List<String>,
+        mergedFileId: String,
+    ): CharacterProfileView? {
+        val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(assetId, projectId, episodeId) ?: return null
+        if (asset.type != EpisodeAssetType.CHARACTER) return null
+        val profile = characterProfileRepository.findByEpisodeAssetId(assetId) ?: return null
+        val currentSourceFileIds = listOf(
+            profile.threeViewFrontFileId,
+            profile.threeViewSideFileId,
+            profile.threeViewBackFileId,
+        ).map { it?.trim().orEmpty() }
+        check(currentSourceFileIds == expectedSourceFileIds) { "角色三视图已变化，请重新提交合并任务" }
+        profile.threeViewMergedFileId = mergedFileId.trim().ifBlank { null }?.take(64)
+        val saved = characterProfileRepository.save(profile)
+        val voiceAssetName = saved.voiceAssetId?.let { voiceAssetId -> episodeAssetRepository.findById(voiceAssetId).orElse(null)?.name }
+        return CharacterProfileView(asset, saved, voiceAssetName, parseExpressionFileIds(saved.expressionFileIds))
+    }
+
     private fun parseExpressionFileIds(json: String): List<String> =
         runCatching { objectMapper.readTree(json) }.getOrNull()
             ?.takeIf { it.isArray }

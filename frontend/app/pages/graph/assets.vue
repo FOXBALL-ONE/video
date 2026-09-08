@@ -163,6 +163,31 @@
           </div>
         </template>
       </n-modal>
+      <n-modal v-model:show="mergeThreeViewVisible" :mask-closable="false" class="w-[min(92vw,520px)]" preset="card"
+               title="生成合并三视图">
+        <p class="-mt-2 mb-4 text-xs leading-5 text-[#8a94aa]">使用当前角色已保存的正面、侧面和背面参考图，生成一张横向排列的三视图设定图。</p>
+        <n-form label-placement="top">
+          <n-form-item label="图片模型" required>
+            <n-select v-model:value="mergeThreeViewModelKey" :disabled="mergeThreeViewLoading" :options="imageModelOptions"
+                      placeholder="请选择图片模型"/>
+          </n-form-item>
+        </n-form>
+        <n-alert v-if="mergeThreeViewTask" :show-icon="false" class="!rounded-[8px]"
+                 :type="mergeThreeViewTask.status === 'FAILED' ? 'error' : mergeThreeViewTask.status === 'SUCCEEDED' ? 'success' : 'info'">
+          <div class="flex items-center justify-between gap-4 text-xs">
+            <span>{{ mergeThreeViewStatusLabel }}</span>
+            <span v-if="mergeThreeViewTask.progress != null">{{ mergeThreeViewTask.progress }}%</span>
+          </div>
+          <p v-if="mergeThreeViewTask.error_message" class="mb-0 mt-1 text-[11px]">{{ mergeThreeViewTask.error_message }}</p>
+        </n-alert>
+        <template #footer>
+          <div class="flex justify-end gap-2">
+            <n-button :disabled="mergeThreeViewLoading" @click="mergeThreeViewVisible = false">取消</n-button>
+            <n-button :disabled="!mergeThreeViewModelKey" :loading="mergeThreeViewLoading" color="#f0820d" type="primary"
+                      @click="startThreeViewMerge">开始合并</n-button>
+          </div>
+        </template>
+      </n-modal>
       <n-modal v-model:show="editorVisible" :mask-closable="false" :title="editing ? '编辑资产详情' : '添加本集资产'"
                class="w-[min(92vw,560px)]" preset="card">
         <n-form label-placement="top">
@@ -287,7 +312,11 @@
             </div>
           </section>
           <section>
-            <h3 class="m-0 text-[13px] font-medium text-[#20283b]">合并三视图</h3>
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="m-0 text-[13px] font-medium text-[#20283b]">合并三视图</h3>
+              <n-button :loading="mergeThreeViewLoading" class="!rounded-[8px]" color="#f0820d" secondary size="small"
+                        @click="openThreeViewMerge">合并生成</n-button>
+            </div>
             <div aria-label="合并三视图，点击上传或选择" :class="{ 'is-busy': uploading && uploadSlot === 'merged' }" class="image-slot image-slot--wide mt-3"
                  role="button" tabindex="0" @click="triggerImageUpload('merged')"
                  @keydown.enter.prevent="triggerImageUpload('merged')" @keydown.space.prevent="triggerImageUpload('merged')">
@@ -665,6 +694,16 @@ interface CharacterImageRef {
   url: string | null
 }
 
+interface ThreeViewMergeTask {
+  task_id: string
+  status: string
+  progress?: number
+  stage?: string | null
+  merged_file_id?: string | null
+  error_code?: string | null
+  error_message?: string | null
+}
+
 interface CharacterProfileData {
   asset_id: number;
   name: string;
@@ -763,6 +802,10 @@ const imageGenerationVisible = ref(false)
 const imageGenerationModelKey = ref('')
 const imageGenerationSlots = ref<GenerationSlot[]>([])
 const imageGenerationMode = ref<'generation' | 'edit'>('generation')
+const mergeThreeViewVisible = ref(false)
+const mergeThreeViewLoading = ref(false)
+const mergeThreeViewModelKey = ref('')
+const mergeThreeViewTask = ref<ThreeViewMergeTask | null>(null)
 const imageGenerationModeOptions = [
   {label: '文生图', value: 'generation'},
   {label: '图生图', value: 'edit'}
@@ -978,6 +1021,13 @@ const imageProviders = computed(() => providers.value.filter((item) => (item.api
 const imageModelOptions = computed<ModelOption[]>(() => imageProviders.value
     .filter((provider) => provider.model_id?.trim())
     .map((provider) => ({label: `${provider.provider} · ${provider.model_id}`, value: `${provider.id}::${provider.model_id}`})))
+const mergeThreeViewStatusLabel = computed(() => {
+  const status = mergeThreeViewTask.value?.status
+  if (status === 'SUCCEEDED') return '合并三视图已生成'
+  if (status === 'FAILED') return '合并任务失败'
+  if (status === 'RUNNING') return '正在合并三张参考图'
+  return '合并任务已进入队列'
+})
 
 const imageApiOrigin = (() => {
   const apiBase = String(runtimeConfig.public.apiBase || '').trim()
@@ -1623,6 +1673,67 @@ async function saveSceneProfile(): Promise<boolean> {
 
 function notifyGenerationPending() {
   message.info('训练能力暂未接入')
+}
+
+async function openThreeViewMerge() {
+  if (!hasEpisode.value || !characterAssetId.value) {
+    message.warning('请先选择具体剧集和角色')
+    return
+  }
+  if (!imageModelOptions.value.length) {
+    message.warning('请先配置启用的图片模型')
+    return
+  }
+  const missingViews = threeViewSlots.filter(({key}) => !characterImages[key]?.file_id).map(({label}) => label)
+  if (missingViews.length) {
+    message.warning(`请先准备${missingViews.join('、')}视图`)
+    return
+  }
+  if (characterDirty.value && !await saveCharacterProfile()) return
+  mergeThreeViewModelKey.value = mergeThreeViewModelKey.value || imageModelOptions.value[0].value
+  mergeThreeViewTask.value = null
+  mergeThreeViewVisible.value = true
+}
+
+async function startThreeViewMerge() {
+  const [providerConfigId, model] = mergeThreeViewModelKey.value.split('::')
+  if (!providerConfigId || !model || !hasEpisode.value || !characterAssetId.value) {
+    message.warning('请选择有效的图片模型')
+    return
+  }
+  mergeThreeViewLoading.value = true
+  const idempotencyKey = `character-three-view-merge-${projectId.value}-${episodeId.value}-${characterAssetId.value}-${Date.now()}`
+  try {
+    const submitted = await http.post<ThreeViewMergeTask>(
+      `/projects/${projectId.value}/episodes/${episodeId.value}/assets/${characterAssetId.value}/character-three-view-merge-tasks`,
+      {provider_config_id: Number(providerConfigId), model},
+      {headers: {'Idempotency-Key': idempotencyKey}},
+    )
+    const taskId = Number(submitted.task_id)
+    if (!Number.isInteger(taskId) || taskId <= 0) throw new Error('三视图合并任务创建失败')
+    mergeThreeViewTask.value = submitted
+    const path = `/projects/${projectId.value}/episodes/${episodeId.value}/character-three-view-merge-tasks/${taskId}`
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      const current = await http.get<ThreeViewMergeTask>(path)
+      mergeThreeViewTask.value = current
+      if (current.status === 'SUCCEEDED') {
+        const data = await http.get<CharacterProfileData>(`${episodePath.value}/${characterAssetId.value}/character-profile`)
+        applyCharacterProfile(data)
+        mergeThreeViewVisible.value = false
+        message.success('合并三视图已生成并保存')
+        return
+      }
+      if (current.status === 'FAILED' || current.status === 'CANCELLED') {
+        throw new Error(current.error_message || '三视图合并失败')
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+    }
+    throw new Error('三视图合并等待超时，请到任务中心查看')
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '三视图合并失败')
+  } finally {
+    mergeThreeViewLoading.value = false
+  }
 }
 
 async function openImageGeneration(slots: GenerationSlot[]) {
