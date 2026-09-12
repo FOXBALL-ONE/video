@@ -52,7 +52,6 @@ class AuthController(
     }
 
     @PostMapping("/login")
-    @GetMapping("/login")
     fun login(
         @RequestParam("username") @NotBlank @Size(max = 50) username: String,
         @RequestParam("password") @NotBlank @Size(max = 100) password: String,

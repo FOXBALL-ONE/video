@@ -1,9 +1,12 @@
 package top.foxball.video.ai
 
+import org.springframework.ai.chat.model.ChatModel
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
+import top.foxball.video.ai.springai.SpringAiExceptionMapper
+import top.foxball.video.ai.springai.SpringAiModelFactory
 import java.util.UUID
 
 /** 面向业务服务的 AI 调用门面，负责将配置 ID 解析为受控连接。 */
@@ -12,6 +15,9 @@ class AiInvocationService(
     private val providerResolver: AiProviderResolver,
     private val client: AiModelClient,
     private val resultDownloader: AiResultDownloader,
+    private val modelFactory: SpringAiModelFactory,
+    private val invocationGuard: AiInvocationGuard,
+    private val springAiExceptionMapper: SpringAiExceptionMapper,
 ) {
     /** 解析已保存配置并异步获取该提供商支持的模型列表。 */
     fun listModels(providerConfigId: Long): Mono<List<AiModelDescriptor>> {
@@ -99,5 +105,22 @@ class AiInvocationService(
     fun downloadImage(providerConfigId: Long, imageUrl: String): Mono<AiResultDownloader.DownloadedAiImage> {
         val connection = providerResolver.resolveSaved(providerConfigId, AiApiType.IMAGE)
         return resultDownloader.download(connection, imageUrl)
+    }
+
+    /**
+     * 在提供商并发闸门与断路器的保护下取得 Spring AI 对话模型。
+     *
+     * 模板执行器需要在模型之上自行驱动工具调用循环并按模板策略装配工具与结构化输出选项，
+     * 因此这里返回模型本身而不是装配好的客户端。网络调用在 boundedElastic 调度器上以阻塞
+     * 方式执行，与项目其余任务线程保持一致。
+     */
+    fun <T : Any> useChatModel(providerConfigId: Long, model: String, invocation: (ChatModel) -> T): Mono<T> {
+        val connection = providerResolver.resolveSaved(providerConfigId, AiApiType.CHAT)
+        return invocationGuard.protect(connection, AiOperation.CHAT) {
+            Mono.fromCallable { invocation(modelFactory.chatModel(connection, model)) }
+                .subscribeOn(Schedulers.boundedElastic())
+                // SDK 异常必须翻译为项目异常：断路器只统计 AiClientException，业务层也只按项目异常映射错误码。
+                .onErrorMap(springAiExceptionMapper::translate)
+        }
     }
 }

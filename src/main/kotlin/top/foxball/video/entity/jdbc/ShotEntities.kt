@@ -139,6 +139,10 @@ class Shot(
     /** 镜头预览媒体文件主键。 */
     var previewFileId: Long? = null,
 
+    @Column(name = "storyboard_file_id", length = 64)
+    /** 九宫格切出的镜头分镜图文件 UUID。 */
+    var storyboardFileId: String? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     /** 镜头创建时间。 */

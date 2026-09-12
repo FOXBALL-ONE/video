@@ -360,7 +360,7 @@ class AiMediaGenerationService(
             ).filterNotNull().filter(String::isNotBlank).joinToString("；")
             return AssetImageRequest(
                 target,
-                "$prompt。请保持角色身份、脸部特征、服装和色彩连续，输出${targetLabel(target)}参考图。",
+                sanitizeImagePrompt("$prompt。请保持角色身份、脸部特征、服装和色彩连续，输出${targetLabel(target)}参考图。"),
                 listOfNotNull(profile.threeViewMergedFileId, profile.threeViewFrontFileId, profile.threeViewSideFileId, profile.threeViewBackFileId),
             )
         }
@@ -380,7 +380,7 @@ class AiMediaGenerationService(
             ).filterNotNull().filter(String::isNotBlank).joinToString("；")
             return AssetImageRequest(
                 target,
-                "$prompt。保持场景空间关系、材质、光线和色彩连续，输出${targetLabel(target)}参考图。",
+                sanitizeImagePrompt("$prompt。保持场景空间关系、材质、光线和色彩连续，输出${targetLabel(target)}参考图。"),
                 listOfNotNull(profile.mainImageFileId, profile.viewEastFileId, profile.viewSouthFileId, profile.viewWestFileId, profile.viewNorthFileId),
             )
         }
@@ -399,11 +399,34 @@ class AiMediaGenerationService(
             ).filterNotNull().filter(String::isNotBlank).joinToString("；")
             return AssetImageRequest(
                 target,
-                "$prompt。保持道具形制、材质、磨损和剧情连续性，输出道具概念图。",
+                sanitizeImagePrompt("$prompt。保持道具形制、材质、磨损和剧情连续性，输出道具概念图。"),
                 listOfNotNull(profile.conceptImageFileId),
             )
         }
         throw ResourceNotFoundException("资产不存在或类型不支持")
+    }
+
+    /** 将资产描述中的高风险暴力词汇改写为中性视觉描述，降低图像安全审核误判。 */
+    private fun sanitizeImagePrompt(prompt: String): String {
+        val replacements = linkedMapOf(
+            "血液" to "红色颜料",
+            "鲜血" to "红色颜料",
+            "流血" to "疲惫状态",
+            "受伤" to "紧张状态",
+            "伤口" to "服装细节",
+            "尸体" to "静态人物",
+            "死亡" to "戏剧化氛围",
+            "杀戮" to "戏剧化叙事",
+            "攻击" to "动态动作",
+            "战斗" to "动态场景",
+            "武器" to "故事道具",
+            "枪" to "机械道具",
+            "刀" to "金属道具",
+            "暴力" to "强烈戏剧感",
+        )
+        var normalized = prompt
+        replacements.forEach { (source, target) -> normalized = normalized.replace(source, target, ignoreCase = true) }
+        return "$normalized 画面保持非血腥、非暴力、适合公开展示，不出现伤口、血液、尸体或攻击行为。"
     }
 
     private fun normalizeAssetImageTarget(rawTarget: String): String = when (rawTarget.trim().lowercase()) {

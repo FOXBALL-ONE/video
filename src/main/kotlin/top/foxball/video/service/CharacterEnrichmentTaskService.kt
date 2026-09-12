@@ -11,7 +11,6 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import top.foxball.video.ai.AiClientException
 import top.foxball.video.ai.AiConfigurationException
-import top.foxball.video.ai.AiInvocationService
 import top.foxball.video.ai.AiRateLimitException
 import top.foxball.video.ai.AiUpstreamAuthenticationException
 import top.foxball.video.ai.AiUpstreamException
@@ -49,12 +48,11 @@ class CharacterEnrichmentTaskService(
     private val providerConfigRepository: AiModelProviderConfigRepository,
     private val taskCenterService: TaskCenterService,
     private val scriptService: ScriptService,
-    private val aiInvocationService: AiInvocationService,
-    private val promptCatalog: PromptCatalogService,
-    private val promptRenderer: PromptRenderer,
-    private val promptSchemaValidator: PromptSchemaValidator,
-    private val promptInvocationBuilder: PromptInvocationBuilder,
-    private val promptRunAuditService: PromptRunAuditService,
+    private val templateCatalog: TemplateCatalogService,
+    private val templateRenderer: TemplateRenderer,
+    private val templateSchemaValidator: TemplateSchemaValidator,
+    private val templateAgentRunner: TemplateAgentRunner,
+    private val templateRunAuditService: TemplateRunAuditService,
     private val assetService: AssetService,
     private val objectMapper: ObjectMapper,
 ) {
@@ -103,7 +101,7 @@ class CharacterEnrichmentTaskService(
             }
         }
         if ((executor as ThreadPoolExecutor).queue.remainingCapacity() <= 0) throw QueueFullException()
-        val prompt = promptCatalog.resolve("character_enrichment", projectId, userId, "zh-CN")
+        val template = templateCatalog.resolve("character_enrichment", projectId, userId, "zh-CN")
         val scriptSnapshot = scriptService.loadExisting(projectId, episodeId)
         val scriptVersionId = scriptSnapshot?.version?.id
         val contentHash = scriptSnapshot?.version?.content?.let(::contentHashOf)
@@ -121,8 +119,8 @@ class CharacterEnrichmentTaskService(
                 idempotencyKey = normalizedKey,
                 inputPayload = mapOf(
                     "prompt_key" to "character_enrichment",
-                    "prompt_version_id" to requireNotNull(prompt.version.id),
-                    "template_hash" to prompt.version.contentHash,
+                    "prompt_version_id" to requireNotNull(template.version.id),
+                    "template_hash" to template.version.contentHash,
                     "output_schema_version" to "character_enrichment.v1",
                     "episode_asset_id" to episodeAssetId,
                     "script_version_id" to scriptVersionId,
@@ -141,7 +139,7 @@ class CharacterEnrichmentTaskService(
                 episodeAssetId = episodeAssetId,
                 scriptVersionId = scriptVersionId,
                 contentHash = contentHash,
-                promptVersionId = requireNotNull(prompt.version.id),
+                promptVersionId = requireNotNull(template.version.id),
                 idempotencyKey = normalizedKey,
             ),
         )
@@ -215,10 +213,10 @@ class CharacterEnrichmentTaskService(
         val identity = root.path("identity")
         val profile = assetService.loadCharacterProfile(projectId, result.episodeId, result.episodeAssetId) ?: return null
         val description = listOfNotNull(
-            identity.path("occupation").textValue(),
-            identity.path("social_status").textValue(),
-            root.path("dramatic_function").path("core_want").textValue(),
-            root.path("dramatic_function").path("internal_conflict").textValue(),
+            identity.path("occupation").stringValue(null),
+            identity.path("social_status").stringValue(null),
+            root.path("dramatic_function").path("core_want").stringValue(null),
+            root.path("dramatic_function").path("internal_conflict").stringValue(null),
         ).joinToString("；").ifBlank { asset.description.orEmpty() }
         val savedProfile = assetService.saveCharacterProfile(
             projectId,
@@ -226,11 +224,11 @@ class CharacterEnrichmentTaskService(
             result.episodeAssetId,
             AssetService.CharacterProfileCommand(
                 description = description,
-                identityTitle = identity.path("occupation").textValue(),
-                ageStage = identity.path("age_range").textValue(),
-                faceDescription = appearance.path("face").textValue(),
-                costumeDescription = appearance.path("costume").textValue(),
-                hairstyle = appearance.path("hair").textValue(),
+                identityTitle = identity.path("occupation").stringValue(null),
+                ageStage = identity.path("age_range").stringValue(null),
+                faceDescription = appearance.path("face").stringValue(null),
+                costumeDescription = appearance.path("costume").stringValue(null),
+                hairstyle = appearance.path("hair").stringValue(null),
             ),
         ) ?: return null
         savedProfile.asset.notes = result.resultJson?.take(100_000)
@@ -250,10 +248,10 @@ class CharacterEnrichmentTaskService(
         }
         val requestId = UUID.randomUUID().toString()
         val startedAt = System.nanoTime()
-        var rendered: PromptRenderer.RenderedPrompt? = null
+        var rendered: TemplateRenderer.RenderedTemplate? = null
         try {
-            val prompt = promptCatalog.resolveExecutableVersion(result.promptVersionId) ?: throw IllegalArgumentException("提示词版本不存在")
-            require(started.inputPayload["template_hash"]?.toString().equals(prompt.version.contentHash, ignoreCase = true)) { "提示词版本内容已变化" }
+            val template = templateCatalog.resolveExecutableVersion(result.promptVersionId) ?: throw IllegalArgumentException("模板版本不存在")
+            require(started.inputPayload["template_hash"]?.toString().equals(template.version.contentHash, ignoreCase = true)) { "模板版本内容已变化" }
             val asset = episodeAssetRepository.findByIdAndProjectIdAndEpisodeId(result.episodeAssetId, result.projectId, result.episodeId) ?: throw IllegalArgumentException("角色资产不存在")
             require(asset.type == EpisodeAssetType.CHARACTER) { "只有角色资产可以执行内容丰富" }
             val script = scriptService.loadExisting(result.projectId, result.episodeId)
@@ -267,13 +265,20 @@ class CharacterEnrichmentTaskService(
                 "existing_character_card_json" to objectMapper.writeValueAsString(mapOf("description" to asset.description, "notes" to asset.notes)),
                 "output_language" to "zh-CN",
             )
-            val renderedPrompt = promptRenderer.render(prompt, variables)
+            val renderedPrompt = templateRenderer.render(template, variables)
             rendered = renderedPrompt
-            val completion = aiInvocationService.createChatCompletion(
-                promptInvocationBuilder.build(prompt, renderedPrompt, requireNotNull(started.providerConfigId), requireNotNull(started.modelName), requestId),
-            ).block() ?: throw IllegalStateException("模型服务未返回结果")
+            val outcome = templateAgentRunner.chat(
+                TemplateAgentRunner.ChatRequest(
+                    template = template,
+                    rendered = renderedPrompt,
+                    providerConfigId = requireNotNull(started.providerConfigId),
+                    model = requireNotNull(started.modelName),
+                    requestId = requestId,
+                ),
+            )
+            val completion = templateAgentRunner.toCompletionResult(outcome)
             val root = parseRoot(completion.primaryChoice?.message?.content.orEmpty())
-            promptSchemaValidator.validateOutput(prompt.version.outputSchemaJson, root)
+            templateSchemaValidator.validateOutput(template.version.outputSchemaJson, root)
             val resultJson = objectMapper.writeValueAsString(root)
             require(resultJson.toByteArray(StandardCharsets.UTF_8).size <= 2_000_000) { "模型返回结果超过大小限制" }
             result.resultJson = resultJson
@@ -283,7 +288,29 @@ class CharacterEnrichmentTaskService(
             result.errorMessage = null
             resultRepository.save(result)
             taskCenterService.markSucceeded(taskId, "RESULT_STAGED")
-            runCatching { promptRunAuditService.record(prompt.definition.key, result.promptVersionId, taskId, requestId, started.providerConfigId, requireNotNull(started.modelName), "SUCCEEDED", started.attempt, (System.nanoTime() - startedAt) / 1_000_000, completion.usage?.inputTokens ?: rendered?.inputTokens, completion.usage?.outputTokens, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, null) }
+            runCatching {
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = template.template.key,
+                        templateVersionId = result.promptVersionId,
+                        taskId = taskId,
+                        invocationId = requestId,
+                        providerConfigId = started.providerConfigId,
+                        model = requireNotNull(started.modelName),
+                        status = "SUCCEEDED",
+                        attempt = started.attempt,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = outcome.inputTokens ?: rendered?.inputTokens,
+                        outputTokens = outcome.outputTokens,
+                        templateHash = rendered?.templateHash,
+                        variablesHash = rendered?.variablesHash,
+                        renderedInputHash = rendered?.renderedInputHash,
+                        skillKeys = outcome.skillKeys,
+                        mcpServerKeys = outcome.mcpServerKeys,
+                        toolCallCount = outcome.toolCallCount,
+                    ),
+                )
+            }
         } catch (exception: AiConfigurationException) {
             fail(taskId, result, "AI_CONFIGURATION_ERROR", "AI 提供商配置不可用", started, requestId, startedAt, rendered)
         } catch (exception: AiClientException) {
@@ -293,20 +320,39 @@ class CharacterEnrichmentTaskService(
                 else -> "AI_PROVIDER_ERROR"
             }
             fail(taskId, result, code, if (code == "AI_RATE_LIMITED") "模型服务请求过于频繁，请稍后重试" else "模型服务暂时不可用，请稍后重试", started, requestId, startedAt, rendered)
-        } catch (exception: PromptSchemaValidator.SchemaViolationException) {
+        } catch (exception: TemplateSchemaValidator.SchemaViolationException) {
             fail(taskId, result, "INVALID_OUTPUT_SCHEMA", "模型返回结果不符合输出契约", started, requestId, startedAt, rendered)
         } catch (exception: Exception) {
-            fail(taskId, result, if (exception.message?.contains("剧本内容已变化") == true) "PROMPT_SOURCE_CHANGED" else "CHARACTER_ENRICHMENT_FAILED", exception.message?.take(2000) ?: "角色扩写失败", started, requestId, startedAt, rendered)
+            fail(taskId, result, if (exception.message?.contains("剧本内容已变化") == true) "TEMPLATE_SOURCE_CHANGED" else "CHARACTER_ENRICHMENT_FAILED", exception.message?.take(2000) ?: "角色扩写失败", started, requestId, startedAt, rendered)
         }
     }
 
-    private fun fail(taskId: Long, result: CharacterEnrichmentResult, code: String, message: String, task: ProductionTask, requestId: String, startedAt: Long, rendered: PromptRenderer.RenderedPrompt?) {
+    private fun fail(taskId: Long, result: CharacterEnrichmentResult, code: String, message: String, task: ProductionTask, requestId: String, startedAt: Long, rendered: TemplateRenderer.RenderedTemplate?) {
         result.resultStatus = CharacterEnrichmentResultStatus.FAILED
         result.errorCode = code
         result.errorMessage = message.take(2000)
         resultRepository.save(result)
         taskCenterService.markFailed(taskId, code, message)
-            runCatching { promptRunAuditService.record("character_enrichment", result.promptVersionId, taskId, requestId, task.providerConfigId, task.modelName.orEmpty(), "FAILED", task.attempt, (System.nanoTime() - startedAt) / 1_000_000, rendered?.inputTokens, null, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, code) }
+        runCatching {
+            templateRunAuditService.record(
+                TemplateRunRecord(
+                    templateKey = "character_enrichment",
+                    templateVersionId = result.promptVersionId,
+                    taskId = taskId,
+                    invocationId = requestId,
+                    providerConfigId = task.providerConfigId,
+                    model = task.modelName.orEmpty(),
+                    status = "FAILED",
+                    attempt = task.attempt,
+                    latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                    inputTokens = rendered?.inputTokens,
+                    templateHash = rendered?.templateHash,
+                    variablesHash = rendered?.variablesHash,
+                    renderedInputHash = rendered?.renderedInputHash,
+                    validationErrorCode = code,
+                ),
+            )
+        }
     }
 
     private fun parseRoot(raw: String): JsonNode {

@@ -11,7 +11,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import top.foxball.video.entity.jdbc.EpisodeAssetType
-import top.foxball.video.entity.jdbc.PromptCategory
+import top.foxball.video.entity.jdbc.TemplateCategory
 import top.foxball.video.entity.jdbc.ProductionTask
 import top.foxball.video.entity.jdbc.ProductionTaskStatus
 import top.foxball.video.entity.jdbc.ProductionTaskType
@@ -47,8 +47,8 @@ class ScriptAnalysisTaskService(
     private val taskCenterService: TaskCenterService,
     private val analysisService: ScriptAssetAnalysisService,
     private val objectMapper: ObjectMapper,
-    private val promptCatalog: PromptCatalogService,
-    private val promptRenderer: PromptRenderer,
+    private val templateCatalog: TemplateCatalogService,
+    private val templateRenderer: TemplateRenderer,
     private val resultWriter: ScriptAnalysisResultWriter,
     @Value("\${video.script-asset-parallel-extraction:true}") private val parallelEnabled: Boolean,
 ) {
@@ -186,7 +186,7 @@ class ScriptAnalysisTaskService(
         if (!hashMatches(contentHash, actualHash)) throw ContentConflictException()
         val storedSelections = normalizedSelections.map { selection ->
             analysisService.validateConfiguration(selection.providerConfigId, selection.model)
-            val prompt = promptCatalog.resolveScriptAssetPrompt(
+            val template = templateCatalog.resolveScriptAssetTemplate(
                 selection.assetType,
                 projectId,
                 userId,
@@ -195,21 +195,21 @@ class ScriptAnalysisTaskService(
             val variables = linkedMapOf<String, Any?>(
                 "script_content" to snapshot.version.content,
                 "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to selection.assetType.name)),
-                "output_language" to prompt.version.locale,
+                "output_language" to template.version.locale,
                 "detail_level" to "STANDARD",
             )
-            if (prompt.definition.key == "script_analysis") variables["asset_type"] = selection.assetType.name
+            if (template.template.key == "script_analysis") variables["asset_type"] = selection.assetType.name
             StoredSelection(
                 selection.assetType.name,
                 selection.providerConfigId,
                 selection.model,
-                prompt.definition.key,
-                promptCatalog.effectiveCategory(prompt.definition).name,
-                requireNotNull(prompt.version.id),
-                prompt.version.contentHash,
-                promptRenderer.variablesHash(variables),
-                "${prompt.definition.key}.v${prompt.version.versionNo}",
-                if (selection.promptVersionId != null) "EXPLICIT" else if (prompt.definition.key == "script_analysis") "LEGACY_FALLBACK" else "DEFAULT",
+                template.template.key,
+                templateCatalog.effectiveCategory(template.template).name,
+                requireNotNull(template.version.id),
+                template.version.contentHash,
+                templateRenderer.variablesHash(variables),
+                "${template.template.key}.v${template.version.versionNo}",
+                if (selection.promptVersionId != null) "EXPLICIT" else if (template.template.key == "script_analysis") "LEGACY_FALLBACK" else "DEFAULT",
             )
         }
         val normalizedKey = idempotencyKey?.trim()?.takeIf { it.isNotEmpty() }
@@ -729,12 +729,12 @@ class ScriptAnalysisTaskService(
         val legacyHash = task.inputPayload["template_hash"]?.toString()
         val legacyKey = task.inputPayload["prompt_key"]?.toString()?.trim().takeIf { !it.isNullOrBlank() } ?: "script_analysis"
         val legacyCategory = task.inputPayload["prompt_category"]?.toString()?.trim().takeIf { !it.isNullOrBlank() }
-            ?: PromptCategory.SCRIPT_GENERAL.name
+            ?: TemplateCategory.SCRIPT_GENERAL.name
         val parsed = parseStoredSelections(result.selectionsJson)
         require(parsed.isNotEmpty()) { "解析任务没有资产类型" }
         return parsed.map { selection ->
             if (selection.promptVersionId > 0 && selection.promptKey.isNotBlank() && selection.templateHash.isNotBlank()) return@map selection
-            require(legacyVersion != null && legacyVersion > 0 && !legacyHash.isNullOrBlank()) { "历史任务缺少提示词快照" }
+            require(legacyVersion != null && legacyVersion > 0 && !legacyHash.isNullOrBlank()) { "历史任务缺少模板快照" }
             selection.copy(
                 promptKey = legacyKey,
                 promptCategory = legacyCategory,

@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** 为每个不可变连接档案创建复用的、带代理与超时控制的 WebClient。 */
 @Component
-class ProxyAwareHttpTransportFactory {
+class ProxyAwareHttpTransportFactory : AiTransportCache {
     private val clients = ConcurrentHashMap<TransportCacheKey, WebClient>()
 
     /** 根据连接档案取得可复用的 WebClient；临时档案每次创建独立客户端。 */
@@ -20,7 +20,7 @@ class ProxyAwareHttpTransportFactory {
     }
 
     /** 删除指定档案版本对应的客户端缓存，使后续请求使用新配置。 */
-    fun invalidate(cacheKey: String) {
+    override fun invalidate(cacheKey: String) {
         clients.entries.removeIf { it.key.cacheKey == cacheKey }
     }
 

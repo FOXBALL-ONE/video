@@ -59,6 +59,7 @@ class ShotController(
             @param:JsonProperty("duration_seconds") val durationSeconds: Double,
             val status: String,
             @param:JsonProperty("shot_group_id") val shotGroupId: Long?,
+            @param:JsonProperty("storyboard_file_id") val storyboardFileId: String?,
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
         )
         data class IssueData(val id: Long, @param:JsonProperty("from_shot_id") val fromShotId: Long, @param:JsonProperty("to_shot_id") val toShotId: Long, @param:JsonProperty("issue_type") val issueType: String, val severity: String, val description: String, val suggestion: String?, val resolved: Boolean)
@@ -72,7 +73,7 @@ class ShotController(
                 requireNotNull(it.id), it.episodeId, it.sequenceNo, it.title, it.location, it.timeOfDay, it.interiorExterior,
                 it.shotSize, it.cameraMovement, it.cameraAngle, it.focalLength, it.composition, it.visualDescription, it.action,
                 it.dialogue, it.dialogueType, it.soundEffects, it.characterNames, it.propNames, it.prompt, it.negativePrompt, it.atmosphere,
-                it.narrativePurpose, it.durationSeconds, it.status.name, it.shotGroupId, it.updatedAt,
+                it.narrativePurpose, it.durationSeconds, it.status.name, it.shotGroupId, it.storyboardFileId, it.updatedAt,
             )
         }
         val issues = snapshot.issues.map { IssueData(requireNotNull(it.id), it.fromShotId, it.toShotId, it.issueType.name, it.severity.name, it.description, it.suggestion, it.resolved) }

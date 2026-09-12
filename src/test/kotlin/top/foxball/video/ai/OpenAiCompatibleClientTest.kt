@@ -213,6 +213,19 @@ class OpenAiCompatibleClientTest {
         assertTrue(requests.isEmpty())
     }
 
+    @Test
+    fun `reports an upstream error object returned with HTTP success`() {
+        val exception = assertFailsWith<AiProtocolException> {
+            client.generateImage(
+                connection,
+                AiImageGenerationCommand(1, "image-model", "trigger-image-error"),
+            ).block()
+        }
+
+        assertEquals("模型服务返回错误：openai_error", exception.message)
+        assertEquals("{\"error\":{\"message\":\"openai_error\",\"code\":\"upstream_failed\"}}", exception.responseContent)
+    }
+
     private fun handle(exchange: HttpExchange) {
         val body = exchange.requestBody.readAllBytes().decodeToString()
         requests += CapturedRequest(
@@ -250,7 +263,11 @@ class OpenAiCompatibleClientTest {
                     respondJson(exchange, """{"id":"chat-1","model":"demo-model","choices":[{"index":0,"message":{"role":"assistant","content":"world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}""")
                 }
             }
-            "/v1/images/generations" -> respondJson(exchange, """{"created":1,"data":[{"b64_json":"YWJj"}]}""")
+            "/v1/images/generations" -> if (body.contains("trigger-image-error")) {
+                respondJson(exchange, """{"error":{"message":"openai_error","code":"upstream_failed"}}""")
+            } else {
+                respondJson(exchange, """{"created":1,"data":[{"b64_json":"YWJj"}]}""")
+            }
             "/v1/images/edits" -> respondJson(exchange, """{"created":2,"data":[{"url":"https://example.test/output.png"}]}""")
             else -> respondJson(exchange, """{"error":"not found"}""", 404)
         }

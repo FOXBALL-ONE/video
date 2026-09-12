@@ -9,19 +9,19 @@ import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import java.time.LocalDateTime
 
-/** 一次提示词评测运行的统计记录；不保存样本正文或模型原始响应。 */
+/** 模板质量评估结果；首期只保留结构与读写接口，不接入自动评估流程。 */
 @Entity
-@Table(name = "ai_prompt_evaluations")
-class PromptEvaluation(
+@Table(name = "ai_template_evaluations")
+class AiTemplateEvaluation(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    @Column(name = "prompt_key", nullable = false, length = 100)
-    var promptKey: String = "",
+    @Column(name = "template_key", nullable = false, length = 100)
+    var templateKey: String = "",
 
-    @Column(name = "prompt_version_id", nullable = false)
-    var promptVersionId: Long = 0,
+    @Column(name = "template_version_id", nullable = false)
+    var templateVersionId: Long = 0,
 
     @Column(name = "dataset_id", nullable = false, length = 200)
     var datasetId: String = "",
@@ -55,19 +55,19 @@ class PromptEvaluation(
     var createdAt: LocalDateTime? = null,
 )
 
-/** 提示词实际运行审计；只保存版本、哈希、统计和稳定错误码。 */
+/** 模板实际运行审计；只保存版本、哈希、技能与统计信息，不保存渲染后的提示词正文。 */
 @Entity
-@Table(name = "ai_prompt_run_audits")
-class PromptRunAudit(
+@Table(name = "ai_template_runs")
+class AiTemplateRun(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     var id: Long? = null,
 
-    @Column(name = "prompt_key", nullable = false, length = 100)
-    var promptKey: String = "",
+    @Column(name = "template_key", nullable = false, length = 100)
+    var templateKey: String = "",
 
-    @Column(name = "prompt_version_id", nullable = false)
-    var promptVersionId: Long = 0,
+    @Column(name = "template_version_id", nullable = false)
+    var templateVersionId: Long = 0,
 
     @Column(name = "task_id")
     var taskId: Long? = null,
@@ -104,6 +104,18 @@ class PromptRunAudit(
 
     @Column(name = "rendered_input_hash", length = 80)
     var renderedInputHash: String? = null,
+
+    /** 本次运行实际装配的技能 key 列表。 */
+    @Column(name = "skills_json", nullable = false, columnDefinition = "text")
+    var skillsJson: String = "[]",
+
+    /** 本次运行实际装配的 MCP 服务端 key 列表。 */
+    @Column(name = "mcp_servers_json", nullable = false, columnDefinition = "text")
+    var mcpServersJson: String = "[]",
+
+    /** 模型实际发起的工具调用次数。 */
+    @Column(name = "tool_call_count", nullable = false)
+    var toolCallCount: Int = 0,
 
     @Column(name = "validation_error_code", length = 100)
     var validationErrorCode: String? = null,

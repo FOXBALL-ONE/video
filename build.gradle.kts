@@ -20,10 +20,18 @@ java {
 }
 
 repositories {
+    // 当前网络直连 Maven Central 会 TLS 握手失败，国内镜像同时代理 Central；镜像不可用时回退官方仓库。
+    maven { url = uri("https://maven.aliyun.com/repository/public") }
     mavenCentral()
 }
 
+extra["springAiVersion"] = "2.0.1"
+
 dependencies {
+    implementation(platform("org.springframework.ai:spring-ai-bom:${property("springAiVersion")}"))
+    // 对话与图像生成由 Spring AI 提供；视频、图像编辑等 Spring AI 未覆盖的能力仍走项目自研客户端。
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation("org.springframework.ai:spring-ai-starter-mcp-client")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")

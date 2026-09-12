@@ -32,11 +32,11 @@ class ScriptService(
     private val aiInvocationService: AiInvocationService,
     private val objectMapper: ObjectMapper,
     private val providerConfigRepository: AiModelProviderConfigRepository,
-    private val promptCatalog: PromptCatalogService,
-    private val promptRenderer: PromptRenderer,
-    private val promptSchemaValidator: PromptSchemaValidator,
-    private val promptRunAuditService: PromptRunAuditService,
-    private val promptInvocationBuilder: PromptInvocationBuilder,
+    private val templateCatalog: TemplateCatalogService,
+    private val templateRenderer: TemplateRenderer,
+    private val templateSchemaValidator: TemplateSchemaValidator,
+    private val templateRunAuditService: TemplateRunAuditService,
+    private val templateAgentRunner: TemplateAgentRunner,
     private val transactionTemplate: TransactionTemplate,
 ) {
     data class ScriptSnapshot(
@@ -129,27 +129,27 @@ class ScriptService(
         return snapshot(document, savedVersion)
     }
 
-    /** 使用提示词目录中的已发布版本调用大模型，并将原始 JSON 与可执行资产同步保存。 */
+    /** 使用模板目录中的已发布版本调用大模型，并将原始 JSON 与可执行资产同步保存。 */
     fun analyze(projectId: Long, episodeId: Long?, providerConfigId: Long, model: String, userId: Long? = null): ScriptSnapshot? {
         val project = projectRepository.findById(projectId).orElse(null) ?: return null
         if (episodeId != null && episodeRepository.findByIdAndProjectId(episodeId, projectId) == null) return null
         val document = (if (episodeId == null) documentRepository.findByProjectIdAndEpisodeIdIsNull(projectId) else documentRepository.findByProjectIdAndEpisodeId(projectId, episodeId)) ?: return null
         val version = currentVersion(document) ?: return null
         if (version.content.isBlank()) throw IllegalArgumentException("剧本内容不能为空")
-        val prompt = promptCatalog.resolve("script_analysis", projectId, userId, "zh-CN")
+        val template = templateCatalog.resolve("script_analysis", projectId, userId, "zh-CN")
         version.aiAnalysisStatus = ScriptAnalysisStatus.PROCESSING
         version.aiAnalysisProviderConfigId = providerConfigId
         version.aiAnalysisModel = model.trim()
-        version.aiAnalysisPromptVersionId = prompt.version.id
-        version.aiAnalysisPromptHash = prompt.version.contentHash
+        version.aiAnalysisPromptVersionId = template.version.id
+        version.aiAnalysisPromptHash = template.version.contentHash
         versionRepository.save(version)
         val requestId = UUID.randomUUID().toString()
         val providerName = providerConfigRepository.findById(providerConfigId).orElse(null)?.provider?.trim().orEmpty().ifBlank { "unknown" }
-        var rendered: PromptRenderer.RenderedPrompt? = null
+        var rendered: TemplateRenderer.RenderedTemplate? = null
         val startedAt = System.nanoTime()
         try {
-            val renderedPrompt = promptRenderer.render(
-                prompt,
+            val renderedPrompt = templateRenderer.render(
+                template,
                 mapOf(
                     "script_content" to version.content,
                     "asset_type" to "ALL",
@@ -159,12 +159,19 @@ class ScriptService(
                 ),
             )
             rendered = renderedPrompt
-            val result = aiInvocationService.createChatCompletion(
-                promptInvocationBuilder.build(prompt, renderedPrompt, providerConfigId, model, requestId)
-            ).block() ?: throw IllegalStateException("模型服务未返回结果")
+            val outcome = templateAgentRunner.chat(
+                TemplateAgentRunner.ChatRequest(
+                    template = template,
+                    rendered = renderedPrompt,
+                    providerConfigId = providerConfigId,
+                    model = model,
+                    requestId = requestId,
+                ),
+            )
+            val result = templateAgentRunner.toCompletionResult(outcome)
             val raw = result.primaryChoice?.message?.content?.trim().orEmpty()
             val analysis = parseAnalysisJson(raw)
-            promptSchemaValidator.validateOutput(prompt.version.outputSchemaJson, analysis)
+            templateSchemaValidator.validateOutput(template.version.outputSchemaJson, analysis)
             transactionTemplate.executeWithoutResult {
                 val currentVersion = versionRepository.findById(requireNotNull(version.id)).orElseThrow { IllegalStateException("剧本版本不存在") }
                 currentVersion.aiAnalysisJson = objectMapper.writeValueAsString(analysis)
@@ -176,22 +183,24 @@ class ScriptService(
                 syncEpisodeAssets(projectId, episodeId, analysis)
             }
             runCatching {
-                promptRunAuditService.record(
-                    promptKey = prompt.definition.key,
-                    promptVersionId = requireNotNull(prompt.version.id),
-                    taskId = null,
-                    invocationId = requestId,
-                    providerConfigId = providerConfigId,
-                    model = model,
-                    status = "SUCCEEDED",
-                    attempt = 1,
-                    latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
-                    inputTokens = result.usage?.inputTokens ?: rendered?.inputTokens,
-                    outputTokens = result.usage?.outputTokens,
-                    templateHash = rendered?.templateHash,
-                    variablesHash = rendered?.variablesHash,
-                    renderedInputHash = rendered?.renderedInputHash,
-                    validationErrorCode = null,
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = template.template.key,
+                        templateVersionId = requireNotNull(template.version.id),
+                        taskId = null,
+                        invocationId = requestId,
+                        providerConfigId = providerConfigId,
+                        model = model,
+                        status = "SUCCEEDED",
+                        attempt = 1,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = result.usage?.inputTokens ?: rendered?.inputTokens,
+                        outputTokens = result.usage?.outputTokens,
+                        templateHash = rendered?.templateHash,
+                        variablesHash = rendered?.variablesHash,
+                        renderedInputHash = rendered?.renderedInputHash,
+                        validationErrorCode = null,
+                    ),
                 )
             }
         } catch (exception: AiClientException) {
@@ -202,7 +211,24 @@ class ScriptService(
                 }
             }
             runCatching {
-                promptRunAuditService.record("script_analysis", requireNotNull(prompt.version.id), null, requestId, providerConfigId, model, "FAILED", 1, (System.nanoTime() - startedAt) / 1_000_000, rendered?.inputTokens, null, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, "AI_PROVIDER_ERROR")
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = "script_analysis",
+                        templateVersionId = requireNotNull(template.version.id),
+                        taskId = null,
+                        invocationId = requestId,
+                        providerConfigId = providerConfigId,
+                        model = model,
+                        status = "FAILED",
+                        attempt = 1,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = rendered?.inputTokens,
+                        templateHash = rendered?.templateHash,
+                        variablesHash = rendered?.variablesHash,
+                        renderedInputHash = rendered?.renderedInputHash,
+                        validationErrorCode = "AI_PROVIDER_ERROR",
+                    ),
+                )
             }
             val errorCode = when (exception) {
                 is AiUpstreamException -> exception.statusCode
@@ -225,7 +251,24 @@ class ScriptService(
                 }
             }
             runCatching {
-                promptRunAuditService.record("script_analysis", requireNotNull(prompt.version.id), null, requestId, providerConfigId, model, "FAILED", 1, (System.nanoTime() - startedAt) / 1_000_000, rendered?.inputTokens, null, rendered?.templateHash, rendered?.variablesHash, rendered?.renderedInputHash, "SCRIPT_ANALYSIS_FAILED")
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = "script_analysis",
+                        templateVersionId = requireNotNull(template.version.id),
+                        taskId = null,
+                        invocationId = requestId,
+                        providerConfigId = providerConfigId,
+                        model = model,
+                        status = "FAILED",
+                        attempt = 1,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = rendered?.inputTokens,
+                        templateHash = rendered?.templateHash,
+                        variablesHash = rendered?.variablesHash,
+                        renderedInputHash = rendered?.renderedInputHash,
+                        validationErrorCode = "SCRIPT_ANALYSIS_FAILED",
+                    ),
+                )
             }
             throw exception
         }

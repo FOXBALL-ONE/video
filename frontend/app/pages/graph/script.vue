@@ -223,8 +223,8 @@
               <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <n-select v-model:value="job.providerId" :options="providerOptions" :disabled="!providerOptions.length" size="small" placeholder="选择模型提供商" @update:value="onAnalysisProviderChange(job, $event)" />
                 <n-select v-model:value="job.model" :options="modelOptionsFor(job)" :disabled="!job.providerId" filterable size="small" placeholder="选择模型" />
-                <n-select v-model:value="job.promptVersionId" :options="job.promptOptions" :loading="job.promptLoading" :disabled="job.promptLoading || !job.promptOptions.length" size="small" placeholder="提示词版本（默认）" />
-                <n-button text size="tiny" type="primary" class="justify-self-start" @click="navigateTo('/prompts')">管理提示词</n-button>
+                <n-select v-model:value="job.promptVersionId" :options="job.promptOptions" :loading="job.promptLoading" :disabled="job.promptLoading || !job.promptOptions.length" size="small" placeholder="模板版本（默认）" />
+                <n-button text size="tiny" type="primary" class="justify-self-start" @click="navigateTo('/templates')">管理模板</n-button>
               </div>
               <p v-if="job.promptError" class="mt-2 mb-0 flex items-center gap-2 text-[11px] text-[#a34d4d]">提示词选项加载失败。<button type="button" class="text-[#6654ee] underline" @click="loadAnalysisPromptOptionsFor(job)">重试</button></p>
             </div>
@@ -588,8 +588,8 @@ async function loadAnalysisPromptOptions() {
     try {
       const response = await http.get<{
         default_version_id?: number | null
-        list: Array<{ prompt_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
-      }>('/ai/prompts/options', {
+        list: Array<{ template_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
+      }>('/ai/templates/options', {
         project_id: project,
         asset_type: job.type,
         locale: 'zh-CN',
@@ -597,7 +597,7 @@ async function loadAnalysisPromptOptions() {
       job.promptOptions = (response.list || []).map((option) => ({
         label: `${option.display_name} · v${option.version_no}${option.fallback ? ' · 通用兼容' : ''}`,
         value: option.version_id,
-        prompt_key: option.prompt_key,
+        prompt_key: option.template_key,
         fallback: option.fallback,
       }))
       job.promptVersionId = response.default_version_id || job.promptOptions[0]?.value || null
@@ -619,9 +619,9 @@ async function loadAnalysisPromptOptionsFor(job: AnalysisJob) {
   try {
     const response = await http.get<{
       default_version_id?: number | null
-      list: Array<{ prompt_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
-    }>('/ai/prompts/options', { project_id: project, asset_type: job.type, locale: 'zh-CN' })
-    job.promptOptions = (response.list || []).map((option) => ({ label: `${option.display_name} · v${option.version_no}${option.fallback ? ' · 通用兼容' : ''}`, value: option.version_id, prompt_key: option.prompt_key, fallback: option.fallback }))
+      list: Array<{ template_key: string; display_name: string; version_id: number; version_no: number; scope_type: string; fallback?: boolean; fallback_reason?: string | null }>
+    }>('/ai/templates/options', { project_id: project, asset_type: job.type, locale: 'zh-CN' })
+    job.promptOptions = (response.list || []).map((option) => ({ label: `${option.display_name} · v${option.version_no}${option.fallback ? ' · 通用兼容' : ''}`, value: option.version_id, prompt_key: option.template_key, fallback: option.fallback }))
     job.promptVersionId = response.default_version_id || job.promptOptions[0]?.value || null
   } catch {
     job.promptOptions = []

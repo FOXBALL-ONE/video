@@ -11,7 +11,8 @@ import java.util.concurrent.ConcurrentHashMap
 class AiProviderResolver(
     private val repository: AiModelProviderConfigRepository,
     private val properties: AiClientProperties,
-    private val transportFactory: ProxyAwareHttpTransportFactory,
+    /** 所有按连接档案缓存的传输资源；配置变化时需要一并失效。 */
+    private val transportCaches: List<AiTransportCache>,
 ) {
     private val uriPolicy = AiProviderUriPolicy()
     private val cachedProfileKeys = ConcurrentHashMap<Long, String>()
@@ -44,7 +45,9 @@ class AiProviderResolver(
             apiType = configuredApiType,
         )
         val cacheKey = requireNotNull(connection.profile.cacheKey)
-        cachedProfileKeys.put(requireNotNull(config.id), cacheKey)?.takeIf { it != cacheKey }?.let(transportFactory::invalidate)
+        cachedProfileKeys.put(requireNotNull(config.id), cacheKey)?.takeIf { it != cacheKey }?.let { staleKey ->
+            transportCaches.forEach { it.invalidate(staleKey) }
+        }
         return connection
     }
 

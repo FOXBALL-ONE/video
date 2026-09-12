@@ -30,9 +30,10 @@ class CharacterThreeViewMergeTaskService(
     private val taskCenterService: TaskCenterService,
     private val assetService: AssetService,
     private val aiMediaGenerationService: AiMediaGenerationService,
-    private val promptCatalog: PromptCatalogService,
-    private val promptRenderer: PromptRenderer,
-    private val promptRunAuditService: PromptRunAuditService,
+    private val templateCatalog: TemplateCatalogService,
+    private val templateRenderer: TemplateRenderer,
+    private val templateAgentRunner: TemplateAgentRunner,
+    private val templateRunAuditService: TemplateRunAuditService,
     private val fileService: FileService,
 ) {
     data class Submission(val task: ProductionTask, val existing: Boolean)
@@ -87,7 +88,7 @@ class CharacterThreeViewMergeTaskService(
             }
         }
         if ((executor as ThreadPoolExecutor).queue.remainingCapacity() <= 0) throw QueueFullException()
-        val prompt = promptCatalog.resolve("character_three_view_merge", projectId, userId, "zh-CN")
+        val template = templateCatalog.resolve("character_three_view_merge", projectId, userId, "zh-CN")
         val task = taskRepository.save(
             ProductionTask(
                 projectId = projectId,
@@ -101,9 +102,9 @@ class CharacterThreeViewMergeTaskService(
                 correlationId = UUID.randomUUID().toString(),
                 idempotencyKey = normalizedKey,
                 inputPayload = mapOf(
-                    "prompt_key" to prompt.definition.key,
-                    "prompt_version_id" to requireNotNull(prompt.version.id),
-                    "template_hash" to prompt.version.contentHash,
+                    "prompt_key" to template.template.key,
+                    "prompt_version_id" to requireNotNull(template.version.id),
+                    "template_hash" to template.version.contentHash,
                     "episode_asset_id" to assetId,
                     "source_file_ids" to sourceFileIds,
                     "provider_config_id" to providerConfigId,
@@ -143,7 +144,7 @@ class CharacterThreeViewMergeTaskService(
         if (started.status != ProductionTaskStatus.RUNNING) return
         val requestId = UUID.randomUUID().toString()
         val startedAt = System.nanoTime()
-        var rendered: PromptRenderer.RenderedPrompt? = null
+        var rendered: TemplateRenderer.RenderedTemplate? = null
         var generatedFileId: UUID? = null
         var mergedFileApplied = false
         try {
@@ -153,9 +154,9 @@ class CharacterThreeViewMergeTaskService(
                 ?: throw IllegalArgumentException("合并任务缺少角色资产")
             val sourceFileIds = (started.inputPayload["source_file_ids"] as? Collection<*>)?.map { it.toString() }.orEmpty()
             require(sourceFileIds.size == 3 && sourceFileIds.all { it.isNotBlank() }) { "合并任务缺少三张参考图" }
-            val prompt = promptCatalog.resolveExecutableVersion((started.inputPayload["prompt_version_id"] as Number).toLong())
-                ?: throw IllegalArgumentException("三视图合并提示词不存在")
-            require(started.inputPayload["template_hash"]?.toString() == prompt.version.contentHash) { "三视图合并提示词版本已变化" }
+            val template = templateCatalog.resolveExecutableVersion((started.inputPayload["prompt_version_id"] as Number).toLong())
+                ?: throw IllegalArgumentException("三视图合并模板不存在")
+            require(started.inputPayload["template_hash"]?.toString() == template.version.contentHash) { "三视图合并模板版本已变化" }
             val profile = assetService.loadCharacterProfile(projectId, episodeId, assetId)
                 ?: throw IllegalArgumentException("角色资产不存在")
             val currentSourceFileIds = listOf(profile.profile.threeViewFrontFileId, profile.profile.threeViewSideFileId, profile.profile.threeViewBackFileId).map { it?.trim().orEmpty() }
@@ -165,15 +166,19 @@ class CharacterThreeViewMergeTaskService(
                 "character_description" to listOfNotNull(profile.asset.description, profile.profile.faceDescription, profile.profile.costumeDescription, profile.profile.hairstyle, profile.profile.costumeRef, profile.profile.accessoryRef).filter(String::isNotBlank).joinToString("；"),
                 "visual_style" to "电影级角色设定图，清晰线稿或高质量写实风格，统一色彩管理",
             )
-            rendered = promptRenderer.render(prompt, variables)
-            val imagePrompt = rendered.messages.joinToString("\n") { it.content.orEmpty() }
+            val renderedTemplate = templateRenderer.render(template, variables)
+            rendered = renderedTemplate
             if (taskCenterService.isCancellationRequested(taskId)) {
                 taskCenterService.markCancelledByWorker(taskId)
                 return
             }
+            // 三视图合并是图像编辑任务，任务只携带图像模型，模板渲染结果直接作为图像提示词：
+            // 该模板不含技能与工具，无需额外的对话改写步骤。
+            val imagePrompt = renderedTemplate.toPlainPrompt()
+            val imageSettings = templateAgentRunner.imageSettings(template.version)
             val files = aiMediaGenerationService.editStoredImages(
                 requireNotNull(started.createdBy), requireNotNull(started.providerConfigId), requireNotNull(started.modelName),
-                imagePrompt, sourceFileIds, 1, "2K", requestId,
+                imagePrompt, sourceFileIds, imageSettings.count ?: 1, imageSettings.size ?: "2K", requestId,
             ).block()
                 ?: throw IllegalStateException("图片编辑服务未返回结果")
             val merged = files.firstOrNull() ?: throw IllegalStateException("图片编辑服务未返回图片")
@@ -191,26 +196,48 @@ class CharacterThreeViewMergeTaskService(
             taskRepository.save(started)
             taskCenterService.markSucceeded(taskId, "MERGED_THREE_VIEW")
             runCatching {
-                promptRunAuditService.record(
-                    prompt.definition.key, requireNotNull(prompt.version.id), taskId, requestId,
-                    started.providerConfigId, requireNotNull(started.modelName), "SUCCEEDED", started.attempt,
-                    (System.nanoTime() - startedAt) / 1_000_000, rendered.inputTokens, null,
-                    rendered.templateHash, rendered.variablesHash, rendered.renderedInputHash, null,
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = template.template.key,
+                        templateVersionId = requireNotNull(template.version.id),
+                        taskId = taskId,
+                        invocationId = requestId,
+                        providerConfigId = started.providerConfigId,
+                        model = requireNotNull(started.modelName),
+                        status = "SUCCEEDED",
+                        attempt = started.attempt,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = rendered.inputTokens,
+                        templateHash = rendered.templateHash,
+                        variablesHash = rendered.variablesHash,
+                        renderedInputHash = rendered.renderedInputHash,
+                        toolCallCount = 0,
+                    ),
                 )
             }
         } catch (exception: Exception) {
             if (!mergedFileApplied) generatedFileId?.let { fileId -> runCatching { fileService.delete(requireNotNull(started.createdBy), fileId) } }
             taskCenterService.markFailed(taskId, "CHARACTER_THREE_VIEW_MERGE_FAILED", exception.message?.take(2000) ?: "三视图合并失败")
-            rendered?.let { renderedPrompt ->
-                runCatching {
-                    promptRunAuditService.record(
-                        "character_three_view_merge", (started.inputPayload["prompt_version_id"] as Number).toLong(), taskId, requestId,
-                        started.providerConfigId, started.modelName.orEmpty(), "FAILED", started.attempt,
-                        (System.nanoTime() - startedAt) / 1_000_000, renderedPrompt.inputTokens, null,
-                        renderedPrompt.templateHash, renderedPrompt.variablesHash, renderedPrompt.renderedInputHash,
-                        "CHARACTER_THREE_VIEW_MERGE_FAILED",
-                    )
-                }
+            runCatching {
+                val templateVersionId = (started.inputPayload["prompt_version_id"] as? Number)?.toLong() ?: return@runCatching
+                templateRunAuditService.record(
+                    TemplateRunRecord(
+                        templateKey = "character_three_view_merge",
+                        templateVersionId = templateVersionId,
+                        taskId = taskId,
+                        invocationId = requestId,
+                        providerConfigId = started.providerConfigId,
+                        model = started.modelName.orEmpty(),
+                        status = "FAILED",
+                        attempt = started.attempt,
+                        latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                        inputTokens = rendered?.inputTokens,
+                        templateHash = rendered?.templateHash,
+                        variablesHash = rendered?.variablesHash,
+                        renderedInputHash = rendered?.renderedInputHash,
+                        validationErrorCode = "CHARACTER_THREE_VIEW_MERGE_FAILED",
+                    ),
+                )
             }
         }
     }

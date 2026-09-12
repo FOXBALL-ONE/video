@@ -17,12 +17,13 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
-import top.foxball.video.entity.jdbc.PromptScopeType
-import top.foxball.video.entity.jdbc.PromptCategory
+import top.foxball.video.entity.jdbc.TemplateScopeType
+import top.foxball.video.entity.jdbc.TemplateCategory
 import top.foxball.video.entity.jdbc.EpisodeAssetType
-import top.foxball.video.entity.jdbc.PromptVersionStatus
-import top.foxball.video.service.PromptCatalogService
-import top.foxball.video.service.PromptRenderer
+import top.foxball.video.entity.jdbc.TemplateVersionStatus
+import top.foxball.video.service.TemplateCatalogService
+import top.foxball.video.service.TemplateRenderer
+import top.foxball.video.service.TemplateToolRegistry
 import top.foxball.video.shared.Response
 import top.foxball.video.shared.ResponseBuilder
 import java.time.LocalDateTime
@@ -30,21 +31,30 @@ import java.time.LocalDateTime
 @Validated
 @RestController
 @PreAuthorize("isAuthenticated()")
-/** 提示词目录和版本生命周期管理接口。 */
-class PromptController(
-    private val catalog: PromptCatalogService,
-    private val renderer: PromptRenderer,
+/** 模板目录、版本生命周期与运行预览接口。 */
+class TemplateController(
+    private val catalog: TemplateCatalogService,
+    private val renderer: TemplateRenderer,
+    private val toolRegistry: TemplateToolRegistry,
     private val responseBuilder: ResponseBuilder,
     private val objectMapper: ObjectMapper,
 ) {
-    @GetMapping("/api/ai/prompts")
+    @GetMapping("/api/ai/template-tools")
+    fun tools(@AuthenticationPrincipal userId: Long?): ResponseEntity<Response> {
+        data class ToolData(val name: String, val description: String)
+        data class Response(val list: List<ToolData>)
+        val rs = Response(toolRegistry.describeTools().map { ToolData(it.name, it.description) })
+        return responseBuilder.ok().data(rs).build()
+    }
+
+    @GetMapping("/api/ai/templates")
     fun list(
         @AuthenticationPrincipal userId: Long?,
         @RequestParam("key", required = false) key: String?,
-        @RequestParam("scope_type", required = false) scopeType: PromptScopeType?,
+        @RequestParam("scope_type", required = false) scopeType: TemplateScopeType?,
         @RequestParam("project_id", required = false) projectId: Long?,
-        @RequestParam("status", required = false) status: PromptVersionStatus?,
-        @RequestParam("category", required = false) category: PromptCategory?,
+        @RequestParam("status", required = false) status: TemplateVersionStatus?,
+        @RequestParam("category", required = false) category: TemplateCategory?,
     ): ResponseEntity<Response> {
         data class PromptData(
             val id: Long,
@@ -64,22 +74,22 @@ class PromptController(
             @param:JsonProperty("category_default") val categoryDefault: Boolean,
         )
         data class Response(val list: List<PromptData>)
-        val definitions = catalog.list(userId, key, scopeType, projectId, status, category)
-        val versionsByPromptId = catalog.versionsByDefinitionIds(definitions.mapNotNull { it.id })
-        val prompts = definitions.map { definition ->
-            val versions = versionsByPromptId[definition.id].orEmpty()
+        val templates = catalog.list(userId, key, scopeType, projectId, status, category)
+        val versionsByTemplateId = catalog.versionsByTemplateIds(templates.mapNotNull { it.id })
+        val prompts = templates.map { template ->
+            val versions = versionsByTemplateId[template.id].orEmpty()
             PromptData(
-                requireNotNull(definition.id), definition.key, definition.displayName, definition.purpose, definition.scopeType.name, definition.projectId,
+                requireNotNull(template.id), template.key, template.displayName, template.purpose, template.scopeType.name, template.projectId,
                 versions.maxOfOrNull { it.versionNo }, versions.maxByOrNull { it.versionNo }?.id,
-                versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.versionNo,
-                versions.firstOrNull { it.status == PromptVersionStatus.PUBLISHED }?.id,
-                definition.defaultLocale, definition.enabled, definition.updatedAt, catalog.effectiveCategory(definition).name, definition.categoryDefault == true,
+                versions.firstOrNull { it.status == TemplateVersionStatus.PUBLISHED }?.versionNo,
+                versions.firstOrNull { it.status == TemplateVersionStatus.PUBLISHED }?.id,
+                template.defaultLocale, template.enabled, template.updatedAt, catalog.effectiveCategory(template).name, template.categoryDefault == true,
             )
         }
         return responseBuilder.ok().data(Response(prompts)).build()
     }
 
-    @GetMapping("/api/ai/prompts/options")
+    @GetMapping("/api/ai/templates/options")
     fun options(
         @AuthenticationPrincipal userId: Long?,
         @RequestParam("project_id") @Min(1) projectId: Long,
@@ -87,8 +97,8 @@ class PromptController(
         @RequestParam("locale", defaultValue = "zh-CN") @Size(max = 20) locale: String,
     ): ResponseEntity<Response> {
         data class OptionData(
-            @param:JsonProperty("prompt_id") val promptId: Long,
-            @param:JsonProperty("prompt_key") val promptKey: String,
+            @param:JsonProperty("template_id") val templateId: Long,
+            @param:JsonProperty("template_key") val templateKey: String,
             @param:JsonProperty("display_name") val displayName: String,
             val purpose: String,
             @param:JsonProperty("scope_type") val scopeType: String,
@@ -118,7 +128,7 @@ class PromptController(
             return responseBuilder.badRequest().message(exception.message).build()
         }
         val resolved = try {
-            catalog.scriptAssetPromptOptions(assetType, projectId, userId, locale).toMutableList()
+            catalog.scriptAssetTemplateOptions(assetType, projectId, userId, locale).toMutableList()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         }
@@ -139,9 +149,9 @@ class PromptController(
             resolved.map { item ->
                 val version = item.version
                 OptionData(
-                    requireNotNull(item.definition.id), item.definition.key, item.definition.displayName, item.definition.purpose,
-                    item.definition.scopeType.name, item.definition.projectId, requireNotNull(version.id), version.versionNo,
-                    version.status.name, category.name, version.locale, version.contentHash, "${item.definition.key}.v${version.versionNo}",
+                    requireNotNull(item.template.id), item.template.key, item.template.displayName, item.template.purpose,
+                    item.template.scopeType.name, item.template.projectId, requireNotNull(version.id), version.versionNo,
+                    version.status.name, category.name, version.locale, version.contentHash, "${item.template.key}.v${version.versionNo}",
                     !fallback && requireNotNull(version.id) == defaultVersionId, fallback, if (fallback) "LEGACY_GENERAL_PROMPT" else null, version.updatedAt,
                 )
             },
@@ -149,15 +159,15 @@ class PromptController(
         return responseBuilder.ok().data(rs).build()
     }
 
-    @GetMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
+    @GetMapping("/api/ai/templates/{template_id}/versions/{version_id}")
     fun detail(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @PathVariable("version_id") versionId: Long,
     ): ResponseEntity<Response> {
         data class Response(
             val id: Long,
-            @param:JsonProperty("prompt_id") val promptId: Long,
+            @param:JsonProperty("template_id") val templateId: Long,
             val key: String,
             @param:JsonProperty("display_name") val displayName: String,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -169,24 +179,28 @@ class PromptController(
             @param:JsonProperty("output_schema") val outputSchema: Any,
             @param:JsonProperty("generation_policy") val generationPolicy: Any,
             @param:JsonProperty("compatibility") val compatibility: Any,
+            val skills: Any,
+            @param:JsonProperty("mcp_servers") val mcpServers: Any,
+            val tools: Any,
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("change_summary") val changeSummary: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val resolved = catalog.getVersion(promptId, versionId, userId) ?: return responseBuilder.notFound().build()
+        val resolved = catalog.getVersion(templateId, versionId, userId) ?: return responseBuilder.notFound().build()
         val version = resolved.version
         val rs = Response(
-            requireNotNull(version.id), promptId, resolved.definition.key, resolved.definition.displayName, version.versionNo, version.locale,
-            version.status.name, catalog.effectiveCategory(resolved.definition).name, parseJson(version.messagesJson), parseJson(version.variablesSchemaJson), parseJson(version.outputSchemaJson),
-            parseJson(version.generationPolicyJson), parseJson(version.compatibilityJson), version.contentHash, version.changeSummary, version.publishedAt,
+            requireNotNull(version.id), templateId, resolved.template.key, resolved.template.displayName, version.versionNo, version.locale,
+            version.status.name, catalog.effectiveCategory(resolved.template).name, parseJson(version.messagesJson), parseJson(version.variablesSchemaJson), parseJson(version.outputSchemaJson),
+            parseJson(version.generationPolicyJson), parseJson(version.compatibilityJson), parseJson(version.skillsJson), parseJson(version.mcpServersJson), parseJson(version.toolsJson),
+            version.contentHash, version.changeSummary, version.publishedAt,
         )
         return responseBuilder.ok().data(rs).build()
     }
 
-    @GetMapping("/api/ai/prompts/{prompt_id}/versions")
+    @GetMapping("/api/ai/templates/{template_id}/versions")
     fun listVersions(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
     ): ResponseEntity<Response> {
         data class VersionData(
             val id: Long,
@@ -199,20 +213,20 @@ class PromptController(
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
         )
         data class Response(val list: List<VersionData>)
-        val versions = catalog.listVersions(promptId, userId) ?: return responseBuilder.notFound().build()
+        val versions = catalog.listVersions(templateId, userId) ?: return responseBuilder.notFound().build()
         val rs = Response(versions.map { version ->
             VersionData(requireNotNull(version.id), version.versionNo, version.locale, version.status.name, version.contentHash, version.changeSummary, version.publishedAt, version.updatedAt)
         })
         return responseBuilder.ok().data(rs).build()
     }
 
-    @PostMapping("/api/ai/prompts")
+    @PostMapping("/api/ai/templates")
     fun create(
         @AuthenticationPrincipal userId: Long?,
         @RequestParam("key") @NotBlank @Size(max = 100) key: String,
         @RequestParam("display_name") @NotBlank @Size(max = 200) displayName: String,
         @RequestParam("purpose", defaultValue = "") @Size(max = 1000) purpose: String,
-        @RequestParam("scope_type", defaultValue = "PROJECT") scopeType: PromptScopeType,
+        @RequestParam("scope_type", defaultValue = "PROJECT") scopeType: TemplateScopeType,
         @RequestParam("project_id", required = false) projectId: Long?,
         @RequestParam("locale", defaultValue = "zh-CN") @Size(max = 20) locale: String,
         @RequestParam("messages_json") @NotBlank @Size(max = 500_000) messagesJson: String,
@@ -220,8 +234,11 @@ class PromptController(
         @RequestParam("output_schema_json") @NotBlank @Size(max = 1_000_000) outputSchemaJson: String,
         @RequestParam("generation_policy_json", defaultValue = "{}") @Size(max = 20_000) generationPolicyJson: String,
         @RequestParam("compatibility_json", defaultValue = "{}") @Size(max = 20_000) compatibilityJson: String,
+        @RequestParam("skills_json", defaultValue = "[]") @Size(max = 20_000) skillsJson: String,
+        @RequestParam("mcp_servers_json", defaultValue = "[]") @Size(max = 20_000) mcpServersJson: String,
+        @RequestParam("tools_json", defaultValue = "[]") @Size(max = 20_000) toolsJson: String,
         @RequestParam("change_summary", defaultValue = "") @Size(max = 1000) changeSummary: String,
-        @RequestParam("category", required = false) category: PromptCategory?,
+        @RequestParam("category", required = false) category: TemplateCategory?,
     ): ResponseEntity<Response> {
         data class Response(
             val id: Long,
@@ -231,18 +248,18 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
         )
         val created = try {
-            catalog.createDraft(userId, key, displayName, purpose, scopeType, projectId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, changeSummary, category ?: PromptCatalogService.CATEGORY_BY_KEY[key.trim().lowercase()] ?: PromptCategory.SCRIPT_GENERAL)
+            catalog.createDraft(userId, key, displayName, purpose, scopeType, projectId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, skillsJson, mcpServersJson, toolsJson, changeSummary, category ?: TemplateCatalogService.CATEGORY_BY_KEY[key.trim().lowercase()] ?: TemplateCategory.SCRIPT_GENERAL)
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         }
         val version = created.version
-        return responseBuilder.created().data(Response(requireNotNull(created.definition.id), requireNotNull(version.id), version.versionNo, version.status.name, version.contentHash)).build()
+        return responseBuilder.created().data(Response(requireNotNull(created.template.id), requireNotNull(version.id), version.versionNo, version.status.name, version.contentHash)).build()
     }
 
-    @PutMapping("/api/ai/prompts/{prompt_id}")
-    fun updateDefinition(
+    @PutMapping("/api/ai/templates/{template_id}")
+    fun updateTemplate(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @RequestParam("display_name") @NotBlank @Size(max = 200) displayName: String,
         @RequestParam("purpose", defaultValue = "") @Size(max = 1000) purpose: String,
         @RequestParam("default_locale", required = false) @Size(max = 20) defaultLocale: String?,
@@ -259,40 +276,40 @@ class PromptController(
             val enabled: Boolean,
             @param:JsonProperty("updated_at") val updatedAt: LocalDateTime?,
         )
-        val definition = try {
-            catalog.updateDefinition(userId, promptId, displayName, purpose, defaultLocale, enabled)
+        val template = try {
+            catalog.updateDefinition(userId, templateId, displayName, purpose, defaultLocale, enabled)
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         } ?: return responseBuilder.notFound().build()
         val rs = Response(
-            requireNotNull(definition.id), definition.key, definition.displayName, definition.purpose, definition.scopeType.name,
-            definition.projectId, definition.defaultLocale, definition.enabled, definition.updatedAt,
+            requireNotNull(template.id), template.key, template.displayName, template.purpose, template.scopeType.name,
+            template.projectId, template.defaultLocale, template.enabled, template.updatedAt,
         )
         return responseBuilder.ok().data(rs).build()
     }
 
-    @DeleteMapping("/api/ai/prompts/{prompt_id}")
-    fun deleteDefinition(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long): ResponseEntity<Response> {
+    @DeleteMapping("/api/ai/templates/{template_id}")
+    fun deleteTemplate(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long): ResponseEntity<Response> {
         val deleted = try {
-            catalog.deleteDefinition(userId, promptId)
-        } catch (exception: PromptCatalogService.ConflictException) {
+            catalog.deleteDefinition(userId, templateId)
+        } catch (exception: TemplateCatalogService.ConflictException) {
             return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
         }
         if (!deleted) return responseBuilder.notFound().build()
-        return responseBuilder.ok().data(mapOf("id" to promptId, "deleted" to true)).build()
+        return responseBuilder.ok().data(mapOf("id" to templateId, "deleted" to true)).build()
     }
 
-    @DeleteMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
+    @DeleteMapping("/api/ai/templates/{template_id}/versions/{version_id}")
     fun deleteVersion(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @PathVariable("version_id") versionId: Long,
     ): ResponseEntity<Response> {
         val deleted = try {
-            catalog.deleteVersion(userId, promptId, versionId)
-        } catch (exception: PromptCatalogService.ConflictException) {
+            catalog.deleteVersion(userId, templateId, versionId)
+        } catch (exception: TemplateCatalogService.ConflictException) {
             return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
@@ -301,10 +318,10 @@ class PromptController(
         return responseBuilder.ok().data(mapOf("id" to versionId, "deleted" to true)).build()
     }
 
-    @PutMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}")
+    @PutMapping("/api/ai/templates/{template_id}/versions/{version_id}")
     fun update(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @PathVariable("version_id") versionId: Long,
         @RequestParam("locale", defaultValue = "zh-CN") @Size(max = 20) locale: String,
         @RequestParam("messages_json") @NotBlank @Size(max = 500_000) messagesJson: String,
@@ -312,6 +329,9 @@ class PromptController(
         @RequestParam("output_schema_json") @NotBlank @Size(max = 1_000_000) outputSchemaJson: String,
         @RequestParam("generation_policy_json", defaultValue = "{}") @Size(max = 20_000) generationPolicyJson: String,
         @RequestParam("compatibility_json", defaultValue = "{}") @Size(max = 20_000) compatibilityJson: String,
+        @RequestParam("skills_json", defaultValue = "[]") @Size(max = 20_000) skillsJson: String,
+        @RequestParam("mcp_servers_json", defaultValue = "[]") @Size(max = 20_000) mcpServersJson: String,
+        @RequestParam("tools_json", defaultValue = "[]") @Size(max = 20_000) toolsJson: String,
         @RequestParam("change_summary", defaultValue = "") @Size(max = 1000) changeSummary: String,
     ): ResponseEntity<Response> {
         data class Response(
@@ -321,8 +341,8 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
         )
         val updated = try {
-            catalog.updateDraft(userId, promptId, versionId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, changeSummary)
-        } catch (exception: PromptCatalogService.ConflictException) {
+            catalog.updateDraft(userId, templateId, versionId, locale, messagesJson, variablesSchemaJson, outputSchemaJson, generationPolicyJson, compatibilityJson, skillsJson, mcpServersJson, toolsJson, changeSummary)
+        } catch (exception: TemplateCatalogService.ConflictException) {
             return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
@@ -330,10 +350,10 @@ class PromptController(
         return responseBuilder.ok().data(Response(requireNotNull(updated.version.id), updated.version.versionNo, updated.version.status.name, updated.version.contentHash)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions")
+    @PostMapping("/api/ai/templates/{template_id}/versions")
     fun copy(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @RequestParam("copy_from_version_id") @Min(1) sourceVersionId: Long,
         @RequestParam("change_summary", defaultValue = "") @Size(max = 1000) changeSummary: String,
     ): ResponseEntity<Response> {
@@ -344,8 +364,8 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
         )
         val copied = try {
-            catalog.copyVersion(userId, promptId, sourceVersionId, changeSummary)
-        } catch (exception: PromptCatalogService.ConflictException) {
+            catalog.copyVersion(userId, templateId, sourceVersionId, changeSummary)
+        } catch (exception: TemplateCatalogService.ConflictException) {
             return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build()
         } catch (exception: IllegalArgumentException) {
             return responseBuilder.badRequest().message(exception.message).build()
@@ -353,8 +373,8 @@ class PromptController(
         return responseBuilder.created().data(Response(requireNotNull(copied.version.id), copied.version.versionNo, copied.version.status.name, copied.version.contentHash)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/submit-review")
-    fun submitReview(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/submit-review")
+    fun submitReview(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
         data class Response(
             val id: Long,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -362,12 +382,12 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val result = try { catalog.submitReview(userId, promptId, versionId) } catch (exception: PromptCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
+        val result = try { catalog.submitReview(userId, templateId, versionId) } catch (exception: TemplateCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
         return responseBuilder.ok().data(Response(requireNotNull(result.version.id), result.version.versionNo, result.version.status.name, result.version.contentHash, result.version.publishedAt)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/reject-review")
-    fun rejectReview(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/reject-review")
+    fun rejectReview(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
         data class Response(
             val id: Long,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -375,12 +395,12 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val result = try { catalog.rejectReview(userId, promptId, versionId) } catch (exception: PromptCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
+        val result = try { catalog.rejectReview(userId, templateId, versionId) } catch (exception: TemplateCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
         return responseBuilder.ok().data(Response(requireNotNull(result.version.id), result.version.versionNo, result.version.status.name, result.version.contentHash, result.version.publishedAt)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/publish")
-    fun publish(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/publish")
+    fun publish(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
         data class Response(
             val id: Long,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -388,12 +408,12 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val result = try { catalog.publish(userId, promptId, versionId) } catch (exception: PromptCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
+        val result = try { catalog.publish(userId, templateId, versionId) } catch (exception: TemplateCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
         return responseBuilder.ok().data(Response(requireNotNull(result.version.id), result.version.versionNo, result.version.status.name, result.version.contentHash, result.version.publishedAt)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/archive")
-    fun archive(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/archive")
+    fun archive(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
         data class Response(
             val id: Long,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -401,12 +421,12 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val result = try { catalog.archive(userId, promptId, versionId) } catch (exception: PromptCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
+        val result = try { catalog.archive(userId, templateId, versionId) } catch (exception: TemplateCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
         return responseBuilder.ok().data(Response(requireNotNull(result.version.id), result.version.versionNo, result.version.status.name, result.version.contentHash, result.version.publishedAt)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/rollback")
-    fun rollback(@AuthenticationPrincipal userId: Long?, @PathVariable("prompt_id") promptId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/rollback")
+    fun rollback(@AuthenticationPrincipal userId: Long?, @PathVariable("template_id") templateId: Long, @PathVariable("version_id") versionId: Long): ResponseEntity<Response> {
         data class Response(
             val id: Long,
             @param:JsonProperty("version_no") val versionNo: Int,
@@ -414,14 +434,14 @@ class PromptController(
             @param:JsonProperty("content_hash") val contentHash: String,
             @param:JsonProperty("published_at") val publishedAt: LocalDateTime?,
         )
-        val result = try { catalog.rollback(userId, promptId, versionId) } catch (exception: PromptCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
+        val result = try { catalog.rollback(userId, templateId, versionId) } catch (exception: TemplateCatalogService.ConflictException) { return responseBuilder.status(HttpStatus.CONFLICT).message(exception.message).build() } catch (exception: IllegalArgumentException) { return responseBuilder.badRequest().message(exception.message).build() } ?: return responseBuilder.notFound().build()
         return responseBuilder.created().data(Response(requireNotNull(result.version.id), result.version.versionNo, result.version.status.name, result.version.contentHash, result.version.publishedAt)).build()
     }
 
-    @PostMapping("/api/ai/prompts/{prompt_id}/versions/{version_id}/preview")
+    @PostMapping("/api/ai/templates/{template_id}/versions/{version_id}/preview")
     fun preview(
         @AuthenticationPrincipal userId: Long?,
-        @PathVariable("prompt_id") promptId: Long,
+        @PathVariable("template_id") templateId: Long,
         @PathVariable("version_id") versionId: Long,
         @RequestParam("sample_id") @NotBlank @Size(max = 100) sampleId: String,
         @RequestParam("provider_config_id", required = false) providerConfigId: Long?,
@@ -438,7 +458,7 @@ class PromptController(
             @param:JsonProperty("provider_config_id") val providerConfigId: Long?,
             val model: String?,
         )
-        val resolved = catalog.getVersion(promptId, versionId, userId) ?: return responseBuilder.notFound().build()
+        val resolved = catalog.getVersion(templateId, versionId, userId) ?: return responseBuilder.notFound().build()
         return try {
             val rendered = renderer.preview(resolved, sampleId)
             responseBuilder.ok().data(Response(sampleId, rendered.messages.size, rendered.templateHash, rendered.variablesHash, rendered.renderedInputHash, rendered.inputTokens, rendered.variableNames, providerConfigId, model?.trim()?.takeIf { it.isNotBlank() })).build()

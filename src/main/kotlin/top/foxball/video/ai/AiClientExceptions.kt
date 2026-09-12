@@ -21,8 +21,8 @@ class AiCircuitOpenException : AiClientException("模型服务暂时不可用，
 /** 表示上游返回非认证、非限流的 HTTP 错误状态。 */
 class AiUpstreamException(val statusCode: Int, val responseContent: String? = null) : AiClientException("模型服务返回错误（$statusCode）")
 
-/** 表示上游响应无法按约定的 JSON、SSE 或媒体格式解析。 */
-class AiProtocolException(message: String) : AiClientException(message)
+/** 表示上游响应无法按约定的 JSON、SSE 或媒体格式解析，可保留安全截断后的响应正文供诊断。 */
+class AiProtocolException(message: String, val responseContent: String? = null) : AiClientException(message)
 
 /** 表示 DNS、连接、读取等底层传输操作失败。 */
 class AiTransportException(message: String, cause: Throwable? = null) : AiClientException(message, cause)

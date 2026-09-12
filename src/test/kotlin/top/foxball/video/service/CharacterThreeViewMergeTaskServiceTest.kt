@@ -7,23 +7,27 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import top.foxball.video.ai.AiChatMessage
+import top.foxball.video.ai.AiChatRole
 import top.foxball.video.ai.AiInvocationService
 import top.foxball.video.entity.jdbc.AiModelProviderConfig
+import top.foxball.video.entity.jdbc.AiTemplate
+import top.foxball.video.entity.jdbc.AiTemplateVersion
 import top.foxball.video.entity.jdbc.CharacterProfile
 import top.foxball.video.entity.jdbc.EpisodeAsset
 import top.foxball.video.entity.jdbc.EpisodeAssetType
 import top.foxball.video.entity.jdbc.ProductionTask
 import top.foxball.video.entity.jdbc.ProductionTaskStatus
 import top.foxball.video.entity.jdbc.ProductionTaskType
-import top.foxball.video.entity.jdbc.PromptDefinition
-import top.foxball.video.entity.jdbc.PromptVersion
-import top.foxball.video.entity.jdbc.PromptVersionStatus
+import top.foxball.video.entity.jdbc.TemplateCategory
+import top.foxball.video.entity.jdbc.TemplateScopeType
+import top.foxball.video.entity.jdbc.TemplateVersionStatus
 import top.foxball.video.repository.AiModelProviderConfigRepository
 import top.foxball.video.repository.ProductionTaskRepository
 
 class CharacterThreeViewMergeTaskServiceTest {
     @Test
-    fun `submit snapshots prompt and source files`() {
+    fun `submit snapshots template and source files`() {
         val fixture = Fixture()
         val frontId = UUID.randomUUID().toString()
         val sideId = UUID.randomUUID().toString()
@@ -46,11 +50,10 @@ class CharacterThreeViewMergeTaskServiceTest {
         Mockito.`when`(fixture.providerRepository.findById(4)).thenReturn(
             Optional.of(AiModelProviderConfig(id = 4, enabled = true, model = mapOf("api_type" to "IMAGE"))),
         )
-        Mockito.`when`(fixture.promptCatalog.resolve("character_three_view_merge", 1, 9, "zh-CN")).thenReturn(
-            PromptCatalogService.ResolvedPrompt(
-                PromptDefinition(id = 11, key = "character_three_view_merge"),
-                PromptVersion(id = 12, promptDefinitionId = 11, status = PromptVersionStatus.PUBLISHED, contentHash = "sha256:test"),
-            ),
+        val template = AiTemplate(id = 11, key = "character_three_view_merge", displayName = "三视图合并", scopeType = TemplateScopeType.GLOBAL)
+        val version = AiTemplateVersion(id = 12, templateId = 11, status = TemplateVersionStatus.PUBLISHED, contentHash = "sha256:test")
+        Mockito.`when`(fixture.templateCatalog.resolve("character_three_view_merge", 1, 9, "zh-CN")).thenReturn(
+            TemplateCatalogService.ResolvedTemplate(template, version),
         )
         Mockito.`when`(fixture.taskRepository.save(Mockito.any(ProductionTask::class.java))).thenAnswer { invocation ->
             invocation.getArgument<ProductionTask>(0).also { it.id = 77 }
@@ -120,7 +123,7 @@ class CharacterThreeViewMergeTaskServiceTest {
 
             assertEquals(true, submitted.existing)
             assertSame(existing, submitted.task)
-            Mockito.verifyNoInteractions(fixture.promptCatalog)
+            Mockito.verifyNoInteractions(fixture.templateCatalog)
         } finally {
             fixture.service.shutdown()
         }
@@ -154,16 +157,20 @@ class CharacterThreeViewMergeTaskServiceTest {
         val providerRepository: AiModelProviderConfigRepository = Mockito.mock(AiModelProviderConfigRepository::class.java)
         val taskCenterService: TaskCenterService = Mockito.mock(TaskCenterService::class.java)
         val assetService: AssetService = Mockito.mock(AssetService::class.java)
-        val promptCatalog: PromptCatalogService = Mockito.mock(PromptCatalogService::class.java)
+        val templateCatalog: TemplateCatalogService = Mockito.mock(TemplateCatalogService::class.java)
+        val templateRenderer: TemplateRenderer = Mockito.mock(TemplateRenderer::class.java)
+        val templateAgentRunner: TemplateAgentRunner = Mockito.mock(TemplateAgentRunner::class.java)
+        val templateRunAuditService: TemplateRunAuditService = Mockito.mock(TemplateRunAuditService::class.java)
         val service = CharacterThreeViewMergeTaskService(
             taskRepository,
             providerRepository,
             taskCenterService,
             assetService,
             Mockito.mock(AiMediaGenerationService::class.java),
-            promptCatalog,
-            Mockito.mock(PromptRenderer::class.java),
-            Mockito.mock(PromptRunAuditService::class.java),
+            templateCatalog,
+            templateRenderer,
+            templateAgentRunner,
+            templateRunAuditService,
             Mockito.mock(FileService::class.java),
         )
     }

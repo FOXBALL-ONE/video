@@ -1,5 +1,10 @@
 # AI 提示词管理模块设计
 
+> 本文记录首期提示词管理模块的历史设计，已被模板管理模块取代：提示词、技能（SKILL）、MCP 工具与内置工具
+> 现在统一由模板版本承载，类名、数据表与接口以 [`AI_TEMPLATE_MODULE_DESIGN.md`](AI_TEMPLATE_MODULE_DESIGN.md) 为准。
+> 本文中的 `PromptCatalogService`、`PromptController`、`ai_prompt_*` 表名与 `/api/ai/prompts` 接口均已不再存在，
+> 仅保留作为设计演进记录。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |

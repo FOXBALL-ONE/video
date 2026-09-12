@@ -5,6 +5,21 @@ video:
 spring:
   application:
     name: video
+  ai:
+    # 模型连接来自数据库中的提供商配置，按连接动态构建，因此关闭 Spring AI 基于属性的单连接自动装配。
+    # 这些开关的默认值都是 matchIfMissing=true，必须逐个显式关闭，否则启动时会用空 API Key 构建客户端。
+    model:
+      chat: none
+      image: none
+      embedding: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    mcp:
+      client:
+        # MCP 服务端来自数据库配置，不从 application.yaml 声明。
+        enabled: false
   mvc:
     # AI 图片/视频接口以 Mono 异步返回，等待上游响应时不能使用 Spring MVC 默认短超时。
     async:

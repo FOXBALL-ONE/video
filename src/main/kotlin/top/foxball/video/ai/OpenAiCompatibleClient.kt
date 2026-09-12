@@ -278,7 +278,7 @@ class OpenAiCompatibleClient(
             AiOperation.IMAGE,
             requestId,
             command.model,
-            "mode=edit image_count=${command.images.size} image_bytes=$totalImageBytes mask=${command.mask != null} size=${safeLog(command.size ?: "default")} response_format=${command.responseFormat.wireValue}",
+            "mode=edit image_count=${command.images.size} image_bytes=$totalImageBytes mask=${command.mask != null} size=${safeLog(command.size ?: "default")} response_format=${command.responseFormat.wireValue} files=${safeLog(command.images.map { image -> "${image.filename}:${image.contentType}:${image.bytes.size}" }.joinToString(","))} mask_file=${safeLog(command.mask?.let { "${it.filename}:${it.contentType}:${it.bytes.size}" } ?: "-")}",
         )
         return invocationGuard.protect(connection, AiOperation.IMAGE) {
             val uri = uriPolicy.endpoint(connection.baseUri, "images/edits")
@@ -437,6 +437,17 @@ class OpenAiCompatibleClient(
         requestId: String? = null,
     ): Mono<JsonNode> {
         val uri = uriPolicy.endpoint(connection.baseUri, resource)
+        log.debug(
+            "AI HTTP request operation={} provider_config_id={} provider={} method={} uri={} request_id={} content_type={} payload={}",
+            operation,
+            connection.providerConfigId,
+            safeLog(connection.provider),
+            if (payload == null) "GET" else "POST",
+            safeLog(uri.toString()),
+            safeLog(requestId ?: "-"),
+            if (payload == null) "-" else MediaType.APPLICATION_JSON_VALUE,
+            safeLog(payloadSummary(payload)),
+        )
         val request = transportFactory.client(connection.profile)
             .method(if (payload == null) org.springframework.http.HttpMethod.GET else org.springframework.http.HttpMethod.POST)
             .uri(uri)
@@ -511,14 +522,22 @@ class OpenAiCompatibleClient(
         exception: Throwable,
         details: String = "",
     ) {
+        val responseBody = when (exception) {
+            is AiUpstreamAuthenticationException -> exception.responseContent
+            is AiRateLimitException -> exception.responseContent
+            is AiUpstreamException -> exception.responseContent
+            is AiProtocolException -> exception.responseContent
+            else -> null
+        }
         log.warn(
-            "AI model call failed operation={} provider_config_id={} provider={} request_id={} elapsed_ms={} error={} {}",
+            "AI model call failed operation={} provider_config_id={} provider={} request_id={} elapsed_ms={} error={} response_body={} {}",
             operation,
             connection.providerConfigId,
             safeLog(connection.provider),
             safeLog(requestId),
             elapsedMillis(startedAt),
             errorSummary(exception),
+            safeLog(responseBody ?: "-", MAX_ERROR_RESPONSE_CHARS),
             details,
         )
     }
@@ -551,13 +570,19 @@ class OpenAiCompatibleClient(
         response: ClientResponse,
     ) {
         log.info(
-            "AI upstream response operation={} provider_config_id={} provider={} endpoint=/v1/{} request_id={} status={}",
+            "AI upstream response operation={} provider_config_id={} provider={} endpoint=/v1/{} request_id={} status={} content_type={} content_length={} retry_after={} headers={}",
             operation,
             connection.providerConfigId,
             safeLog(connection.provider),
             resource,
             safeLog(requestId ?: "-"),
             response.statusCode().value(),
+            response.headers().contentType().map(MediaType::toString).orElse("-"),
+            response.headers().contentLength().orElse(-1L),
+            safeLog(response.headers().asHttpHeaders().getFirst(HttpHeaders.RETRY_AFTER) ?: "-"),
+            safeLog(response.headers().asHttpHeaders().toSingleValueMap().entries
+                .filter { entry -> !entry.key.equals(HttpHeaders.AUTHORIZATION, ignoreCase = true) && !entry.key.equals(HttpHeaders.SET_COOKIE, ignoreCase = true) }
+                .joinToString(",") { entry -> "${entry.key}=${entry.value}" }),
         )
     }
 
@@ -587,6 +612,13 @@ class OpenAiCompatibleClient(
         val statusCode = response.statusCode().value()
         val retryAfter = response.headers().asHttpHeaders().getFirst(HttpHeaders.RETRY_AFTER)?.toLongOrNull()
         return response.bodyToMono(String::class.java).defaultIfEmpty("").flatMap { responseContent ->
+            log.warn(
+                "AI upstream error response status={} content_type={} content_length={} body={}",
+                statusCode,
+                response.headers().contentType().map(MediaType::toString).orElse("-"),
+                response.headers().contentLength().orElse(-1L),
+                safeLog(responseContent, MAX_ERROR_RESPONSE_CHARS),
+            )
             val error: Throwable = when {
                 statusCode == 401 || statusCode == 403 -> AiUpstreamAuthenticationException(statusCode, responseContent.take(MAX_ERROR_RESPONSE_CHARS))
                 statusCode == 429 -> AiRateLimitException(retryAfter, responseContent.take(MAX_ERROR_RESPONSE_CHARS))
@@ -594,6 +626,21 @@ class OpenAiCompatibleClient(
             }
             Mono.error(error)
         }
+    }
+
+    /** 仅记录 JSON 请求的结构和规模，避免把提示词、消息正文等敏感内容写入日志。 */
+    private fun payloadSummary(payload: Any?): String = when (payload) {
+        null -> "-"
+        is Map<*, *> -> payload.entries.joinToString(",", prefix = "{", postfix = "}") { (key, value) ->
+            val summary = when (value) {
+                is String -> "string(length=${value.length})"
+                is Collection<*> -> "collection(size=${value.size})"
+                is Map<*, *> -> "object(keys=${value.keys.size})"
+                else -> value?.toString() ?: "null"
+            }
+            "$key=$summary"
+        }
+        else -> payload::class.simpleName ?: "object"
     }
 
     /** 消费错误响应正文后，以协议异常结束流式结果。 */
@@ -837,11 +884,29 @@ class OpenAiCompatibleClient(
 
     /** 解析 OpenAI 及中转服务常见的图像响应结构，支持 URL、base64 和嵌套结果。 */
     private fun parseImages(response: JsonNode): AiImageGenerationResult {
+        val upstreamError = response.path("error")
+        if (upstreamError.isObject) {
+            val message = upstreamError.fieldString("message") ?: "上游图像服务返回错误"
+            val code = upstreamError.fieldString("code")
+            val responseBody = response.toString().take(MAX_ERROR_RESPONSE_CHARS)
+            log.warn(
+                "图像响应包含上游错误：error_message={} error_code={} response_body={}",
+                safeLog(message),
+                safeLog(code ?: "-"),
+                safeLog(responseBody, MAX_ERROR_RESPONSE_CHARS),
+            )
+            throw AiProtocolException("模型服务返回错误：${safeLog(message)}", responseBody)
+        }
         val images = mutableListOf<AiGeneratedImage>()
         collectImageNodes(response, images, 0)
         if (images.isEmpty()) {
-            log.warn("图像响应未识别到图片：顶层字段={} 响应类型={}", responseFieldNames(response), response.nodeType)
-            throw AiProtocolException("模型服务响应不包含图像数据")
+            log.warn(
+                "图像响应未识别到图片：顶层字段={} 响应类型={} response_body={}",
+                responseFieldNames(response),
+                response.nodeType,
+                safeLog(response.toString(), MAX_ERROR_RESPONSE_CHARS),
+            )
+            throw AiProtocolException("模型服务响应不包含图像数据", response.toString().take(MAX_ERROR_RESPONSE_CHARS))
         }
         return AiImageGenerationResult(
             createdAtEpochSeconds = response.fieldLong("created"),

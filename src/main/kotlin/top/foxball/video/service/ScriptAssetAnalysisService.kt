@@ -1,14 +1,14 @@
 package top.foxball.video.service
 
 import org.springframework.stereotype.Service
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.JsonNodeFactory
 import tools.jackson.databind.node.ObjectNode
 import top.foxball.video.ai.AiClientException
-import top.foxball.video.ai.AiChatCompletionResult
 import top.foxball.video.ai.AiConfigurationException
-import top.foxball.video.ai.AiInvocationService
 import top.foxball.video.ai.AiRateLimitException
 import top.foxball.video.ai.AiUpstreamAuthenticationException
 import top.foxball.video.ai.AiUpstreamException
@@ -21,14 +21,13 @@ import java.util.concurrent.TimeoutException
 /** 仅调用 AI 并规范化结果的剧本资产解析服务；不写入剧本或资产表。 */
 @Service
 class ScriptAssetAnalysisService(
-    private val aiInvocationService: AiInvocationService,
     private val providerConfigRepository: AiModelProviderConfigRepository,
     private val objectMapper: ObjectMapper,
-    private val promptCatalog: PromptCatalogService,
-    private val promptRenderer: PromptRenderer,
-    private val promptSchemaValidator: PromptSchemaValidator,
-    private val promptRunAuditService: PromptRunAuditService,
-    private val promptInvocationBuilder: PromptInvocationBuilder,
+    private val templateCatalog: TemplateCatalogService,
+    private val templateRenderer: TemplateRenderer,
+    private val templateSchemaValidator: TemplateSchemaValidator,
+    private val templateRunAuditService: TemplateRunAuditService,
+    private val templateAgentRunner: TemplateAgentRunner,
 ) {
     private companion object {
         const val MAX_ITEMS_PER_TYPE = 50
@@ -59,6 +58,13 @@ class ScriptAssetAnalysisService(
         require(config.enabled) { "AI 提供商配置已停用" }
     }
 
+    /**
+     * 按模板版本解析一类剧本资产。
+     *
+     * 模板执行由 [TemplateAgentRunner] 完成：技能说明注入 system 通道，模板声明的内置工具与
+     * MCP 工具装配到模型请求上。`stream` 参数保留用于兼容既有任务快照，模板执行统一使用
+     * 非流式工具循环，并由 `AI_TIMEOUT_SECONDS` 统一限时。
+     */
     fun analyze(
         assetType: EpisodeAssetType,
         providerConfigId: Long,
@@ -69,61 +75,71 @@ class ScriptAssetAnalysisService(
         episodeId: Long? = null,
         taskId: Long? = null,
         attempt: Int = 1,
-        stream: Boolean = true,
+        @Suppress("UNUSED_PARAMETER") stream: Boolean = true,
         promptKey: String? = null,
         promptCategory: String? = null,
     ): TypeResult {
         val requestId = UUID.randomUUID().toString()
         val provider = providerConfigRepository.findById(providerConfigId).orElse(null)?.provider?.trim().orEmpty().ifBlank { "unknown" }
-        var resolvedPrompt: PromptCatalogService.ResolvedPrompt? = null
-        var rendered: PromptRenderer.RenderedPrompt? = null
+        var resolvedTemplate: TemplateCatalogService.ResolvedTemplate? = null
+        var rendered: TemplateRenderer.RenderedTemplate? = null
         val startedAt = System.nanoTime()
         return try {
-            val prompt = promptVersionId?.let { promptCatalog.resolveExecutableVersion(it) }
-                ?: promptCatalog.resolve(promptKey ?: "script_analysis", null, null)
-            require(promptKey.isNullOrBlank() || prompt.definition.key == promptKey) { "提示词版本与任务快照不匹配" }
-            val expectedCategory = promptCatalog.categoryForAssetType(assetType)
-            require(prompt.definition.enabled) { "提示词已停用" }
-            require(prompt.definition.key == "script_analysis" || promptCatalog.effectiveCategory(prompt.definition).name == (promptCategory ?: expectedCategory.name)) { "提示词版本与资产类型不匹配" }
-            resolvedPrompt = prompt
-            require(promptHash.isNullOrBlank() || promptHash.equals(prompt.version.contentHash, ignoreCase = true)) { "提示词版本内容已变化" }
+            val template = promptVersionId?.let { templateCatalog.resolveExecutableVersion(it) }
+                ?: templateCatalog.resolve(promptKey ?: "script_analysis", null, null)
+            require(promptKey.isNullOrBlank() || template.template.key == promptKey) { "模板版本与任务快照不匹配" }
+            val expectedCategory = templateCatalog.categoryForAssetType(assetType)
+            require(template.template.enabled) { "模板已停用" }
+            require(template.template.key == "script_analysis" || templateCatalog.effectiveCategory(template.template).name == (promptCategory ?: expectedCategory.name)) { "模板版本与资产类型不匹配" }
+            resolvedTemplate = template
+            require(promptHash.isNullOrBlank() || promptHash.equals(template.version.contentHash, ignoreCase = true)) { "模板版本内容已变化" }
             val variables = linkedMapOf<String, Any?>(
                 "script_content" to sourceContent,
                 "episode_context_json" to objectMapper.writeValueAsString(mapOf("episode_id" to episodeId, "asset_type" to assetType.name)),
-                "output_language" to prompt.version.locale,
+                "output_language" to template.version.locale,
                 "detail_level" to "STANDARD",
             )
-            if (prompt.definition.key == "script_analysis") variables["asset_type"] = assetType.name
-            rendered = promptRenderer.render(
-                prompt,
-                variables,
-            )
-            val command = promptInvocationBuilder.build(prompt, rendered, providerConfigId, model, requestId)
-            var completion: AiChatCompletionResult? = null
-            val raw = if (stream) {
-                aiInvocationService.streamChatCompletion(command)
-                    .timeout(Duration.ofSeconds(AI_TIMEOUT_SECONDS))
-                    .mapNotNull { it.content }
-                    .collectList()
-                    .block()
-                    ?.joinToString("")
-                    .orEmpty()
-            } else {
-                completion = aiInvocationService.createChatCompletion(command)
-                    .timeout(Duration.ofSeconds(AI_TIMEOUT_SECONDS))
-                    .block()
-                    ?: throw IllegalStateException("模型服务未返回结果")
-                completion.primaryChoice?.message?.content.orEmpty()
-            }
-            val root = normalizeOutputRoot(parseRoot(raw), assetType)
-            promptSchemaValidator.validateOutput(prompt.version.outputSchemaJson, root)
+            if (template.template.key == "script_analysis") variables["asset_type"] = assetType.name
+            val renderedTemplate = templateRenderer.render(template, variables)
+            rendered = renderedTemplate
+            val outcome = Mono.fromCallable {
+                templateAgentRunner.chat(
+                    TemplateAgentRunner.ChatRequest(
+                        template = template,
+                        rendered = renderedTemplate,
+                        providerConfigId = providerConfigId,
+                        model = model,
+                        requestId = requestId,
+                    ),
+                )
+            }.subscribeOn(Schedulers.boundedElastic())
+                .timeout(Duration.ofSeconds(AI_TIMEOUT_SECONDS))
+                .block() ?: throw IllegalStateException("模型服务未返回结果")
+            val root = normalizeOutputRoot(parseRoot(outcome.text), assetType)
+            templateSchemaValidator.validateOutput(template.version.outputSchemaJson, root)
             val items = parseItems(root, assetType)
                 .map { normalizeItem(assetType, it) }
             if (objectMapper.writeValueAsBytes(items).size > MAX_RESULT_BYTES) throw ResultTooLargeException()
-            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "SUCCEEDED", attempt, startedAt, completion?.usage?.inputTokens, completion?.usage?.outputTokens, null)
+            recordAudit(
+                resolvedTemplate,
+                rendered,
+                taskId,
+                requestId,
+                providerConfigId,
+                model,
+                "SUCCEEDED",
+                attempt,
+                startedAt,
+                outcome.inputTokens,
+                outcome.outputTokens,
+                null,
+                outcome.skillKeys,
+                outcome.mcpServerKeys,
+                outcome.toolCallCount,
+            )
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, items)
         } catch (exception: AiConfigurationException) {
-            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, "AI_CONFIGURATION_ERROR")
+            recordAudit(resolvedTemplate, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, "AI_CONFIGURATION_ERROR")
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = "AI_CONFIGURATION_ERROR", errorMessage = "AI 提供商配置不可用")
         } catch (exception: AiClientException) {
             val code = when (exception) {
@@ -131,48 +147,49 @@ class ScriptAssetAnalysisService(
                 is AiRateLimitException -> "AI_RATE_LIMITED"
                 else -> "AI_PROVIDER_ERROR"
             }
-            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, code)
+            recordAudit(resolvedTemplate, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, code)
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = code, errorMessage = when (code) {
                 "AI_RATE_LIMITED" -> "模型服务请求过于频繁，请稍后重试"
                 else -> "模型服务暂时不可用，请稍后重试"
             })
-        } catch (_: TimeoutException) {
-            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, "AI_TIMEOUT")
+        } catch (exception: TimeoutException) {
+            recordAudit(resolvedTemplate, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, "AI_TIMEOUT")
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = "AI_TIMEOUT", errorMessage = "模型服务响应超时，请稍后重试")
         } catch (exception: Exception) {
             val code = when (exception) {
                 is InvalidAiJsonException -> "INVALID_AI_JSON"
                 is ResultTooLargeException -> "RESULT_TOO_LARGE"
-                is PromptSchemaValidator.SchemaViolationException -> "INVALID_OUTPUT_SCHEMA"
-                is PromptCatalogService.NotFoundException -> "PROMPT_VERSION_NOT_FOUND"
+                is TemplateSchemaValidator.SchemaViolationException -> "INVALID_OUTPUT_SCHEMA"
+                is TemplateCatalogService.NotFoundException -> "TEMPLATE_VERSION_NOT_FOUND"
                 is TimeoutException -> "AI_TIMEOUT"
                 else -> when {
                     exception.cause is TimeoutException -> "AI_TIMEOUT"
-                    exception.message?.contains("提示词版本内容已变化") == true -> "PROMPT_VERSION_CHANGED"
-                    exception.message?.contains("提示词版本与资产类型不匹配") == true -> "PROMPT_CATEGORY_MISMATCH"
-                    exception.message?.contains("提示词版本与任务快照不匹配") == true -> "PROMPT_VERSION_CHANGED"
-                    exception.message?.contains("提示词已停用") == true -> "PROMPT_VERSION_DISABLED"
+                    exception.message?.contains("模板版本内容已变化") == true -> "TEMPLATE_VERSION_CHANGED"
+                    exception.message?.contains("模板版本与资产类型不匹配") == true -> "TEMPLATE_CATEGORY_MISMATCH"
+                    exception.message?.contains("模板版本与任务快照不匹配") == true -> "TEMPLATE_VERSION_CHANGED"
+                    exception.message?.contains("模板已停用") == true -> "TEMPLATE_VERSION_DISABLED"
                     else -> "AI_ANALYSIS_FAILED"
                 }
             }
-            recordAudit(resolvedPrompt, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, code)
+            recordAudit(resolvedTemplate, rendered, taskId, requestId, providerConfigId, model, "FAILED", attempt, startedAt, null, null, code)
             TypeResult(assetType, providerConfigId, model.trim(), provider, requestId, errorCode = code, errorMessage = when (code) {
                 "INVALID_AI_JSON" -> "模型返回结果不是合法 JSON"
                 "RESULT_TOO_LARGE" -> "模型返回结果超过大小限制"
                 "INVALID_OUTPUT_SCHEMA" -> "模型返回结果不符合输出契约：${exception.message ?: "结构不匹配"}"
-                "PROMPT_VERSION_NOT_FOUND" -> "提示词版本不存在"
-                "PROMPT_VERSION_CHANGED" -> "提示词版本已变化，请重新提交解析任务"
-                "PROMPT_CATEGORY_MISMATCH" -> "提示词分类与资产类型不匹配"
-                "PROMPT_VERSION_DISABLED" -> "提示词已停用，请重新选择当前版本"
+                "TEMPLATE_VERSION_NOT_FOUND" -> "模板版本不存在"
+                "TEMPLATE_VERSION_CHANGED" -> "模板版本已变化，请重新提交解析任务"
+                "TEMPLATE_CATEGORY_MISMATCH" -> "模板分类与资产类型不匹配"
+                "TEMPLATE_VERSION_DISABLED" -> "模板已停用，请重新选择当前版本"
                 "AI_TIMEOUT" -> "模型服务响应超时，请稍后重试"
                 else -> "剧本资产解析失败"
             })
         }
     }
 
+    /** 写入运行审计；技能与 MCP 绑定可从模板版本回读，保证失败路径也记录实际装配内容。 */
     private fun recordAudit(
-        prompt: PromptCatalogService.ResolvedPrompt?,
-        rendered: PromptRenderer.RenderedPrompt?,
+        template: TemplateCatalogService.ResolvedTemplate?,
+        rendered: TemplateRenderer.RenderedTemplate?,
         taskId: Long?,
         requestId: String,
         providerConfigId: Long,
@@ -183,25 +200,33 @@ class ScriptAssetAnalysisService(
         inputTokens: Int?,
         outputTokens: Int?,
         validationErrorCode: String?,
+        skillKeys: List<String> = emptyList(),
+        mcpServerKeys: List<String> = emptyList(),
+        toolCallCount: Int = 0,
     ) {
-        val resolved = prompt ?: return
+        val resolved = template ?: return
         runCatching {
-            promptRunAuditService.record(
-                promptKey = resolved.definition.key,
-                promptVersionId = requireNotNull(resolved.version.id),
-                taskId = taskId,
-                invocationId = requestId,
-                providerConfigId = providerConfigId,
-                model = model,
-                status = status,
-                attempt = attempt,
-                latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
-                inputTokens = inputTokens ?: rendered?.inputTokens,
-                outputTokens = outputTokens,
-                templateHash = rendered?.templateHash ?: resolved.version.contentHash,
-                variablesHash = rendered?.variablesHash,
-                renderedInputHash = rendered?.renderedInputHash,
-                validationErrorCode = validationErrorCode,
+            templateRunAuditService.record(
+                TemplateRunRecord(
+                    templateKey = resolved.template.key,
+                    templateVersionId = requireNotNull(resolved.version.id),
+                    taskId = taskId,
+                    invocationId = requestId,
+                    providerConfigId = providerConfigId,
+                    model = model,
+                    status = status,
+                    attempt = attempt,
+                    latencyMs = (System.nanoTime() - startedAt) / 1_000_000,
+                    inputTokens = inputTokens ?: rendered?.inputTokens,
+                    outputTokens = outputTokens,
+                    templateHash = rendered?.templateHash ?: resolved.version.contentHash,
+                    variablesHash = rendered?.variablesHash,
+                    renderedInputHash = rendered?.renderedInputHash,
+                    skillKeys = skillKeys.ifEmpty { templateSchemaValidator.skillKeys(resolved.version.skillsJson) },
+                    mcpServerKeys = mcpServerKeys.ifEmpty { templateSchemaValidator.mcpServerKeys(resolved.version.mcpServersJson) },
+                    toolCallCount = toolCallCount,
+                    validationErrorCode = validationErrorCode,
+                ),
             )
         }
     }
