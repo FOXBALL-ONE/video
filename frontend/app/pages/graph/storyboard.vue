@@ -15,7 +15,7 @@
         </div>
       </header>
 
-      <ProductionSteps active="storyboard" />
+      <ProductionSteps active="storyboard" :stage="activeEpisode?.currentStage" />
 
       <section class="overflow-hidden rounded-[14px] border border-[#dfe3eb] bg-white">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8eaf0] px-5 py-3.5">
@@ -120,7 +120,7 @@
             <span>已生成 {{ generatedCount }}/{{ batches.length }}</span>
             <span>已填入 {{ filledCount }}/{{ shots.length }}</span>
           </div>
-          <span class="text-[11px] text-[#929bad]">填入结果暂存于当前页面，映射持久化接口接入后自动同步</span>
+          <span class="text-[11px] text-[#929bad]">映射与切图结果已保存，可刷新页面继续处理</span>
         </div>
       </section>
 
@@ -180,6 +180,8 @@ interface ShotsResponse { list: ShotData[]; groups?: GroupData[] }
 interface ProviderConfig { id: number; provider: string; api_type?: string; model_id: string; enabled: boolean }
 interface GeneratedImageFile { id: string; file_name: string; signed_download_url: string }
 interface GeneratedImageResponse { list?: GeneratedImageFile[] }
+interface StoryboardTaskResponse { task_id: string; status: string; batch_no: number; grid_file_id?: string; signed_grid_url?: string; progress?: number; error_message?: string }
+interface StoryboardListResponse { list: Array<{ batch_no: number; status: string; grid_file_id?: string; signed_grid_url?: string; cells?: Array<{ cell: number; shot_id: number }>; imported_shot_ids?: number[] }> }
 interface BatchSlots { key: string; index: number; slots: (ShotData | null)[] }
 type BatchStatus = 'PENDING' | 'GENERATING' | 'GENERATED'
 interface BatchState { status: BatchStatus; gridUrl: string | null; gridFileId: string | null; error: string; selectedCell: number | null; cellBySlot: number[]; filledSlots: number[] }
@@ -355,17 +357,15 @@ async function generateBatch(batch: BatchSlots) {
   state.status = 'GENERATING'
   state.error = ''
   try {
-    const response = await http.post<GeneratedImageResponse>('/ai/images/generations', {
-      provider_config_id: Number(providerConfigId),
-      model,
-      prompt: buildGridPrompt(batch),
-      count: 1,
-      size: settingsForm.size,
-    })
-    const file = response.list?.[0]
-    if (!file) throw new Error('图片模型未返回结果')
-    state.gridFileId = file.id
-    state.gridUrl = resolveImageUrl(file.signed_download_url)
+    const response = await http.post<StoryboardTaskResponse>(`/projects/${projectId.value}/episodes/${episodeId.value}/storyboard-tasks?batch_no=${batch.index}&shot_ids=${batchShots(batch).map((shot) => shot.id).join('&shot_ids=')}&provider_config_id=${Number(providerConfigId)}&model=${encodeURIComponent(model)}&size=${settingsForm.size}&style_supplement=${encodeURIComponent(settingsForm.styleSupplement)}`, {})
+    let detail = response
+    for (let attempt = 0; attempt < 180 && !['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(detail.status); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      detail = await http.get<StoryboardTaskResponse>(`/projects/${projectId.value}/episodes/${episodeId.value}/storyboard-tasks/${response.task_id}`)
+    }
+    if (detail.status !== 'SUCCEEDED' || !detail.grid_file_id) throw new Error(detail.error_message || '九宫格生成失败')
+    state.gridFileId = detail.grid_file_id
+    state.gridUrl = resolveImageUrl(detail.signed_grid_url)
     state.status = 'GENERATED'
     state.selectedCell = null
     expanded.value[batch.key] = true
@@ -400,11 +400,18 @@ async function generateAll() {
 }
 
 /** 保存格位映射。后端映射持久化接口（storyboard mappings）就绪后，这里应同步提交。 */
-function fillBatch(batch: BatchSlots) {
+async function fillBatch(batch: BatchSlots) {
   const state = stateOf(batch)
   if (state.status !== 'GENERATED') { message.warning('请先生成九宫格'); return }
-  state.filledSlots = batch.slots.map((slot, index) => (slot ? index : -1)).filter((index) => index >= 0)
-  message.success(`第 ${batch.index} 批已填入 ${state.filledSlots.length}/${batchShotCount(batch)} 个镜头`)
+  try {
+    const cells = batch.slots.map((slot, index) => slot ? ({ cell: cellOfSlot(batch, index), shot_id: slot.id }) : null).filter(Boolean)
+    await http.put(`/projects/${projectId.value}/episodes/${episodeId.value}/storyboards/${batch.index}/cells`, { grid_file_id: state.gridFileId, cells })
+    await http.post<{ imported: number }>(`/projects/${projectId.value}/episodes/${episodeId.value}/storyboards/${batch.index}/import`, { cells })
+    state.filledSlots = batch.slots.map((slot, index) => (slot ? index : -1)).filter((index) => index >= 0)
+    message.success(`第 ${batch.index} 批已填入 ${state.filledSlots.length}/${batchShotCount(batch)} 个镜头`)
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '填入分镜失败')
+  }
 }
 
 function downloadFile(name: string, content: string, type: string) {
@@ -473,11 +480,29 @@ async function loadProviders() {
   }
 }
 
+async function loadSavedStoryboards() {
+  if (!episodeParams.value) return
+  try {
+    const response = await http.get<StoryboardListResponse>(`/projects/${projectId.value}/episodes/${episodeParams.value.episode_id}/storyboards`)
+    for (const saved of response.list || []) {
+      const batch = batches.value[saved.batch_no - 1]
+      if (!batch) continue
+      const state = stateOf(batch)
+      state.gridFileId = saved.grid_file_id || null
+      state.gridUrl = resolveImageUrl(saved.signed_grid_url)
+      state.status = saved.status === 'IMPORTED' || saved.status === 'GENERATED' ? 'GENERATED' : state.status
+      state.filledSlots = (saved.imported_shot_ids || []).map((id) => batch.slots.findIndex((slot) => slot?.id === id)).filter((index) => index >= 0)
+      for (const cell of saved.cells || []) { const index = batch.slots.findIndex((slot) => slot?.id === cell.shot_id); if (index >= 0) state.cellBySlot[index] = cell.cell }
+    }
+  } catch { /* saved storyboard recovery is best effort */ }
+}
+
 async function reloadAll() { await Promise.all([loadShots(), loadProviders()]) }
 async function initialise() {
   try { await loadProjects() } catch { /* keep cached project */ }
   try { await loadEpisodes(String(projectId.value || route.params.projectId || '')) } catch { /* keep local episode */ }
   await reloadAll()
+  await loadSavedStoryboards()
 }
 onMounted(initialise)
 watch(() => activeProject.value?.id, (next, previous) => { if (next && next !== previous) reloadAll() })

@@ -9,19 +9,20 @@
         <span
           v-if="index"
           class="mx-2 h-px w-5 shrink-0 sm:mx-3 sm:w-8"
-          :class="index <= activeIndex ? 'bg-[#8bd3a7]' : 'bg-[#dfe2e8]'"
+          :class="index <= cursor ? 'bg-[#8bd3a7]' : 'bg-[#dfe2e8]'"
           aria-hidden="true"
         ></span>
         <NuxtLink
           :to="routes[step.id]"
           class="workflow-step flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-[#93c5fd] focus:ring-offset-1"
-          :class="step.id === props.active ? 'font-semibold text-[#2563eb]' : index < activeIndex ? 'text-[#278d68] hover:bg-[#f1fbf5] hover:text-[#1f7a59]' : 'text-[#9299a7] hover:bg-[#f7f7fa] hover:text-[#596174]'"
+          :class="step.id === props.active ? 'font-semibold text-[#2563eb]' : index < cursor ? 'text-[#278d68] hover:bg-[#f1fbf5] hover:text-[#1f7a59]' : 'text-[#9299a7] hover:bg-[#f7f7fa] hover:text-[#596174]'"
           :aria-current="step.id === props.active ? 'step' : undefined"
+          :title="step.id === props.active ? `${step.title}进行中` : index < cursor ? `${step.title}已完成` : `${step.title}待开始`"
         >
           <span
             class="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold"
-            :class="step.id === props.active ? 'bg-[#2563eb] text-white shadow-[0_0_0_3px_rgba(37,99,235,0.14)]' : index < activeIndex ? 'bg-[#2eae72] text-white' : 'bg-[#f0f1f4] text-[#8b93a2]'"
-          >{{ index < activeIndex ? '✓' : index + 1 }}</span>
+            :class="step.id === props.active ? 'bg-[#2563eb] text-white shadow-[0_0_0_3px_rgba(37,99,235,0.14)]' : index < cursor ? 'bg-[#2eae72] text-white' : 'bg-[#f0f1f4] text-[#8b93a2]'"
+          >{{ index < cursor ? '✓' : index + 1 }}</span>
           <span class="whitespace-nowrap">{{ step.title }}</span>
         </NuxtLink>
       </template>
@@ -32,7 +33,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = withDefaults(defineProps<{ active: string; showEpisode?: boolean }>(), { showEpisode: true })
+const props = withDefaults(defineProps<{ active: string; stage?: string }>(), { active: 'script', stage: 'SCRIPT' })
 const route = useRoute()
 const { activeProjectId } = useProjectWorkspace()
 const { activeEpisodeId, activeEpisode } = useEpisodeWorkspace()
@@ -63,6 +64,13 @@ const routes = computed(() => ({
   export: `${episodePrefix.value}/video`
 }))
 const activeIndex = computed(() => Math.max(0, steps.findIndex((step) => step.id === props.active)))
+/** 制作节点（SCRIPT/ASSETS/SHOTS/VIDEO）落到步骤条上的位置：1 个节点包含剧本与任务卡两步，导出跟随视频节点。 */
+const stageOrder = ['SCRIPT', 'ASSETS', 'SHOTS', 'VIDEO']
+const stageCursor = computed(() => {
+  const level = stageOrder.indexOf(String(props.stage || ''))
+  return level < 0 ? 0 : Math.min(level * 2 + 1, steps.length - 1)
+})
+const cursor = computed(() => Math.max(activeIndex.value, stageCursor.value))
 </script>
 
 <style scoped>

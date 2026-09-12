@@ -17,7 +17,7 @@
         </div>
       </header>
 
-      <ProductionSteps active="video"/>
+      <ProductionSteps active="video" :stage="activeEpisode?.currentStage"/>
 
       <section class="grid min-h-[820px] grid-cols-1 gap-5 lg:grid-cols-[minmax(0,756px)_minmax(330px,404px)]">
         <n-card :content-style="{ padding: '0 25px 24px' }" class="video-panel !rounded-[17px] !border-[#dfe3eb]">

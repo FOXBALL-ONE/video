@@ -6,7 +6,7 @@
           <p class="m-0 text-[11px] font-bold tracking-[0.8px] text-[#5c52ee]">04 / 07 · PRODUCTION NODE</p>
           <h1 class="mt-4 text-[30px] font-medium leading-none">分镜规划</h1>
           <p class="mt-3 text-xs text-[#5d52ec]">{{ activeEpisodeLabel }}</p>
-          <p class="mt-2 text-[13px] text-[#8a94aa]">按场景把本集拆成分镜脚本组，逐镜记录画面、表演、景别调度与声音。</p>
+          <p class="mt-2 text-[13px] text-[#8a94aa]">按场景把本集拆成分镜脚本组；可先根据剧本生成提示词，再逐镜确认画面、表演、调度与声音。</p>
         </div>
         <div class="flex w-full gap-2 sm:w-auto">
           <n-button :loading="loading" class="!h-10 !rounded-[10px] !border-[#dfe3eb] !px-3 !text-[#687388]" secondary @click="reloadAll">↻ 刷新</n-button>
@@ -14,7 +14,7 @@
         </div>
       </header>
 
-      <ProductionSteps active="shots" />
+      <ProductionSteps active="shots" :stage="activeEpisode?.currentStage" />
 
       <section class="overflow-hidden rounded-[14px] border border-[#dfe3eb] bg-white">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8eaf0] px-5 py-3.5">
@@ -27,7 +27,8 @@
             <button type="button" class="toolbar-button" title="导出分镜 CSV" @click="exportCsv">⬇ CSV</button>
             <button type="button" class="toolbar-button" :disabled="importing || loading" title="从 JSON 或 CSV 导入分镜" @click="importInputRef?.click()">⬆ {{ importing ? '导入中...' : '导入' }}</button>
             <input ref="importInputRef" type="file" accept=".json,.csv,application/json,text/csv" class="hidden" @change="onImportFile">
-            <button type="button" class="toolbar-button" title="用 AI 重新生成本集分镜" @click="notifyPending('重新生成')">⚙ 重新生成</button>
+            <button type="button" class="toolbar-button toolbar-button-accent" title="先根据剧本生成提示词，再生成本集分镜" @click="openAiGeneration">✦ AI 生成分镜</button>
+            <button type="button" class="toolbar-button" :disabled="!shots.length" title="使用已确认的镜头提示词生成九宫格分镜图" @click="goStoryboard">▨ 生成分镜图</button>
           </div>
         </div>
 
@@ -80,6 +81,7 @@
                       </div>
                       <p v-if="shot.composition" class="chip chip-pink mt-1.5 inline-block max-w-full">{{ shot.composition }}</p>
                       <p class="mt-1.5 text-[13px] leading-[1.7] text-[#3c465c]">{{ shot.visual_description || shot.action || '暂无画面描述' }}</p>
+                      <p v-if="shot.prompt" class="mt-1.5 text-[11px] leading-5 text-[#8a94aa]"><span class="mr-1 text-[#6654ee]">✦</span>提示词：{{ shot.prompt }}</p>
                       <p v-if="shot.dialogue" class="mt-1.5 text-xs leading-5 text-[#168275]"><span class="mr-1">💬</span><span class="mr-1 rounded bg-[#e5f6f2] px-1.5 py-0.5 text-[10px]">对话</span>{{ shot.dialogue }}</p>
                       <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                         <span v-if="shot.characters" class="flex min-w-0 items-center gap-1 text-[11px] text-[#8994a8]"><span class="shrink-0" aria-hidden="true">👤</span><span class="truncate">{{ displayList(shot.characters) }}</span></span>
@@ -129,6 +131,10 @@
         <label class="block"><span class="form-label">画面描述</span><n-input v-model:value="form.visual_description" type="textarea" :autosize="{ minRows: 3, maxRows: 8 }" placeholder="描述画面中的人物、动作和前中后景关系" /></label>
         <label class="block"><span class="form-label">动作/表演</span><n-input v-model:value="form.action" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" placeholder="记录动作节拍和表演要求" /></label>
         <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block"><span class="form-label">画面生成提示词</span><n-input v-model:value="form.prompt" type="textarea" :autosize="{ minRows: 3, maxRows: 7 }" placeholder="由 AI 根据剧本生成，也可以手动调整" /></label>
+          <label class="block"><span class="form-label">反向提示词</span><n-input v-model:value="form.negative_prompt" type="textarea" :autosize="{ minRows: 3, maxRows: 7 }" placeholder="如：模糊、低画质、文字、水印、变形" /></label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
           <label class="block"><span class="form-label">场景</span><n-select v-model:value="form.shot_group_id" :options="sceneOptions" placeholder="选择所属分镜脚本组" /></label>
           <label class="block"><span class="form-label">时长（秒）</span><n-input-number v-model:value="form.duration_seconds" :min="0" :step="0.1" class="w-full" /></label>
         </div>
@@ -175,6 +181,84 @@
         </div>
       </template>
     </n-modal>
+
+    <n-modal v-model:show="aiModalVisible" preset="card" title="AI 生成分镜" class="w-[min(96vw,900px)]" :mask-closable="false">
+      <div class="space-y-4">
+        <div class="rounded-[10px] border border-[#e8e5fb] bg-[#fbfaff] px-3.5 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="m-0 text-xs font-semibold text-[#353d55]">{{ activeEpisodeLabel }}</p>
+              <p class="mt-1.5 mb-0 text-[11px] leading-5 text-[#858da1]">分镜必须以当前剧集剧本为依据。先生成并确认逐镜提示词，再生成可写入的分镜草稿。</p>
+            </div>
+            <span class="rounded-md bg-[#eceaff] px-2 py-1 text-[10px] font-medium text-[#5d52ec]">{{ aiScriptLoading ? '剧本读取中...' : aiScriptContent ? `${aiScriptContent.length.toLocaleString()} 字剧本` : '暂无剧本' }}</span>
+          </div>
+          <p v-if="aiScriptError" class="mt-2 mb-0 text-[11px] leading-5 text-[#b45d64]" role="alert">{{ aiScriptError }}</p>
+          <p v-else-if="aiScriptContent" class="mt-2 mb-0 text-[11px] leading-5 text-[#7f8799]">将使用当前集最新保存版本作为生成上下文。</p>
+          <p v-else class="mt-2 mb-0 text-[11px] leading-5 text-[#b27a38]">请先在剧本页导入并保存当前集剧本。</p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+          <label class="block"><span class="form-label">生成模型</span><select v-model="aiProviderId" class="ai-control" :disabled="aiGenerating || aiApplying || aiProvidersLoading"><option :value="null">{{ aiProvidersLoading ? '读取模型中...' : aiProviders.length ? '选择对话模型' : '暂无可用对话模型' }}</option><option v-for="provider in aiProviders" :key="provider.id" :value="provider.id">{{ provider.provider }} · {{ provider.model_id }}</option></select></label>
+          <label class="block"><span class="form-label">目标镜头数</span><input v-model.number="aiTargetShotCount" type="number" min="1" max="40" class="ai-control" :disabled="aiGenerating || aiApplying"></label>
+        </div>
+        <label class="block"><span class="form-label">补充要求 <span class="text-[#a3a9b6]">（可选）</span></span><textarea v-model="aiGenerationInstruction" rows="2" maxlength="5000" class="ai-control ai-textarea" :disabled="aiGenerating || aiApplying" placeholder="如：强化结尾悬念，保持人物关系和场景连续性"></textarea></label>
+
+        <div class="ai-stepper" aria-label="AI 分镜生成步骤">
+          <button type="button" class="ai-step" :class="aiStep === 1 ? 'ai-step--active' : aiPromptDraft.length ? 'ai-step--done' : ''" @click="aiStep = 1"><span>1</span><strong>生成分镜提示词</strong><small>根据剧本拆分镜头意图</small></button>
+          <span class="ai-stepper-line" aria-hidden="true"></span>
+          <button type="button" class="ai-step" :class="aiStep === 2 ? 'ai-step--active' : aiShotDraft.length ? 'ai-step--done' : ''" :disabled="!aiPromptDraft.length" @click="aiStep = 2"><span>2</span><strong>生成分镜草稿</strong><small>用提示词补全拍摄字段</small></button>
+        </div>
+
+        <section v-if="aiStep === 1" class="rounded-[11px] border border-[#e4e7ee] bg-white p-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div><h3 class="m-0 text-xs font-semibold text-[#353d55]">逐镜提示词</h3><p class="mt-1 mb-0 text-[11px] text-[#929bad]">提示词会保留场景、人物动作、构图、光线和叙事目的，生成后仍可逐条修改。</p></div>
+            <button type="button" class="toolbar-button toolbar-button-accent" :disabled="aiGenerating || aiApplying || !aiScriptContent.trim() || !selectedAiProvider" @click="generateShotPrompts">{{ aiPromptGenerating ? '生成中...' : aiPromptDraft.length ? '重新生成提示词' : '根据剧本生成提示词' }}</button>
+          </div>
+          <div v-if="aiPromptError" class="mt-3 rounded-[8px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d]" role="alert">{{ aiPromptError }}</div>
+          <div v-if="aiPromptDraft.length" class="mt-3 max-h-[390px] space-y-3 overflow-y-auto pr-1">
+            <article v-for="(item, index) in aiPromptDraft" :key="`ai-prompt-${index}`" class="rounded-[9px] border border-[#e8eaf0] bg-[#fbfbfd] p-3">
+              <div class="flex items-center gap-2"><span class="shot-no">#{{ String(item.sequence_no).padStart(3, '0') }}</span><input v-model="item.scene" class="ai-inline-control min-w-0 flex-1" placeholder="场景 / 分镜组"></div>
+              <textarea v-model="item.prompt" rows="3" class="ai-control ai-textarea mt-2" placeholder="画面提示词"></textarea>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2"><input v-model="item.negative_prompt" class="ai-inline-control" placeholder="反向提示词"><input v-model="item.narrative_purpose" class="ai-inline-control" placeholder="叙事目的"></div>
+            </article>
+          </div>
+          <div v-else class="mt-4 rounded-[9px] border border-dashed border-[#e1e4ec] px-4 py-7 text-center text-xs text-[#929bad]">点击上方按钮，AI 会从当前剧本生成逐镜提示词。</div>
+        </section>
+
+        <section v-else class="rounded-[11px] border border-[#e4e7ee] bg-white p-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2"><div><h3 class="m-0 text-xs font-semibold text-[#353d55]">分镜草稿预览</h3><p class="mt-1 mb-0 text-[11px] text-[#929bad]">生成结果会保留提示词，并补全景别、运镜、动作、台词和声音字段。</p></div><button type="button" class="toolbar-button" :disabled="aiShotGenerating || aiApplying || !aiPromptDraft.length || !selectedAiProvider" @click="generateShotDrafts">{{ aiShotGenerating ? '生成中...' : '重新生成分镜' }}</button></div>
+          <div v-if="aiShotError" class="mt-3 rounded-[8px] border border-[#f1c8c8] bg-[#fff7f7] px-3 py-2 text-xs text-[#a34d4d]" role="alert">{{ aiShotError }}</div>
+          <div v-if="aiShotDraft.length" class="mt-3 max-h-[390px] space-y-2.5 overflow-y-auto pr-1">
+            <article v-for="(shot, index) in aiShotDraft" :key="`ai-shot-${index}`" class="rounded-[9px] border border-[#e8eaf0] bg-[#fbfbfd] px-3 py-2.5">
+              <div class="flex flex-wrap items-center gap-2"><span class="shot-no">#{{ String(shot.sequence_no).padStart(3, '0') }}</span><strong class="min-w-0 flex-1 truncate text-xs text-[#3d465b]">{{ shot.title || '未命名镜头' }}</strong><span v-if="shot.group_name" class="chip chip-pink">{{ shot.group_name }}</span><span class="text-[11px] text-[#8994a8]">{{ formatSeconds(shot.duration_seconds) }}</span><button type="button" class="icon-button" :title="aiEditingShotIndex === index ? '收起镜头编辑' : '编辑镜头草稿'" :aria-label="aiEditingShotIndex === index ? '收起镜头编辑' : '编辑镜头草稿'" @click="toggleAiShotEditor(index)">✎</button></div>
+              <p class="mt-1.5 mb-0 text-xs leading-5 text-[#4f596d]">{{ shot.visual_description || shot.action || '暂无画面描述' }}</p>
+              <p v-if="shot.prompt" class="mt-1.5 mb-0 text-[11px] leading-5 text-[#8a94aa]">提示词：{{ shot.prompt }}</p>
+              <p v-if="shot.dialogue" class="mt-1 mb-0 text-[11px] text-[#168275]">台词：{{ shot.dialogue }}</p>
+              <div v-if="aiEditingShotIndex === index" class="mt-3 grid gap-2 border-t border-[#e4e7ee] pt-3 sm:grid-cols-2">
+                <label class="block sm:col-span-2"><span class="form-label">镜头标题</span><input v-model="shot.title" class="ai-inline-control" placeholder="镜头标题"></label>
+                <label class="block"><span class="form-label">分镜组 / 场景</span><input v-model="shot.group_name" class="ai-inline-control" placeholder="场景名称"></label>
+                <label class="block"><span class="form-label">时长（秒）</span><input v-model.number="shot.duration_seconds" type="number" min="0.1" step="0.1" class="ai-inline-control"></label>
+                <label class="block"><span class="form-label">景别</span><input v-model="shot.shot_size" class="ai-inline-control" placeholder="景别"></label>
+                <label class="block"><span class="form-label">运镜</span><input v-model="shot.camera_movement" class="ai-inline-control" placeholder="运镜方式"></label>
+                <label class="block sm:col-span-2"><span class="form-label">画面描述</span><textarea v-model="shot.visual_description" rows="2" class="ai-control ai-textarea"></textarea></label>
+                <label class="block sm:col-span-2"><span class="form-label">画面提示词</span><textarea v-model="shot.prompt" rows="3" class="ai-control ai-textarea"></textarea></label>
+                <label class="block sm:col-span-2"><span class="form-label">台词</span><input v-model="shot.dialogue" class="ai-inline-control" placeholder="台词内容"></label>
+              </div>
+            </article>
+          </div>
+          <div v-else class="mt-4 rounded-[9px] border border-dashed border-[#e1e4ec] px-4 py-7 text-center text-xs text-[#929bad]">先完成提示词生成，再生成分镜草稿。</div>
+          <div v-if="aiShotDraft.length" class="mt-3 border-t border-[#e8eaf0] pt-3"><span class="form-label">写入方式</span><div class="flex flex-wrap gap-3 text-xs text-[#687388]"><label class="inline-flex items-center gap-1.5"><input v-model="aiApplyMode" type="radio" value="append">追加到当前分镜</label><label class="inline-flex items-center gap-1.5"><input v-model="aiApplyMode" type="radio" value="replace">替换当前剧集分镜</label></div><p class="mt-1.5 mb-0 text-[10px] leading-4 text-[#929bad]">替换模式会删除当前剧集已有镜头，分镜组会保留。</p></div>
+        </section>
+      </div>
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <n-button :disabled="aiGenerating || aiApplying" @click="aiModalVisible = false">取消</n-button>
+          <n-button v-if="aiStep === 2" :disabled="aiGenerating || aiApplying || !aiPromptDraft.length" @click="aiStep = 1">返回修改提示词</n-button>
+          <n-button v-if="aiStep === 1" type="primary" color="#6654ee" :loading="aiShotGenerating" :disabled="aiGenerating || aiApplying || !aiPromptDraft.length || !selectedAiProvider" @click="generateShotDrafts">根据提示词生成分镜</n-button>
+          <n-button v-else type="primary" color="#6654ee" :loading="aiApplying" :disabled="aiGenerating || aiApplying || !aiShotDraft.length" @click="applyAiShots">写入 {{ aiShotDraft.length }} 个分镜</n-button>
+        </div>
+      </template>
+    </n-modal>
   </main>
 </template>
 
@@ -187,6 +271,34 @@ interface ContinuityIssue { id: number; description: string }
 interface ShotsResponse { list: ShotData[]; continuity_issues: ContinuityIssue[]; groups?: GroupData[] }
 interface SectionData { key: string; id: number | null; name: string; sceneLabel: string | null; shots: ShotData[] }
 interface ShotForm { visual_description: string; action: string; shot_group_id: number; duration_seconds: number; shot_size: string | null; camera_angle: string; camera_movement: string; focal_length: string; composition: string; atmosphere: string; dialogue: string; dialogue_type: string; sound_effects: string; characters: string[]; title: string; location: string; time_of_day: string; interior_exterior: string | null; props: string; prompt: string; negative_prompt: string; narrative_purpose: string; status: string }
+interface ChatProvider { id: number; provider: string; api_type?: string; model_id: string; enabled: boolean }
+interface ShotPromptDraft { sequence_no: number; scene: string; prompt: string; negative_prompt: string; narrative_purpose: string }
+interface AiShotDraft {
+  sequence_no: number
+  title: string
+  group_name: string
+  scene_label: string
+  location: string
+  time_of_day: string
+  interior_exterior: string
+  shot_size: string
+  camera_movement: string
+  camera_angle: string
+  focal_length: string
+  composition: string
+  visual_description: string
+  action: string
+  dialogue: string
+  dialogue_type: string
+  sound_effects: string
+  characters: string
+  props: string
+  prompt: string
+  negative_prompt: string
+  atmosphere: string
+  narrative_purpose: string
+  duration_seconds: number
+}
 
 const route = useRoute()
 const message = useMessage()
@@ -210,12 +322,36 @@ const groupSaving = ref(false)
 const groupEditingId = ref<number | null>(null)
 const groupForm = ref({ name: '', scene_label: '' })
 const importInputRef = ref<HTMLInputElement | null>(null)
+const aiModalVisible = ref(false)
+const aiStep = ref<1 | 2>(1)
+const aiScriptContent = ref('')
+const aiScriptError = ref('')
+const aiScriptLoading = ref(false)
+const aiProviders = ref<ChatProvider[]>([])
+const aiProviderId = ref<number | null>(null)
+const aiProvidersLoading = ref(false)
+const aiGenerationInstruction = ref('')
+const aiTargetShotCount = ref(12)
+const aiPromptDraft = ref<ShotPromptDraft[]>([])
+const aiShotDraft = ref<AiShotDraft[]>([])
+const aiEditingShotIndex = ref<number | null>(null)
+const aiPromptGenerating = ref(false)
+const aiShotGenerating = ref(false)
+const aiApplying = ref(false)
+const aiPromptError = ref('')
+const aiShotError = ref('')
+const aiApplyMode = ref<'append' | 'replace'>('append')
 const blankForm = (): ShotForm => ({ visual_description: '', action: '', shot_group_id: 0, duration_seconds: 3, shot_size: null, camera_angle: '', camera_movement: '', focal_length: '', composition: '', atmosphere: '', dialogue: '', dialogue_type: '无台词', sound_effects: '', characters: [], title: '', location: '', time_of_day: '', interior_exterior: null, props: '', prompt: '', negative_prompt: '', narrative_purpose: '', status: 'DRAFT' })
 const form = ref<ShotForm>(blankForm())
 const projectId = computed(() => Number(route.params.projectId || activeProject.value?.id))
 const episodeId = computed(() => String(route.params.episodeId || activeEpisodeId.value || ''))
 const episodeParams = computed(() => { const value = Number(episodeId.value); return Number.isInteger(value) && value > 0 ? { episode_id: value } : undefined })
 const shotsPath = computed(() => episodeParams.value ? `/projects/${projectId.value}/episodes/${episodeParams.value.episode_id}/shots` : `/projects/${projectId.value}/shots`)
+const workflowBase = computed(() => {
+  const id = String(projectId.value || '')
+  const episode = episodeParams.value?.episode_id
+  return `/projects/${id}${episode ? `/episodes/${episode}` : ''}/workflow`
+})
 const activeEpisodeLabel = computed(() => activeEpisode.value ? `第${String(activeEpisode.value.episodeNo).padStart(3, '0')}集 · ${activeEpisode.value.title}` : '请选择一个剧集')
 const totalDuration = computed(() => shots.value.reduce((total, shot) => total + Number(shot.duration_seconds || 0), 0))
 const sceneTotal = computed(() => { const labels = new Set(groups.value.map((group) => group.scene_label?.trim()).filter(Boolean)); return labels.size || new Set(shots.value.map((shot) => shot.location?.trim()).filter(Boolean)).size })
@@ -229,6 +365,8 @@ const sections = computed<SectionData[]>(() => {
 })
 const sceneOptions = computed(() => [{ label: '未分组', value: 0 }, ...groups.value.map((group) => ({ label: group.scene_label || group.name, value: group.id }))])
 const characterOptions = computed(() => { const merged = new Set(characterAssets.value); shotCharacters(editingSource.value).forEach((name) => merged.add(name)); return [...merged] })
+const selectedAiProvider = computed(() => aiProviders.value.find((provider) => provider.id === aiProviderId.value) || null)
+const aiGenerating = computed(() => aiPromptGenerating.value || aiShotGenerating.value)
 const editingSource = ref<ShotData | null>(null)
 const shotSizeOptions = ['大远景', '远景', '全景', '中景', '近景', '特写', '大特写'].map((value) => ({ value, label: value }))
 const dialogueTypeOptions = ['无台词', '对白', '旁白'].map((value) => ({ value, label: value }))
@@ -241,6 +379,285 @@ function rangeLabel(section: SectionData) { if (!section.shots.length) return '�
 function toggleExpanded(key: string) { expanded.value[key] = !(expanded.value[key] ?? true) }
 function toggleCharacter(name: string) { const list = form.value.characters; const index = list.indexOf(name); if (index >= 0) list.splice(index, 1); else list.push(name) }
 function notifyPending(feature: string) { message.info(`${feature}能力即将上线`) }
+function goStoryboard() { navigateTo(`${workflowBase.value}/storyboard`) }
+function resetAiGeneration() {
+  aiStep.value = 1
+  aiPromptDraft.value = []
+  aiShotDraft.value = []
+  aiEditingShotIndex.value = null
+  aiPromptError.value = ''
+  aiShotError.value = ''
+  aiApplyMode.value = 'append'
+}
+function toggleAiShotEditor(index: number) {
+  aiEditingShotIndex.value = aiEditingShotIndex.value === index ? null : index
+}
+async function openAiGeneration() {
+  const id = projectId.value
+  if (!Number.isInteger(id) || id <= 0) { message.warning('请先选择项目'); return }
+  resetAiGeneration()
+  aiModalVisible.value = true
+  await Promise.all([loadAiScript(), loadAiProviders()])
+}
+async function loadAiScript() {
+  const id = projectId.value
+  if (!Number.isInteger(id) || id <= 0) return
+  aiScriptLoading.value = true
+  aiScriptContent.value = ''
+  aiScriptError.value = ''
+  try {
+    const response = await http.get<{ content: string }>(`/projects/${id}/script`, episodeParams.value)
+    aiScriptContent.value = response.content || ''
+    if (!aiScriptContent.value.trim()) aiScriptError.value = '当前集剧本为空，请先回到剧本页导入内容。'
+  } catch (error) {
+    aiScriptContent.value = ''
+    aiScriptError.value = error instanceof Error ? error.message : '当前集剧本读取失败'
+  } finally {
+    aiScriptLoading.value = false
+  }
+}
+async function loadAiProviders() {
+  aiProvidersLoading.value = true
+  try {
+    const response = await http.get<{ list: ChatProvider[] }>('/ai/model-providers')
+    aiProviders.value = (response.list || []).filter((provider) => provider.enabled && (!provider.api_type || provider.api_type === 'CHAT'))
+    if (!selectedAiProvider.value) aiProviderId.value = aiProviders.value[0]?.id || null
+  } catch {
+    aiProviders.value = []
+    aiProviderId.value = null
+  } finally {
+    aiProvidersLoading.value = false
+  }
+}
+function parseAiJson(raw: string): unknown {
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  const candidates = [cleaned]
+  const arrayStart = cleaned.indexOf('[')
+  const arrayEnd = cleaned.lastIndexOf(']')
+  if (arrayStart >= 0 && arrayEnd > arrayStart) candidates.push(cleaned.slice(arrayStart, arrayEnd + 1))
+  const objectStart = cleaned.indexOf('{')
+  const objectEnd = cleaned.lastIndexOf('}')
+  if (objectStart >= 0 && objectEnd > objectStart) candidates.push(cleaned.slice(objectStart, objectEnd + 1))
+  for (const candidate of candidates) {
+    try { return JSON.parse(candidate) } catch { /* try the next JSON boundary */ }
+  }
+  throw new Error('AI 未返回可识别的 JSON')
+}
+function aiResultList(value: unknown, keys: string[]): unknown[] {
+  if (Array.isArray(value)) return value
+  if (!isRecord(value)) return []
+  for (const key of keys) if (Array.isArray(value[key])) return value[key] as unknown[]
+  return []
+}
+function positiveNumber(value: unknown, fallback: number): number {
+  const number = Number(value)
+  return Number.isFinite(number) && number > 0 ? number : fallback
+}
+async function requestAiChat(prompt: string) {
+  const provider = selectedAiProvider.value
+  if (!provider) throw new Error('请选择可用的对话模型')
+  const body = new FormData()
+  body.append('provider_config_id', String(provider.id))
+  body.append('model', provider.model_id)
+  body.append('prompt', prompt)
+  body.append('stream', 'false')
+  return http.post<{ content: string }, FormData>('/ai/chat/completions', body)
+}
+function normalizeAiPrompt(value: unknown, index: number): ShotPromptDraft | null {
+  if (!isRecord(value)) return null
+  const prompt = firstImportText(value.prompt, value.image_prompt, value.visual_prompt, value.description, value.visual_description)
+  if (!prompt) return null
+  return {
+    sequence_no: Math.max(1, Math.round(positiveNumber(value.sequence_no ?? value.sequenceNo ?? value.shot_number ?? value.shotNumber, index + 1))),
+    scene: firstImportText(value.scene, value.scene_label, value.sceneLabel, value.location, value.sceneName) || '未命名场景',
+    prompt,
+    negative_prompt: firstImportText(value.negative_prompt, value.negativePrompt, value.negative) || '模糊，低画质，变形，文字，水印，多余肢体，穿模',
+    narrative_purpose: firstImportText(value.narrative_purpose, value.narrativePurpose, value.narrative_function, value.narrativeFunction, value.purpose),
+  }
+}
+function normalizeAiShot(value: unknown, index: number): AiShotDraft | null {
+  if (!isRecord(value)) return null
+  const camera = isRecord(value.camera) ? value.camera : {}
+  const dialogue = Array.isArray(value.dialogue) ? importDialogue(value.dialogue) : firstImportText(value.dialogue, value.dialogue_text, value.dialogueText)
+  const visualDescription = firstImportText(value.visual_description, value.visualDescription, value.description, value.script_content, value.scriptContent)
+  const action = firstImportText(value.action, value.acting, value.performance)
+  const prompt = firstImportText(value.prompt, value.image_prompt, value.imagePrompt, value.visual_prompt)
+  if (!visualDescription && !action && !prompt) return null
+  const scene = firstImportText(value.scene_label, value.sceneLabel, value.scene, value.scene_name, value.sceneName)
+  return {
+    sequence_no: Math.max(1, Math.round(positiveNumber(value.sequence_no ?? value.sequenceNo ?? value.shot_number ?? value.shotNumber, index + 1))),
+    title: firstImportText(value.title, value.shot_title, value.shotTitle) || `镜头 #${index + 1}`,
+    group_name: firstImportText(value.group_name, value.groupName, value.scene_name, value.sceneName, scene),
+    scene_label: scene,
+    location: firstImportText(value.location, value.scene, value.scene_name, value.sceneName, scene),
+    time_of_day: firstImportText(value.time_of_day, value.timeOfDay, value.scene_time, value.sceneTime),
+    interior_exterior: firstImportText(value.interior_exterior, value.interiorExterior, value.weather_tag, value.weatherTag),
+    shot_size: firstImportText(value.shot_size, value.shotSize, value.shot_type, value.shotType, camera.shot_size, camera.shotSize, camera.shotType),
+    camera_movement: firstImportText(value.camera_movement, value.cameraMovement, camera.camera_movement, camera.cameraMovement, camera.cameraMove),
+    camera_angle: firstImportText(value.camera_angle, value.cameraAngle, camera.camera_angle, camera.cameraAngle),
+    focal_length: firstImportText(value.focal_length, value.focalLength, value.camera_focal_length, value.cameraFocalLength, camera.focal_length, camera.focalLength),
+    composition: firstImportText(value.composition, camera.composition),
+    visual_description: visualDescription,
+    action,
+    dialogue,
+    dialogue_type: importDialogueType(value.dialogue_type ?? value.dialogueType, dialogue) || '无台词',
+    sound_effects: firstImportText(value.sound_effects, value.soundEffects, value.sound_effect, value.soundEffect),
+    characters: importTextList(value.characters ?? value.character_names ?? value.characterNames),
+    props: importTextList(value.props ?? value.prop_names ?? value.propNames),
+    prompt,
+    negative_prompt: firstImportText(value.negative_prompt, value.negativePrompt) || '模糊，低画质，变形，文字，水印，多余肢体，穿模',
+    atmosphere: firstImportText(value.atmosphere, value.mood, value.weather_tag, value.weatherTag, camera.atmosphere),
+    narrative_purpose: firstImportText(value.narrative_purpose, value.narrativePurpose, value.narrative_function, value.narrativeFunction, value.purpose),
+    duration_seconds: Math.max(0.1, positiveNumber(value.duration_seconds ?? value.durationSeconds ?? value.duration, 3)),
+  }
+}
+async function generateShotPrompts() {
+  if (aiPromptGenerating.value || !aiScriptContent.value.trim() || !selectedAiProvider.value) return
+  aiPromptGenerating.value = true
+  aiPromptError.value = ''
+  aiShotDraft.value = []
+  const targetCount = Math.min(40, Math.max(1, Math.round(Number(aiTargetShotCount.value) || 12)))
+  aiTargetShotCount.value = targetCount
+  const script = aiScriptContent.value.slice(0, 180000)
+  const prompt = [
+    '你是专业影视分镜导演。请严格依据当前剧集剧本，先设计逐镜分镜提示词，不要直接输出完整分镜表。',
+    `请规划约 ${targetCount} 个连续镜头，覆盖剧本中的主要动作、人物关系、场景变化和对白节拍；每个镜头必须能被画面生成模型理解。`,
+    '只返回 JSON 对象，不要 Markdown、解释或额外文字。结构必须是：{"prompts":[{"sequence_no":1,"scene":"场景或分镜组","prompt":"包含主体、动作、构图、光线、风格的画面提示词","negative_prompt":"反向提示词","narrative_purpose":"该镜头的叙事目的"}]}。',
+    '不得添加剧本没有依据的关键人物、事件、地点或关系；可以补充合理的镜头语言，但要保持时间顺序和连续性。',
+    aiGenerationInstruction.value.trim() ? `补充要求：${aiGenerationInstruction.value.trim()}` : '',
+    `当前剧集：${activeEpisode.value?.title || activeEpisodeLabel.value}`,
+    '<script_content>', script, aiScriptContent.value.length > script.length ? '（剧本过长，以上为前 180000 字）' : '', '</script_content>',
+  ].filter(Boolean).join('\n')
+  try {
+    const response = await requestAiChat(prompt)
+    const result = parseAiJson(response.content || '')
+    const list = aiResultList(result, ['prompts', 'shot_prompts', 'shots', 'list']).map(normalizeAiPrompt).filter((item): item is ShotPromptDraft => Boolean(item)).sort((a, b) => a.sequence_no - b.sequence_no)
+    if (!list.length) throw new Error('AI 未返回有效的分镜提示词')
+    aiPromptDraft.value = list
+    aiStep.value = 1
+    message.success(`已生成 ${list.length} 条分镜提示词，请检查后继续`)
+  } catch (error) {
+    aiPromptError.value = error instanceof Error ? error.message : '分镜提示词生成失败'
+  } finally {
+    aiPromptGenerating.value = false
+  }
+}
+async function generateShotDrafts() {
+  if (aiShotGenerating.value || !aiScriptContent.value.trim() || !aiPromptDraft.value.length || !selectedAiProvider.value) return
+  if (aiPromptDraft.value.some((item) => !item.prompt.trim())) { aiShotError.value = '请先补全每条分镜提示词'; return }
+  aiShotGenerating.value = true
+  aiShotError.value = ''
+  const script = aiScriptContent.value.slice(0, 160000)
+  const prompt = [
+    '你是影视分镜执行编辑。请根据剧本和已经确认的逐镜提示词，生成可以直接写入分镜表的完整镜头数据。',
+    '必须保持提示词的镜头顺序和核心画面意图，不要删掉关键对白；只返回 JSON 对象，不要 Markdown、解释或额外文字。',
+    '结构必须是：{"shots":[{"title":"镜头标题","group_name":"分镜组名称","scene_label":"场景标注","location":"地点","time_of_day":"时间","interior_exterior":"内景或外景","shot_size":"景别","camera_movement":"运镜","camera_angle":"机位角度","focal_length":"焦距","composition":"构图","visual_description":"画面描述","action":"动作表演","dialogue":"台词","dialogue_type":"无台词/对白/旁白","sound_effects":"音效","characters":["角色"],"props":["道具"],"prompt":"沿用并细化后的画面提示词","negative_prompt":"反向提示词","atmosphere":"氛围","narrative_purpose":"叙事功能","duration_seconds":3}]}。',
+    '所有字段都要根据剧本填写；没有台词时 dialogue 写空字符串，characters 和 props 可以为空数组，duration_seconds 使用合理的小数。',
+    aiGenerationInstruction.value.trim() ? `补充要求：${aiGenerationInstruction.value.trim()}` : '',
+    '<script_content>', script, aiScriptContent.value.length > script.length ? '（剧本过长，以上为前 160000 字）' : '', '</script_content>',
+    '<confirmed_shot_prompts>', JSON.stringify(aiPromptDraft.value), '</confirmed_shot_prompts>',
+  ].filter(Boolean).join('\n')
+  try {
+    const response = await requestAiChat(prompt)
+    const result = parseAiJson(response.content || '')
+    const list = aiResultList(result, ['shots', 'storyboard', 'panels', 'list']).map(normalizeAiShot).filter((item): item is AiShotDraft => Boolean(item)).sort((a, b) => a.sequence_no - b.sequence_no).map((shot, index) => {
+      const confirmed = aiPromptDraft.value.find((item) => item.sequence_no === shot.sequence_no) || aiPromptDraft.value[index]
+      return {
+        ...shot,
+        prompt: shot.prompt.trim() || confirmed?.prompt || '',
+        negative_prompt: shot.negative_prompt.trim() || confirmed?.negative_prompt || '',
+        narrative_purpose: shot.narrative_purpose.trim() || confirmed?.narrative_purpose || '',
+        group_name: shot.group_name.trim() || confirmed?.scene || '未命名场景',
+        scene_label: shot.scene_label.trim() || confirmed?.scene || '',
+      }
+    })
+    if (!list.length) throw new Error('AI 未返回有效的分镜草稿')
+    aiShotDraft.value = list
+    aiStep.value = 2
+    message.success(`已生成 ${list.length} 个分镜草稿，请确认后写入`)
+  } catch (error) {
+    aiShotError.value = error instanceof Error ? error.message : '分镜草稿生成失败'
+  } finally {
+    aiShotGenerating.value = false
+  }
+}
+async function applyAiShots() {
+  const id = projectId.value
+  if (!Number.isInteger(id) || id <= 0 || !aiShotDraft.value.length || aiApplying.value) return
+  if (aiShotDraft.value.some((shot) => !shot.prompt.trim())) { aiShotError.value = '请先补全每个分镜的画面提示词'; return }
+  if (aiApplyMode.value === 'replace' && shots.value.length && import.meta.client && !window.confirm(`确定替换当前剧集的 ${shots.value.length} 个镜头吗？此操作不可撤销。`)) return
+  aiApplying.value = true
+  let created = 0
+  let failed = 0
+  let deleteFailed = 0
+  const previousShots = aiApplyMode.value === 'replace' ? [...shots.value] : []
+  const remainingDrafts: AiShotDraft[] = []
+  try {
+    const localGroups = new Map<string, number>()
+    for (const group of groups.value) {
+      const keys = [group.name, group.scene_label].map((item) => item?.trim()).filter(Boolean) as string[]
+      keys.forEach((key) => localGroups.set(key, group.id))
+    }
+    for (const draft of aiShotDraft.value) {
+      try {
+        const sceneLabel = draft.scene_label.trim() || draft.location.trim()
+        const groupName = draft.group_name.trim() || sceneLabel
+        let groupId = localGroups.get(sceneLabel) || localGroups.get(groupName) || null
+        if (!groupId && (sceneLabel || groupName)) {
+          const group = await http.post<{ id: number }>(`${shotsPath.value}/groups`, { name: groupName.slice(0, 100) || null, scene_label: sceneLabel.slice(0, 300) || null })
+          groupId = Number(group.id) || null
+          if (groupId) { if (sceneLabel) localGroups.set(sceneLabel, groupId); if (groupName) localGroups.set(groupName, groupId) }
+        }
+        await http.post(shotsPath.value, {
+          title: draft.title.trim() || `镜头 #${created + 1}`,
+          location: draft.location.trim() || null,
+          time_of_day: draft.time_of_day.trim() || null,
+          interior_exterior: draft.interior_exterior.trim() || null,
+          shot_size: draft.shot_size.trim() || null,
+          camera_movement: draft.camera_movement.trim() || null,
+          camera_angle: draft.camera_angle.trim() || null,
+          focal_length: draft.focal_length.trim() || null,
+          composition: draft.composition.trim() || null,
+          visual_description: draft.visual_description.trim() || null,
+          action: draft.action.trim() || null,
+          dialogue: draft.dialogue.trim() || null,
+          dialogue_type: draft.dialogue_type.trim() || '无台词',
+          sound_effects: draft.sound_effects.trim() || null,
+          characters: draft.characters.trim() || '',
+          props: draft.props.trim() || null,
+          prompt: draft.prompt.trim() || null,
+          negative_prompt: draft.negative_prompt.trim() || null,
+          atmosphere: draft.atmosphere.trim() || null,
+          narrative_purpose: draft.narrative_purpose.trim() || null,
+          duration_seconds: Number(draft.duration_seconds) || 0,
+          status: 'DRAFT',
+          shot_group_id: groupId,
+        })
+        created += 1
+      } catch { failed += 1; remainingDrafts.push(draft) }
+    }
+    if (!failed && previousShots.length) {
+      for (const shot of previousShots) {
+        try { await http.delete(`${shotsPath.value}/${shot.id}`) } catch { deleteFailed += 1 }
+      }
+    }
+    await reloadAll()
+    if (failed) {
+      aiShotDraft.value = remainingDrafts
+      aiApplyMode.value = 'append'
+      message.warning(`已写入 ${created} 个分镜，${failed} 个分镜失败；失败项已保留，可修正后重试`)
+    }
+    else {
+      aiModalVisible.value = false
+      if (deleteFailed) message.warning(`已写入 ${created} 个分镜，但有 ${deleteFailed} 个旧镜头未删除，请手动检查`)
+      else message.success(`已写入 ${created} 个分镜`)
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '分镜写入失败')
+  } finally {
+    aiApplying.value = false
+  }
+}
 function toForm(shot: ShotData): ShotForm {
   return { visual_description: shot.visual_description || '', action: shot.action || '', shot_group_id: shot.shot_group_id || 0, duration_seconds: Number(shot.duration_seconds || 0), shot_size: shot.shot_size || null, camera_angle: shot.camera_angle || '', camera_movement: shot.camera_movement || '', focal_length: shot.focal_length || '', composition: shot.composition || '', atmosphere: shot.atmosphere || '', dialogue: shot.dialogue || '', dialogue_type: shot.dialogue_type || (shot.dialogue ? '对白' : '无台词'), sound_effects: shot.sound_effects || '', characters: shotCharacters(shot), title: shot.title, location: shot.location || '', time_of_day: shot.time_of_day || '', interior_exterior: shot.interior_exterior || null, props: shot.props || '', prompt: shot.prompt || '', negative_prompt: shot.negative_prompt || '', narrative_purpose: shot.narrative_purpose || '', status: shot.status }
 }
@@ -583,4 +1000,24 @@ watch(episodeId, (next, previous) => { if (next !== previous) reloadAll() })
 .icon-button:hover { background: #f0eeff; color: #5c50dc; }
 .icon-button-danger:hover { background: #fff0f0; color: #cf4d58; }
 .form-label { display: block; margin-bottom: 6px; font-size: 12px; color: #687388; }
+.ai-control { display: block; width: 100%; border: 1px solid #dfe2e8; border-radius: 8px; background: #fff; padding: 8px 10px; font-size: 12px; line-height: 1.5; color: #4b566b; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+.ai-control:focus { border-color: #9b91f5; box-shadow: 0 0 0 2px #eeecff; }
+.ai-control:disabled, .ai-inline-control:disabled { cursor: not-allowed; background: #f6f7f9; }
+.ai-textarea { resize: vertical; }
+.ai-inline-control { display: block; width: 100%; min-width: 0; border: 1px solid #dfe2e8; border-radius: 7px; background: #fff; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #4b566b; outline: none; }
+.ai-inline-control:focus { border-color: #9b91f5; box-shadow: 0 0 0 2px #eeecff; }
+.ai-stepper { display: flex; align-items: stretch; gap: 8px; }
+.ai-step { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: auto auto; flex: 1; min-width: 0; gap: 0 8px; padding: 9px 10px; border: 1px solid #e4e7ee; border-radius: 9px; background: #fbfbfd; text-align: left; color: #687388; }
+.ai-step > span { grid-row: 1 / span 2; display: flex; height: 24px; width: 24px; align-items: center; justify-content: center; border-radius: 999px; background: #ececf4; font-size: 11px; font-weight: 700; }
+.ai-step strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; }
+.ai-step small { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #929bad; }
+.ai-step--active { border-color: #bdb5ff; background: #f7f5ff; color: #5d52dd; }
+.ai-step--active > span, .ai-step--done > span { background: #6654ee; color: #fff; }
+.ai-step--done { border-color: #cde9dd; background: #f5fcf8; color: #278d68; }
+.ai-step:disabled { cursor: not-allowed; opacity: 0.55; }
+.ai-stepper-line { align-self: center; width: 24px; height: 1px; background: #dfe2e8; }
+@media (max-width: 560px) {
+  .ai-stepper-line { display: none; }
+  .ai-stepper { flex-direction: column; }
+}
 </style>
