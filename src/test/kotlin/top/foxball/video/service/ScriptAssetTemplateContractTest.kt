@@ -15,6 +15,7 @@ class ScriptAssetTemplateContractTest {
         assertEquals(TemplateCategory.CHARACTER_ENRICHMENT, TemplateCatalogService.CATEGORY_BY_KEY["character_three_view_merge"])
         assertEquals(TemplateCategory.CHARACTER_ENRICHMENT, TemplateCatalogService.CATEGORY_BY_KEY["character_enrichment"])
         assertEquals(TemplateCategory.STORYBOARD_IMAGE, TemplateCatalogService.CATEGORY_BY_KEY["shot_storyboard_grid"])
+        assertEquals(TemplateCategory.SCRIPT_GENERAL, TemplateCatalogService.CATEGORY_BY_KEY["asset_list_assistant"])
     }
 
     @Test
@@ -27,6 +28,6 @@ class ScriptAssetTemplateContractTest {
         assertTrue("character_enrichment" in TemplateCatalogService.REGISTERED_KEYS)
         assertTrue("shot_storyboard_grid" in TemplateCatalogService.REGISTERED_KEYS)
         assertTrue("script_analysis" in TemplateCatalogService.REGISTERED_KEYS)
-        assertEquals(8, TemplateCatalogService.CATEGORY_BY_KEY.size)
-    }
+        assertTrue("asset_list_assistant" in TemplateCatalogService.REGISTERED_KEYS)
+        assertEquals(9, TemplateCatalogService.CATEGORY_BY_KEY.size)    }
 }

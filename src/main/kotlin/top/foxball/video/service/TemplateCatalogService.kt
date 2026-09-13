@@ -53,8 +53,16 @@ class TemplateCatalogService(
             "character_expression_image_prompt",
             "character_three_view_merge",
             "shot_storyboard_grid",
+            "asset_list_assistant",
         )
 
+        /**
+         * 模板 key 与业务分类的对应关系。
+         *
+         * 现有库的 `ai_templates.category` 带有 CHECK 约束，只允许这里的取值；`ddl-auto=update` 不会
+         * 更新已存在的约束，因此新增分类需要同时改约束（或补迁移脚本），否则应用无法启动。
+         * 新增 key 时优先复用已有分类；确实需要新分类时必须先同步数据库约束。
+         */
         val CATEGORY_BY_KEY = mapOf(
             "script_analysis" to TemplateCategory.SCRIPT_GENERAL,
             "script_character_extraction" to TemplateCategory.SCRIPT_CHARACTER,
@@ -64,6 +72,7 @@ class TemplateCatalogService(
             "character_expression_image_prompt" to TemplateCategory.CHARACTER_EXPRESSION_IMAGE,
             "character_three_view_merge" to TemplateCategory.CHARACTER_ENRICHMENT,
             "shot_storyboard_grid" to TemplateCategory.STORYBOARD_IMAGE,
+            "asset_list_assistant" to TemplateCategory.SCRIPT_GENERAL,
         )
     }
 
