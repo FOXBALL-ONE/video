@@ -449,6 +449,7 @@ const keyCategoryMap: Record<string, string> = {
   character_expression_image_prompt: 'CHARACTER_EXPRESSION_IMAGE',
   character_three_view_merge: 'CHARACTER_ENRICHMENT',
   shot_storyboard_grid: 'STORYBOARD_IMAGE',
+  asset_list_assistant: 'SCRIPT_GENERAL',
 }
 const registeredKeyOptions = [
   {label: 'script_analysis · 剧本资产解析', value: 'script_analysis'},
@@ -459,6 +460,7 @@ const registeredKeyOptions = [
   {label: 'character_expression_image_prompt · 角色表情图提示词', value: 'character_expression_image_prompt'},
   {label: 'character_three_view_merge · 角色三视图合成单视图', value: 'character_three_view_merge'},
   {label: 'shot_storyboard_grid · 分镜图生成', value: 'shot_storyboard_grid'},
+  {label: 'asset_list_assistant · 资产清单助手', value: 'asset_list_assistant'},
 ]
 const categoryLabel = (category?: string) => ({
   SCRIPT_GENERAL: '剧本通用分析',

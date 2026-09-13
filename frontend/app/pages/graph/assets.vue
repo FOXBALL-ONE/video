@@ -89,8 +89,65 @@
               completeness === 100 ? '本集资产已全部就绪。' : '仍有资产处于草稿或待生成状态。'
             }}</span></n-alert>
         </n-card>
-        <AssistantPanel :message="assistantMessage" :suggestions="assistantSuggestions" title="资产清单助手"
-                        @send="updateAssistant"/>
+        <AssistantPanel
+            :context-tags="assistantContextTags"
+            :context-title="assistantContextTitle"
+            :disabled="!hasEpisode"
+            :loading="assistantLoading"
+            :messages="assistantMessages"
+            :placeholder="assistantPlaceholder"
+            :status="assistantStatus"
+            :suggestions="assistantSuggestions"
+            title="资产清单助手"
+            @send="sendAssistant">
+          <template #composer-extra>
+            <div class="mb-2 flex items-center gap-2">
+              <span class="shrink-0 text-[11px] text-[#8994a8]">模型</span>
+              <n-select v-model:value="assistantModelKey" :disabled="!modelOptions.length" :options="modelOptions"
+                        placeholder="请先配置对话模型" size="small"/>
+            </div>
+          </template>
+          <template #message-extra="{ message: item, index }">
+            <div v-if="item.warnings?.length" class="mt-2 rounded-[8px] border border-[#f3dfb5] bg-[#fff9ed] px-2.5 py-1.5">
+              <p v-for="(warning, warningIndex) in item.warnings" :key="warningIndex"
+                 class="m-0 text-[11px] leading-5 text-[#9a7b48]">· {{ warning }}</p>
+            </div>
+            <div v-if="item.patches?.length" class="mt-2.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-[#8994a8]">修改建议 {{ item.patches.length }} 条</span>
+                <div class="flex items-center gap-1">
+                  <n-button class="!text-[#5a4ef0]" size="tiny" text @click="toggleAssistantPatches(item)">全选/取消</n-button>
+                  <n-button class="!text-[#a34d4d]" size="tiny" text @click="ignoreAssistantPatches(index)">忽略全部</n-button>
+                </div>
+              </div>
+              <div v-for="patch in item.patches" :key="patch.key" :class="patchRowClass(patch)"
+                   class="rounded-[10px] border px-2.5 py-2">
+                <div class="flex items-start gap-2">
+                  <n-checkbox v-model:checked="patch.selected" :disabled="!patch.changed || !!patch.result" class="mt-0.5"/>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-2">
+                      <strong class="truncate text-[11px] font-medium text-[#20283b]">{{ patch.assetName }}</strong>
+                      <span class="shrink-0 text-[10px] text-[#7e899e]">{{ patch.fieldLabel }}</span>
+                    </div>
+                    <p class="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-[11px] leading-4 text-[#2f6b4f]">{{
+                        patch.value || '（清空）'
+                      }}</p>
+                    <p v-if="patch.currentValue" class="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-[10px] leading-4 text-[#a2aab9]">
+                      原：{{ patch.currentValue }}</p>
+                    <p v-if="patch.reason" class="mt-1 text-[10px] leading-4 text-[#7e899e]">理由：{{ patch.reason }}</p>
+                    <p v-if="patch.resultMessage" class="mt-1 text-[10px] leading-4 text-[#a34d4d]">{{ patch.resultMessage }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[10px] text-[#929bad]">{{ assistantSelectionLabel(item) }}</span>
+                <n-button :disabled="!assistantSelectedCount(item)" :loading="assistantApplyingIndex === index"
+                          color="#6654ee" size="tiny" type="primary" @click="applyAssistantPatches(item, index)">应用选中
+                </n-button>
+              </div>
+            </div>
+          </template>
+        </AssistantPanel>
       </section>
       <n-modal v-model:show="extractionVisible" :mask-closable="false" class="w-[min(94vw,620px)]" preset="card"
                title="提取场景/角色/道具">
@@ -1000,8 +1057,97 @@ const colorByType: Record<string, string> = {
   SOUND_EFFECT: 'linear-gradient(135deg,#79aee4,#447ab7)'
 }
 const filteredAssets = computed(() => assets.value.filter((item) => (selectedFilter.value === 'ALL' || item.type === selectedFilter.value) && (!search.value || `${item.name}${item.description || ''}`.toLowerCase().includes(search.value.toLowerCase()))))
-const assistantMessage = ref('我是资产统筹助手。可以帮助检查本集资产缺口和连续性。');
-const assistantSuggestions = ['检查本集缺口', '完善角色一致性', '整理服饰清单']
+/** 助手返回的一条字段修改建议；selected/result 是前端本地状态，服务端不感知。 */
+interface AssistantPatch {
+  key: string;
+  assetId: number;
+  assetName: string;
+  field: string;
+  fieldLabel: string;
+  value: string;
+  currentValue: string | null;
+  reason: string;
+  changed: boolean;
+  selected: boolean;
+  result?: string;
+  resultMessage?: string
+}
+
+interface AssistantMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  patches?: AssistantPatch[];
+  warnings?: string[];
+  error?: string
+}
+
+interface AssistantContext {
+  asset_count: number;
+  ready_count: number;
+  draft_count: number;
+  completeness: number;
+  type_counts: Record<string, number>;
+  asset_list_truncated: boolean;
+  omitted_asset_count: number
+}
+
+interface AssistantReply {
+  reply: string;
+  patches: {
+    asset_id: number;
+    asset_name: string;
+    asset_type: string;
+    field: string;
+    field_label: string;
+    value: string;
+    current_value: string | null;
+    reason: string;
+    changed: boolean
+  }[];
+  warnings: string[];
+  suggestions: string[];
+  context: AssistantContext
+}
+
+interface AssistantApplyOutcome {
+  asset_id: number;
+  field: string;
+  status: string;
+  code: string | null;
+  message: string | null;
+  current_value: string | null
+}
+
+interface AssistantApplyResponse {
+  applied: number;
+  unchanged: number;
+  rejected: number;
+  items: AssistantApplyOutcome[]
+}
+
+const assistantMessages = ref<AssistantMessage[]>([]);
+const assistantSuggestions = ref(['检查本集资产缺口', '完善角色一致性', '整理未就绪资产']);
+const assistantModelKey = ref('');
+const assistantLoading = ref(false);
+/** 正在应用建议的消息下标；-1 表示没有进行中的应用。 */
+const assistantApplyingIndex = ref(-1);
+const assistantContext = ref<AssistantContext | null>(null);
+const assistantContextTitle = computed(() => activeEpisode.value?.title || '未选择剧集');
+const assistantStatus = computed(() => {
+  if (assistantLoading.value) return '正在读取本集资产';
+  const context = assistantContext.value;
+  if (!context) return hasEpisode.value ? '在线 · 已读取当前剧集' : '等待选择剧集';
+  return `在线 · 已读取 ${context.asset_count} 个资产`
+});
+const assistantPlaceholder = computed(() => hasEpisode.value ? '告诉助手你想优化什么...' : '请先选择具体剧集');
+const assistantContextTags = computed(() => {
+  const context = assistantContext.value;
+  if (!context) return hasEpisode.value ? [`${assets.value.length} 个资产`, `完整度 ${completeness.value}%`] : [];
+  const typeLabelText = Object.entries(context.type_counts)
+      .map(([type, count]) => `${typeLabel[type] || type} ${count}`)
+      .slice(0, 3);
+  return [`完整度 ${context.completeness}%`, `已就绪 ${context.ready_count}`, ...typeLabelText]
+});
 const projectId = computed(() => Number(route.params.projectId || activeProject.value?.id));
 const routeEpisodeId = computed(() => Number(route.params.episodeId || ''));
 const episodeId = computed(() => {
@@ -1108,6 +1254,7 @@ async function loadProviders() {
       }
     }
     modelOptions.value = options
+    if (!assistantModelKey.value) assistantModelKey.value = options[0]?.value || ''
     extractionJobs.forEach((job) => {
       if (!job.modelKey) job.modelKey = options[0]?.value || ''
     })
@@ -1811,8 +1958,169 @@ async function confirmImageGeneration() {
   }
 }
 
-function updateAssistant(value: string) {
-  assistantMessage.value = `收到“${value}”，我会整理当前剧集的执行建议。`
+function assistantPatchKey(assetId: number, field: string): string {
+  return `${assetId}:${field}`
+}
+
+function assistantFailure(error: unknown, fallback: string): { message: string; code?: string } {
+  const value = error as { message?: string; data?: { message?: string; data?: { error_code?: string } } }
+  return {
+    message: value.data?.message || value.message || fallback,
+    code: value.data?.data?.error_code
+  }
+}
+
+function toAssistantPatch(patch: AssistantReply['patches'][number]): AssistantPatch {
+  return {
+    key: assistantPatchKey(patch.asset_id, patch.field),
+    assetId: patch.asset_id,
+    assetName: patch.asset_name,
+    field: patch.field,
+    fieldLabel: patch.field_label,
+    value: patch.value,
+    currentValue: patch.current_value,
+    reason: patch.reason,
+    changed: patch.changed,
+    selected: patch.changed
+  }
+}
+
+/**
+ * 向助手提问。服务端读取当前剧集资产后返回回答与修改建议，建议本身不写库，
+ * 只有用户在前端勾选并点击“应用选中”才会落库。
+ */
+async function sendAssistant(value: string) {
+  const text = value.trim()
+  if (!text || assistantLoading.value) return
+  if (!hasEpisode.value) {
+    message.warning('请先选择具体剧集')
+    return
+  }
+  if (!assistantModelKey.value) {
+    message.warning('请先配置启用的对话模型')
+    return
+  }
+  const [providerConfigId, model] = assistantModelKey.value.split('::')
+  const history = assistantMessages.value.slice(-8).map((item) => ({role: item.role, content: item.content}))
+  assistantMessages.value.push({role: 'user', content: text})
+  assistantLoading.value = true
+  try {
+    const response = await http.post<AssistantReply, Record<string, unknown>>(
+      `${episodePath.value}/assistant/messages`,
+      {
+        provider_config_id: Number(providerConfigId),
+        model,
+        message: text,
+        history
+      },
+      {payloadMode: 'json'},
+    )
+    assistantContext.value = response.context
+    assistantMessages.value.push({
+      role: 'assistant',
+      content: response.reply || '助手没有返回文字说明，请参考下方的修改建议。',
+      patches: (response.patches || []).map(toAssistantPatch),
+      warnings: response.warnings || []
+    })
+    if (response.suggestions?.length) assistantSuggestions.value = response.suggestions
+  } catch (error) {
+    const failure = assistantFailure(error, '资产清单助手调用失败')
+    assistantMessages.value.push({role: 'assistant', content: failure.message, error: failure.code || 'ASSISTANT_FAILED'})
+    message.error(failure.message)
+  } finally {
+    assistantLoading.value = false
+  }
+}
+
+function selectablePatches(item: AssistantMessage): AssistantPatch[] {
+  return (item.patches || []).filter((patch) => patch.changed && !patch.result)
+}
+
+function selectableSelectedPatches(item: AssistantMessage): AssistantPatch[] {
+  return selectablePatches(item).filter((patch) => patch.selected)
+}
+
+function assistantSelectedCount(item: AssistantMessage): number {
+  return selectableSelectedPatches(item).length
+}
+
+function assistantSelectionLabel(item: AssistantMessage): string {
+  const applied = (item.patches || []).filter((patch) => patch.result === 'APPLIED').length
+  const selectable = selectablePatches(item).length
+  if (!selectable) return applied ? `已应用 ${applied} 条` : '没有可应用的修改'
+  return `已选 ${assistantSelectedCount(item)} / 可应用 ${selectable} 条`
+}
+
+function toggleAssistantPatches(item: AssistantMessage) {
+  const selectable = selectablePatches(item)
+  const next = selectable.some((patch) => !patch.selected)
+  selectable.forEach((patch) => {
+    patch.selected = next
+  })
+}
+
+function ignoreAssistantPatches(index: number) {
+  const item = assistantMessages.value[index]
+  if (item) item.patches = []
+}
+
+function patchRowClass(patch: AssistantPatch): string {
+  if (patch.result === 'APPLIED') return 'border-[#b7e2c8] bg-[#f2fbf5]'
+  if (patch.result === 'REJECTED') return 'border-[#f1c8c8] bg-[#fff7f7]'
+  if (!patch.changed) return 'border-[#e8eaf0] bg-[#fafbfd]'
+  return 'border-[#d8d2ff] bg-white'
+}
+
+/** 应用用户勾选的建议；服务端会重新校验字段、归属与当前取值，陈旧建议会被拒绝并带回最新值。 */
+async function applyAssistantPatches(item: AssistantMessage, index: number) {
+  const selected = selectableSelectedPatches(item)
+  if (!selected.length) {
+    message.warning('请先勾选要应用的修改')
+    return
+  }
+  assistantApplyingIndex.value = index
+  try {
+    const response = await http.post<AssistantApplyResponse, Record<string, unknown>>(
+      `${episodePath.value}/assistant/patches/apply`,
+      {
+        items: selected.map((patch) => ({
+          asset_id: patch.assetId,
+          field: patch.field,
+          value: patch.value,
+          expected_value: patch.currentValue ?? ''
+        }))
+      },
+      {payloadMode: 'json'},
+    )
+    const outcomes = new Map(response.items.map((outcome) => [assistantPatchKey(outcome.asset_id, outcome.field), outcome]))
+    selected.forEach((patch) => {
+      const outcome = outcomes.get(patch.key)
+      if (!outcome) {
+        patch.result = 'REJECTED'
+        patch.resultMessage = '服务端未返回该条结果，请重新读取资产后再试'
+        return
+      }
+      if (outcome.status === 'REJECTED' && outcome.code === 'ASSET_FIELD_CHANGED') {
+        // 字段已被他人修改：刷新为最新值并保留可再次应用的状态，由用户重新确认。
+        patch.currentValue = outcome.current_value ?? patch.currentValue
+        patch.result = undefined
+        patch.resultMessage = outcome.message || '该字段已被其他操作修改，已刷新为最新值'
+        return
+      }
+      patch.result = outcome.status
+      patch.resultMessage = outcome.status === 'APPLIED' ? '' : (outcome.message || '')
+    })
+    await loadAssets()
+    const summary = `已应用 ${response.applied} 条`
+    if (response.unchanged) message.info(`${summary}，${response.unchanged} 条与当前取值一致`)
+    else if (response.rejected) message.warning(`${summary}，${response.rejected} 条未通过校验`)
+    else message.success(summary)
+  } catch (error) {
+    const failure = assistantFailure(error, '修改建议应用失败')
+    message.error(failure.message)
+  } finally {
+    assistantApplyingIndex.value = -1
+  }
 }
 
 onMounted(async () => {
@@ -1827,6 +2135,10 @@ onMounted(async () => {
   await Promise.all([loadAssets(), loadProviders()])
 });
 watch(() => [route.params.episodeId, activeProject.value?.id], async () => {
+  // 助手读取的是当前剧集的资产，切换剧集后旧对话与建议不再适用。
+  assistantMessages.value = []
+  assistantContext.value = null
+  assistantSuggestions.value = ['检查本集资产缺口', '完善角色一致性', '整理未就绪资产']
   if (activeProject.value?.id) {
     try {
       await loadEpisodes(String(activeProject.value.id))
