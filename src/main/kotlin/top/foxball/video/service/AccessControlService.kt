@@ -2,6 +2,7 @@ package top.foxball.video.service
 
 import jakarta.transaction.Transactional
 import org.springframework.boot.ApplicationRunner
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.stereotype.Service
@@ -79,6 +80,7 @@ class AccessControlService(
 }
 
 @Configuration
+@ConditionalOnProperty(prefix = "auth", name = ["access-control-initializer-enabled"], havingValue = "true", matchIfMissing = true)
 class AccessControlInitializer {
     @Bean
     fun initializeAccessControl(service: AccessControlService) = ApplicationRunner { service.ensureDefaults() }

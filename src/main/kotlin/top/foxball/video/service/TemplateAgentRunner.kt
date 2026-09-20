@@ -51,6 +51,8 @@ class TemplateAgentRunner(
         val providerConfigId: Long,
         val model: String,
         val requestId: String,
+        val additionalSkillKeys: List<String> = emptyList(),
+        val additionalMcpServers: List<Pair<String, List<String>>> = emptyList(),
     )
 
     /** 模板对话的执行结果，包含审计所需的统计信息。 */
@@ -77,11 +79,14 @@ class TemplateAgentRunner(
     /** 执行模板对话，装配技能、内置工具与 MCP 工具，并驱动工具调用循环。 */
     fun chat(request: ChatRequest): ChatOutcome {
         val version = request.template.version
-        val skillKeys = schemaValidator.skillKeys(version.skillsJson)
+        val skillKeys = (schemaValidator.skillKeys(version.skillsJson) + request.additionalSkillKeys).distinct()
         val skillSpecs = skillRegistry.resolveSpecs(skillKeys)
         // MCP 绑定来自模板版本与技能声明的并集：同一服务端取并集白名单，空表示该服务端全部工具。
         val bindings = linkedMapOf<String, MutableSet<String>>()
         schemaValidator.mcpServerBindings(version.mcpServersJson).forEach { (key, tools) ->
+            bindings.getOrPut(key) { linkedSetOf() }.addAll(tools)
+        }
+        request.additionalMcpServers.forEach { (key, tools) ->
             bindings.getOrPut(key) { linkedSetOf() }.addAll(tools)
         }
         skillSpecs.forEach { spec -> spec.mcpServers.forEach { key -> bindings.getOrPut(key) { linkedSetOf() } } }

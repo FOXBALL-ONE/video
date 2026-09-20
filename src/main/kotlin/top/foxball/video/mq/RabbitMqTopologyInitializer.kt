@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
 import org.springframework.core.Ordered
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /** RabbitMQ 拓扑操作的最小封装，便于启动校验与无代理单元测试。 */
@@ -173,6 +174,7 @@ class RabbitMqTopologyOperator(
 
 /** 每次应用启动均检查并补齐 MQ 拓扑，已有资源不重复声明。 */
 @Component
+@ConditionalOnProperty(prefix = "mq", name = ["topology-enabled"], havingValue = "true", matchIfMissing = true)
 class RabbitMqTopologyInitializer(
     private val operator: MqTopologyOperator,
     private val destinationResolver: MqDestinationResolver,
